@@ -235,3 +235,7 @@ tuning.json.tmp
 
 # Job timelapses made from the camera on the Pi
 timelapses/
+
+# Material presets of the /planing page, saved on the Pi
+planing_presets.json
+planing_presets.json.tmp

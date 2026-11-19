@@ -85,6 +85,18 @@ the right.*
 - A **Feeds** tab that keeps every adjustment, how each job with it went, and
   the values you marked as working, ready to copy into Fusion 360.
 
+**Planing rough stock**
+
+- A **Planing** page that makes the program to flatten the top of rough
+  stock: enter the stock size, the bit, the depth to remove, step-down,
+  stepover, cut direction (along the grain), spindle speed and feeds.
+- The stock and the bit drawn at their real size in the machine's travel,
+  with a warning when the path doesn't fit.
+- A simulation of the cut: play, pause, speed and scrub through it, with the
+  stock's top going from rough to planed and the estimated run time.
+- Cutting values saved per material (oak, cherry, …), shared by every device.
+- The program is saved in the Files folder; you load and run it in TNG.
+
 **The Raspberry Pi and the app**
 
 - Pi health: CPU, memory, temperature, disk use, uptime, and under-voltage or
@@ -136,6 +148,12 @@ starting and ending, with how long each took.
 
 The **Settings** tab: machine name, camera, Files folder, how the tool is
 drawn, the way to the System window, and logs.
+
+![Desktop: the Planing page](media/screenshots/desktop-planing.png)
+
+The **Planing** page: the rough stock and the 50 mm planing bit in the
+machine's travel, with the toolpath. The simulation is in the first pass: the
+front of the stock is planed (light), the back is still rough (dark).
 
 ### Phone
 
@@ -208,10 +226,11 @@ default the server only accepts a bridge from the Pi itself.
 | `tools/setup-sudo.sh` | Optional: lets the System window upgrade OS packages and reboot the Pi (see [step 7](#7-optional-allow-os-upgrades-and-reboot-from-the-dashboard)). |
 | `tools/screenshots.py` | Retakes the README screenshots from the demo (on a PC, not needed on the Pi). |
 | `media/` | The animation and screenshots in this README. |
-| `web/` | The dashboard page (HTML, CSS, JavaScript). `tune.js` reads and rewrites programs for the Feeds & steps window; `system-ui.js` holds the E-stop button and the System window; `camera.html` is the camera page on its own. |
+| `web/` | The dashboard page (HTML, CSS, JavaScript). `tune.js` reads and rewrites programs for the Feeds & steps window; `system-ui.js` holds the E-stop button and the System window; `camera.html` is the camera page on its own; `planing.html`, `planing.js` and `planing-gcode.js` are the Planing page. |
 | `settings.json` | Created when you change a setting in the dashboard; it also holds the Telegram bot token, so only its owner may read it. Not part of git. |
 | `timelapses/` | The last 20 job timelapses. Not part of git. |
 | `tuning.json` | The Feeds tab's log of adjusted files. Not part of git. |
+| `planing_presets.json` | The Planing page's cutting values per material. Not part of git. |
 | `logs/` | The server's log files. Not part of git. |
 
 ## What you need
@@ -409,6 +428,7 @@ Open **http://&lt;pi-address&gt;:8080** (see [step 3](#3-try-the-server)). The p
 ### Top bar
 
 - The machine's name (set in Settings) and the loaded file.
+- **Planing**, which opens the [Planing page](#planing-rough-stock).
 - The **System** button with the installed version. When an update of the
   app or of the OS is available it says so. It opens the
   [System window](#system-window).
@@ -649,6 +669,61 @@ in the 3D view first.
 
 The window changes files only; like everything in the dashboard, it never
 loads or starts anything in TNG. Its E-stop button works as in the top bar.
+
+### Planing rough stock
+
+**http://&lt;pi-address&gt;:8080/planing** (or **Planing** in the top bar)
+makes the program that planes the top of rough stock flat, with a surfacing
+bit. Millimetres only.
+
+**Inputs**
+
+| Field | What it is |
+|---|---|
+| Length (X), Width (Y) | The stock's size. **X0 Y0 is its front-left corner.** |
+| Thickness (rough) | Measured at the highest point. |
+| Z zero | **Top of the stock**: touch off Z on the highest point; the program cuts from Z0 down. **Spoilboard**: Z0 is the spoilboard; the stock top is at Z = thickness, so the program cuts from there down and the page shows the thickness you end up with. |
+| Bit diameter | The planing bit, drawn at this size. |
+| Depth to remove | In total. It must be less than the thickness. |
+| Cut direction | Along X or along Y: usually along the grain. |
+| Material | A saved set of the values below (see below). |
+| Spindle speed, Feed, Plunge feed | Plunge feed is for going down to each pass, which always happens beside the stock. |
+| Step-down | Depth per pass at most. The depth is split into equal passes. |
+| Stepover | Sideways step between lines, as % of the bit diameter (40 % is a good start). |
+| More settings | Safe height above the stock (5 mm), how far the bit runs past the edges (5 mm), spindle spin-up time (3 s). |
+
+**The program** goes back and forth over the stock in lines along the chosen
+direction, one Z level after the other. At both ends of every line the whole
+bit leaves the stock, so the step to the next line and the plunge to the next
+level happen in the air, never in the wood. The first line takes a
+stepover-wide bite of the front (or left) edge and the last line overhangs the
+far edge, so the edges are planed as well. Each pass runs the lines back from
+where the last one ended. It starts with `M3` and a `G4` pause for the spindle
+to spin up, and ends with `M5` and the bit above X0 Y0 at the safe height.
+There is no tool change: the bit must already be in the spindle and Z touched
+off. The file starts with comments listing the values, and a Fusion-style tool
+comment so the dashboard draws the bit when the program is loaded.
+
+**The 3D view** shows the machine's travel (from TNG, when the bridge is
+connected), the stock with a slightly uneven rough top, the toolpath and the
+bit. The page warns when the bit's path leaves the machine's travel: that is
+checked from the *current* work zero, so set X0 Y0 (and Z) on the stock first
+for the check to mean something. Below the view, **Play** runs the simulation
+(1× to 200×; drag the slider to jump): the top turns from rough (dark) to
+planed (light) where the bit passes. The run time is estimated from the feeds,
+with rapids at 5000 mm/min.
+
+**Materials.** **Save as…** stores the spindle speed, feeds, step-down and
+stepover under a name (Oak, Cherry, …); picking it later fills them in. The
+stock size, bit and depth are entered each time. "changed" next to the title
+means the form no longer matches the saved material. Materials are kept on
+the Pi in `planing_presets.json`, so every device sees the same ones.
+
+**Save** writes the program to the top of the Files folder (set in Settings),
+named after the material, size and depth, e.g. `plane_oak_600x200_3mm.nc`; you
+can type another name. If the file exists, it asks before replacing it. As
+everywhere in the dashboard, nothing is sent to TNG: load and start the
+program at the machine. The last values entered are remembered in the browser.
 
 ### The camera on its own
 

@@ -107,9 +107,10 @@ export class Viewer {
   }
 
   /** Draw the tool at its real size: {d: diameter, cr: corner radius, tipAngle: point angle in
-   *  degrees (V-bits, chamfer mills, drills), kind}, in program units. null = generic marker. */
+   *  degrees (V-bits, chamfer mills, drills), kind, length: cutting length (optional, else 3x the
+   *  diameter)}, in program units. null = generic marker. */
   setToolShape(shape) {
-    const key = shape ? `${shape.d}|${shape.cr}|${shape.tipAngle}` : '';
+    const key = shape ? `${shape.d}|${shape.cr}|${shape.tipAngle}|${shape.length || 0}` : '';
     if (key === this.toolKey) return;
     this.toolKey = key;
     if (this.cutter) {
@@ -120,7 +121,7 @@ export class Viewer {
     if (shape) {
       const r = shape.d / 2;
       const pts = [new THREE.Vector2(0, 0)];
-      let flute = Math.max(shape.d * 3, 3);
+      let flute = shape.length > 0 ? shape.length : Math.max(shape.d * 3, 3);
       if (shape.tipAngle > 0 && shape.tipAngle < 179) {
         // Pointed: V-bit, chamfer mill, drill
         const h = r / Math.tan((shape.tipAngle / 2) * Math.PI / 180);
@@ -136,9 +137,18 @@ export class Viewer {
       } else {
         pts.push(new THREE.Vector2(r, 0));   // flat end mill
       }
-      pts.push(new THREE.Vector2(r, flute), new THREE.Vector2(0, flute));
-      const geom = new THREE.LatheGeometry(pts, 32);
-      geom.rotateX(Math.PI / 2);   // lathe axis Y -> machine Z
+      let geom;
+      if (pts.length === 2) {
+        // Flat end mill: a cylinder, whose caps keep their own normals (a lathe smooths the
+        // bottom edge, and a wide, short bit like a surfacing bit then looks like a ball)
+        geom = new THREE.CylinderGeometry(r, r, flute, 32);
+        geom.rotateX(Math.PI / 2);   // axis Y -> machine Z
+        geom.translate(0, 0, flute / 2);
+      } else {
+        pts.push(new THREE.Vector2(r, flute), new THREE.Vector2(0, flute));
+        geom = new THREE.LatheGeometry(pts, 32);
+        geom.rotateX(Math.PI / 2);   // lathe axis Y -> machine Z
+      }
       this.cutter = new THREE.Mesh(geom, this.metal);
       this.cutterLength = flute;
       this.cutterRadius = r;
@@ -234,8 +244,9 @@ export class Viewer {
   // ---------------- program ----------------
 
   /** Show a program's toolpath (from buildToolpath in gcode.js), or nothing for null.
-   *  Feed moves are shaded by depth (light at the top, dark at the deepest cut). */
-  setProgram(path) {
+   *  Feed moves are shaded by depth (light at the top, dark at the deepest cut).
+   *  keepView: leave the camera where it is (the path changes while the user looks at it). */
+  setProgram(path, keepView = false) {
     if (this.path) {
       this.scene.remove(this.path);
       this.path.geometry.dispose();
@@ -271,7 +282,7 @@ export class Viewer {
     this.bounds = path ? path.bounds : { min: [0, 0, 0], max: [100, 100, 10] };
     this._buildWorld();
     this.clearTrace();
-    this.fit();
+    if (!keepView) this.fit();
   }
 
   // ---------------- tool + trace ----------------

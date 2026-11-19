@@ -1760,6 +1760,7 @@ def system_view():
 
 SETTINGS_FILE = os.path.join(APP_DIR, "settings.json")
 TUNING_FILE = os.path.join(APP_DIR, "tuning.json")   # the feeds log, see TuningLog
+PRESETS_FILE = os.path.join(APP_DIR, "planing_presets.json")   # material presets of the /planing page
 DEFAULT_NAME = "CNC Monitor"
 MAX_NAME_LENGTH = 40
 # camera / files_dir None: what --camera / --files-dir say
@@ -1927,8 +1928,76 @@ class TuningLog:
         return None
 
 
+class PlaningPresets:
+    """Cutting values per material (oak, cherry...) for the /planing page, kept in
+    planing_presets.json next to this file so every device sees the same ones."""
+
+    KEYS = ("rpm", "feed", "plunge", "stepdown", "stepover")
+    MAX_PRESETS = 100
+    MAX_NAME = 40
+
+    def __init__(self, path):
+        self.path = path
+        self.lock = threading.Lock()
+        self.presets = {}
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f).get("presets", {})
+            self.presets = {str(k): v for k, v in data.items() if isinstance(v, dict)}
+        except FileNotFoundError:
+            pass
+        except (OSError, ValueError, AttributeError) as e:
+            log_files.warning("cannot read %s: %s - starting without planing presets", path, e)
+
+    def list(self):
+        with self.lock:
+            return {k: dict(v) for k, v in self.presets.items()}
+
+    @classmethod
+    def clean(cls, name, values):
+        """(name, values) checked, or raises ValueError with a message for the page."""
+        name = " ".join(str(name or "").split())
+        if not name or len(name) > cls.MAX_NAME:
+            raise ValueError("a material name of 1 to %d characters is needed" % cls.MAX_NAME)
+        if not isinstance(values, dict):
+            raise ValueError("invalid values")
+        out = {}
+        for k in cls.KEYS:
+            v = values.get(k)
+            if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v <= 0:
+                raise ValueError("invalid value for %s" % k)
+            out[k] = v
+        return name, out
+
+    def save(self, name, values):
+        with self.lock:
+            # A name that differs only in case replaces the existing preset (Oak = oak)
+            for k in list(self.presets):
+                if k.lower() == name.lower():
+                    del self.presets[k]
+            if len(self.presets) >= self.MAX_PRESETS:
+                raise ValueError("at most %d materials" % self.MAX_PRESETS)
+            self.presets[name] = values
+            self._write()
+
+    def delete(self, name):
+        with self.lock:
+            if name not in self.presets:
+                return False
+            del self.presets[name]
+            self._write()
+            return True
+
+    def _write(self):
+        tmp = self.path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"presets": self.presets}, f, indent=1, sort_keys=True)
+        os.replace(tmp, self.path)
+
+
 HUB = Hub()
 TUNING = None
+PRESETS = None
 CAMERA = None
 SYSTEM = None
 UPDATER = None
@@ -2042,6 +2111,8 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/tuning":
             entries, seq = TUNING.list()
             self._json(200, {"ok": True, "entries": entries, "seq": seq})
+        elif path == "/api/planing/presets":
+            self._json(200, {"ok": True, "presets": PRESETS.list()})
         elif path == "/api/logs":
             self._logs_list()
         elif path == "/api/logs/tail":
@@ -2080,6 +2151,10 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/tuning":
             if self._require_writer():
                 self._tuning_change()
+            return
+        if path == "/api/planing/presets":
+            if self._require_writer():
+                self._presets_change()
             return
         if path == "/api/log":
             if self._require_writer():
@@ -2605,11 +2680,47 @@ class Handler(BaseHTTPRequestHandler):
             HUB.cond.notify_all()
         self._json(*result)
 
+    # ---------- material presets of the /planing page ----------
+
+    def _presets_change(self):
+        try:
+            data = json.loads(self._read_body() or b"{}")
+            action = data.get("action")
+        except (ValueError, AttributeError):
+            self._json(400, {"ok": False, "message": "invalid json"})
+            return
+        try:
+            if action == "save":
+                name, values = PlaningPresets.clean(data.get("name"), data.get("values"))
+                PRESETS.save(name, values)
+                log_files.info("planing preset %s saved: %s (from %s)", name, values, self.client_address[0])
+                result = {"ok": True, "name": name, "message": "Saved %s" % name}
+            elif action == "delete":
+                name = str(data.get("name", ""))
+                if not PRESETS.delete(name):
+                    self._json(404, {"ok": False, "message": "no material called %s" % name})
+                    return
+                log_files.info("planing preset %s deleted (from %s)", name, self.client_address[0])
+                result = {"ok": True, "message": "Deleted %s" % name}
+            else:
+                self._json(400, {"ok": False, "message": "unknown action"})
+                return
+        except ValueError as e:
+            self._json(400, {"ok": False, "message": str(e)})
+            return
+        except OSError as e:
+            log_files.error("cannot save the planing presets: %s", e)
+            self._json(500, {"ok": False, "message": "could not save: %s" % e})
+            return
+        self._json(200, dict(result, presets=PRESETS.list()))
+
     def _static(self, path):
         if path in ("", "/"):
             path = "/index.html"
         elif path == "/camera":
             path = "/camera.html"  # the camera on its own, without the dashboard
+        elif path == "/planing":
+            path = "/planing.html"  # program for planing rough stock
         full = os.path.normpath(os.path.join(WEB_DIR, path.lstrip("/")))
         if not full.startswith(WEB_DIR) or not os.path.isfile(full):
             self._send(404, "Not found", "text/plain")
@@ -2811,9 +2922,13 @@ def demo_estop(pos, line_no, line_count):
         HUB.set_state({"work": pos + [0.0] * 6, "machine": [pos[0] + 120.0, pos[1] + 80.0, pos[2] - 40.0] + [0.0] * 6,
                        "line": line_no, "line_count": line_count, "feed": 0.0, "spindle": 0.0, "tool": 1,
                        "units": "mm", "coordsys": "G54", "running": False, "paused": False, "estop": True,
-                       "idle": False, "file": "C:/CNC/demo_part.nc", "bridge_protocol": ESTOP_PROTOCOL})
+                       "idle": False, "limits": DEMO_LIMITS, "file": "C:/CNC/demo_part.nc", "bridge_protocol": ESTOP_PROTOCOL})
         time.sleep(0.1)
     DEMO_ESTOP.clear()
+
+
+# The demo machine's travel, in machine coordinates (work = machine - (120, 80, -40) in the demo)
+DEMO_LIMITS = {"min": [0.0, 0.0, -110.0], "max": [800.0, 600.0, 0.0]}
 
 
 def run_demo():
@@ -2842,7 +2957,7 @@ def run_demo():
                     "machine": [p[0] + 120.0, p[1] + 80.0, p[2] - 40.0] + [0.0] * 6,
                     "line": line_no, "line_count": line_count,
                     "feed": feed, "spindle": 12000.0, "tool": 1, "units": "mm",
-                    "coordsys": "G54", "running": True, "paused": False,
+                    "coordsys": "G54", "running": True, "paused": False, "limits": DEMO_LIMITS,
                     "estop": False, "idle": False, "file": "C:/CNC/demo_part.nc",
                     "elapsed": time.time() - start, "time_to_end": None, "bridge_protocol": ESTOP_PROTOCOL,
                 })
@@ -2860,6 +2975,7 @@ def run_demo():
                            "line": line_count, "line_count": line_count, "feed": 0.0,
                            "spindle": 0.0, "tool": 1, "units": "mm", "coordsys": "G54",
                            "running": False, "paused": False, "estop": False, "idle": True,
+                           "limits": DEMO_LIMITS,
                            "file": "C:/CNC/demo_part.nc", "bridge_protocol": ESTOP_PROTOCOL})
             time.sleep(0.1)
 
@@ -2990,8 +3106,9 @@ def main():
             log_files.warning("folder %s not found, file view disabled", files_dir)
     apply_files_dir()
 
-    global CAMERA, SYSTEM, UPDATER, UPDATES_OFF_REASON, TUNING, OS_PACKAGES, NOTIFY, TIMELAPSE
+    global CAMERA, SYSTEM, UPDATER, UPDATES_OFF_REASON, TUNING, PRESETS, OS_PACKAGES, NOTIFY, TIMELAPSE
     TUNING = TuningLog(TUNING_FILE)
+    PRESETS = PlaningPresets(PRESETS_FILE)
     threading.Thread(target=watch_bridge, name="watch-bridge", daemon=True).start()
     threading.Thread(target=heartbeat, name="heartbeat", daemon=True).start()
     if SystemStats.available():

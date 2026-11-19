@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Planing</title>
+<!-- Planing rough stock: the program that flattens the top of the stock, drawn on the machine's
+     bed, simulated, and saved in the Files folder. See planing.js and planing-gcode.js. -->
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{ "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<style>
+  .pl-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: 340px 1fr; gap: 8px; padding: 8px; }
+  .pl-form { padding: 10px 12px; overflow-y: auto; gap: 4px; }
+  .pl-form h3 { margin: 10px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted);
+                font-weight: 600; display: flex; justify-content: space-between; align-items: baseline; }
+  .pl-form h3:first-child { margin-top: 0; }
+  .pl-row { display: grid; grid-template-columns: 1fr 120px; align-items: center; gap: 8px; min-height: 30px; }
+  .pl-row label { font-size: 13px; }
+  .pl-row .unit { color: var(--muted); font-size: 11px; margin-left: 4px; }
+  .pl-row input, .pl-row select, .pl-mat select, .pl-name input {
+    width: 100%; padding: 4px 6px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+    color: var(--text); font: 13px var(--mono); }
+  .pl-row select, .pl-mat select { font-family: inherit; }
+  .pl-row input:focus, .pl-row select:focus, .pl-mat select:focus, .pl-name input:focus { outline: none; border-color: var(--accent); }
+  .pl-row input.bad { border-color: var(--err); }
+  .pl-hint { margin: 0 0 4px; font-size: 11px; color: var(--muted); }
+  .pl-mat { display: flex; gap: 4px; align-items: center; margin-bottom: 4px; }
+  .pl-mat select { flex: 1; min-width: 0; }
+  .pl-mat .vbtn { white-space: nowrap; }
+  .pl-changed { color: var(--warn); font-size: 11px; text-transform: none; letter-spacing: 0; font-weight: 400; }
+  .pl-form details { margin-top: 8px; }
+  .pl-form summary { cursor: pointer; font-size: 12px; color: var(--accent); }
+  .pl-sum { margin: 10px 0 6px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg);
+            font-size: 12px; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; }
+  .pl-sum dt { color: var(--muted); }
+  .pl-sum dd { margin: 0; font-family: var(--mono); text-align: right; }
+  .pl-notes { margin: 0 0 6px; padding: 0; list-style: none; font-size: 12px; display: flex; flex-direction: column; gap: 3px; }
+  .pl-notes li { padding: 4px 8px; border-radius: 4px; border-left: 3px solid var(--warn); background: rgba(242, 179, 61, .08); }
+  .pl-notes li.err { border-color: var(--err); background: rgba(239, 75, 75, .1); }
+  .pl-name { display: flex; gap: 4px; }
+  .pl-name input { flex: 1; min-width: 0; }
+  .pl-msg { font-size: 12px; min-height: 18px; margin-top: 4px; }
+  .pl-msg.ok { color: var(--ok); }
+  .pl-msg.err { color: var(--err); }
+  .pl-view { position: relative; }
+  .pl-sim { display: flex; align-items: center; gap: 6px; padding: 6px; border-top: 1px solid var(--border); flex-wrap: wrap; }
+  .pl-sim input[type=range] { flex: 1; min-width: 120px; accent-color: var(--accent); }
+  .pl-sim select { padding: 3px 4px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 4px;
+                   color: var(--text); font-size: 12px; }
+  .pl-time { font: 12px var(--mono); color: var(--muted); white-space: nowrap; min-width: 9em; text-align: right; }
+  .pl-play { min-width: 64px; }
+  .legend .stock-swatch { height: 10px; width: 12px; background: #8a6a48; }
+  .legend .planed-swatch { height: 10px; width: 12px; background: #e0c393; }
+  .topbar a.vbtn { text-decoration: none; color: var(--text); }
+  .pl-title { flex: 1; min-width: 0; color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @media (max-width: 800px) {
+    body { height: auto; }
+    .pl-layout { grid-template-columns: 1fr; }
+    .pl-view { height: 70vh; }
+    .pl-form { overflow: visible; }
+  }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="logo">M</span> <span id="machineName">CNC Monitor</span></div>
+  <div class="pl-title">Planing rough stock</div>
+  <a class="vbtn" href="/" title="Back to the dashboard">Dashboard</a>
+</header>
+
+<main class="pl-layout">
+  <section class="panel pl-form">
+    <form id="form" autocomplete="off" novalidate>
+      <h3>Stock</h3>
+      <div class="pl-row"><label for="length">Length (X)<span class="unit">mm</span></label><input id="length" type="number" step="any" min="0" inputmode="decimal"></div>
+      <div class="pl-row"><label for="width">Width (Y)<span class="unit">mm</span></label><input id="width" type="number" step="any" min="0" inputmode="decimal"></div>
+      <div class="pl-row"><label for="thickness">Thickness (rough)<span class="unit">mm</span></label><input id="thickness" type="number" step="any" min="0" inputmode="decimal"></div>
+      <div class="pl-row"><label for="zMode">Z zero</label>
+        <select id="zMode">
+          <option value="top">Top of the stock</option>
+          <option value="bed">Spoilboard</option>
+        </select></div>
+      <p class="pl-hint" id="zHint"></p>
+      <p class="pl-hint">X0 Y0 is the front-left corner of the stock.</p>
+
+      <h3>Bit and cut</h3>
+      <div class="pl-row"><label for="toolD">Bit diameter<span class="unit">mm</span></label><input id="toolD" type="number" step="any" min="0" inputmode="decimal"></div>
+      <div class="pl-row"><label for="depth">Depth to remove<span class="unit">mm</span></label><input id="depth" type="number" step="any" min="0" inputmode="decimal"></div>
+      <div class="pl-row"><label for="direction">Cut direction</label>
+        <select id="direction">
+          <option value="x">Along X</option>
+          <option value="y">Along Y</option>
+        </select></div>
+      <p class="pl-hint">Usually along the grain.</p>
+
+      <h3>Material <span class="pl-changed" id="matChanged" hidden>changed</span></h3>
+      <div class="pl-mat">
+        <select id="material" aria-label="Material"></select>
+        <button class="vbtn" type="button" id="matSave" title="Save these cutting values for a material">Save as…</button>
+        <button class="vbtn" type="button" id="matDelete" title="Delete this material" disabled>Delete</button>
+      </div>
+      <div class="pl-row"><label for="rpm">Spindle speed<span class="unit">rpm</span></label><input id="rpm" type="number" step="any" min="0" inputmode="decimal"></div>
+      <div class="pl-row"><label for="feed">Feed<span class="unit">mm/min</span></label><input id="feed" type="number" step="any" min="0" inputmode="decimal"></div>
+      <div class="pl-row"><label for="plunge">Plunge feed<span class="unit">mm/min</span></label><input id="plunge" type="number" step="any" min="0" inputmode="decimal"></div>
+      <div class="pl-row"><label for="stepdown">Step-down<span class="unit">mm/pass</span></label><input id="stepdown" type="number" step="any" min="0" inputmode="decimal"></div>
+      <div class="pl-row"><label for="stepover">Stepover<span class="unit" id="stepoverMm">% of Ø</span></label><input id="stepover" type="number" step="any" min="0" inputmode="decimal"></div>
+
+      <details>
+        <summary>More settings</summary>
+        <div class="pl-row"><label for="safe">Safe height above stock<span class="unit">mm</span></label><input id="safe" type="number" step="any" min="0" inputmode="decimal"></div>
+        <div class="pl-row"><label for="clearance">Run past the edges by<span class="unit">mm</span></label><input id="clearance" type="number" step="any" min="0" inputmode="decimal"></div>
+        <div class="pl-row"><label for="dwell">Spindle spin-up<span class="unit">s</span></label><input id="dwell" type="number" step="any" min="0" inputmode="decimal"></div>
+        <p class="pl-hint">At both ends of every line the whole bit leaves the stock by this much, so moves between lines and plunges happen in the air.</p>
+      </details>
+    </form>
+
+    <h3>Program</h3>
+    <dl class="pl-sum" id="summary"></dl>
+    <ul class="pl-notes" id="notes"></ul>
+    <div class="pl-name">
+      <input id="fileName" aria-label="File name" spellcheck="false">
+      <button class="vbtn primary" type="button" id="saveBtn">Save</button>
+    </div>
+    <p class="pl-hint" id="folderHint"></p>
+    <div class="pl-msg" id="saveMsg" aria-live="polite"></div>
+  </section>
+
+  <section class="panel pl-view">
+    <div class="view-toolbar">
+      <button class="vbtn active" data-view="3d">3D</button>
+      <button class="vbtn" data-view="top">Top</button>
+      <button class="vbtn" data-view="front">Front</button>
+      <button class="vbtn" data-view="right">Right</button>
+      <span class="sep"></span>
+      <button class="vbtn toggle active" id="pathBtn" title="Show / hide the toolpath lines">Path</button>
+      <button class="vbtn" id="fitBtn" title="Fit the stock and the bed">Fit</button>
+    </div>
+    <div class="viewport" id="viewport">
+      <div class="legend">
+        <span><i class="stock-swatch"></i>Rough</span>
+        <span><i class="planed-swatch"></i>Planed</span>
+        <span><i class="depth-swatch"></i>Toolpath</span>
+        <span id="bedNote"></span>
+      </div>
+    </div>
+    <div class="pl-sim">
+      <button class="vbtn" id="simReset" title="Back to the start">⏮</button>
+      <button class="vbtn pl-play" id="simPlay">▶ Play</button>
+      <button class="vbtn" id="simEnd" title="Jump to the end">⏭</button>
+      <select id="simSpeed" aria-label="Simulation speed">
+        <option value="1">1×</option>
+        <option value="5">5×</option>
+        <option value="20" selected>20×</option>
+        <option value="50">50×</option>
+        <option value="200">200×</option>
+      </select>
+      <input type="range" id="simSlider" min="0" max="1000" value="0" step="1" aria-label="Simulation time">
+      <span class="pl-time" id="simTime">0:00 / 0:00</span>
+    </div>
+  </section>
+</main>
+<script type="module" src="planing.js"></script>
+</body>
+</html>

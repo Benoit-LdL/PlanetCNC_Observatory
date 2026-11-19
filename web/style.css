@@ -209,6 +209,7 @@ button { font: inherit; color: inherit; }
 .verbtn { display: inline-flex; align-items: center; gap: 6px; background: var(--panel-2); border: 1px solid var(--border);
           border-radius: 4px; padding: 3px 8px; cursor: pointer; color: var(--muted); font: 12px var(--mono); white-space: nowrap; }
 .verbtn[hidden] { display: none; }
+a.toplink { text-decoration: none; font-family: inherit; }
 .verbtn:hover { border-color: var(--accent); color: var(--text); }
 .verbtn.has-update { color: var(--text); border-color: var(--accent); }
 .ver-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
