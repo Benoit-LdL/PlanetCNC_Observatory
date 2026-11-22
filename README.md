@@ -227,7 +227,7 @@ default the server only accepts a bridge from the Pi itself.
 | `tools/setup-sudo.sh` | Optional: lets the System page upgrade OS packages and reboot the Pi (see [step 7](#7-optional-allow-os-upgrades-and-reboot-from-the-dashboard)). |
 | `tools/screenshots.py` | Retakes the README screenshots from the demo (on a PC, not needed on the Pi). |
 | `media/` | The animation and screenshots in this README. |
-| `web/` | The dashboard page (HTML, CSS, JavaScript). `tune.js` reads and rewrites programs for the Feeds & steps window; `system-ui.js` holds the E-stop button and the System page (`system.html`, `system.js`); `nav.js` is the menu in the top bar on every page; `help.js` the **?** help popups in Settings; `materials.html` and `materials.js` the Materials page; `camera.html` is the camera page on its own; `planing.html`, `planing.js` and `planing-gcode.js` are the Planing page. |
+| `web/` | The dashboard page (HTML, CSS, JavaScript). `tune.js` reads and rewrites programs for the Feeds & steps window; `system-ui.js` holds the E-stop button and the System page (`system.html`, `system.js`); `topbar-boot.js` draws the top bar (menu, status, E-stop) before each page is shown and `nav.js` keeps it current; `help.js` the **?** help popups in Settings; `materials.html` and `materials.js` the Materials page; `camera.html` is the camera page on its own; `planing.html`, `planing.js` and `planing-gcode.js` are the Planing page. |
 | `settings.json` | Created when you change a setting in the dashboard; it also holds the Telegram bot token, so only its owner may read it. Not part of git. |
 | `timelapses/` | The last 20 job timelapses. Not part of git. |
 | `tuning.json` | The Feeds tab's log of adjusted files. Not part of git. |
@@ -428,7 +428,9 @@ Open **http://&lt;pi-address&gt;:8080** (see [step 3](#3-try-the-server)). The p
 
 ### Top bar
 
-The top bar is the same on every page.
+The top bar is the same on every page, and stays still when you move between
+pages (Edge, Chrome and Safari cross-fade the page below it; in other browsers
+the page simply loads).
 
 - The machine's name (set in Settings).
 - The menu: **Dashboard**, **Planing** (the [Planing page](#planing-rough-stock)),
@@ -436,8 +438,8 @@ The top bar is the same on every page.
   [System page](#system-page)). The page you are on is filled in blue. An
   orange dot on **System** means an update of the app or of the OS is
   available. On a phone the menu shows only its icons.
-- The page's title, and next to it, on the dashboard, the loaded file.
-- The status:
+- What the page is about: on the dashboard, the loaded file.
+- The status (on every page):
 
   | Status | Meaning |
   |---|---|
@@ -452,8 +454,8 @@ The top bar is the same on every page.
 
 ### E-stop
 
-The red **E-STOP** button at the right of the top bar (also at the top of the
-Feeds & steps window and of the System page) switches TNG's E-stop on, like the E-stop
+The red **E-STOP** button at the right of the top bar, on every page (and at
+the top of the Feeds & steps window), switches TNG's E-stop on, like the E-stop
 command in TNG. TNG stops the machine at once.
 
 - One tap, no confirmation: it is meant for an emergency.

@@ -58,18 +58,7 @@ function fmtDuration(sec) {
 
 function renderInfo() {
   const s = state;
-  const online = !!s.bridge_online;
-  let st = 'offline', label = 'OFFLINE';
-  if (online) {
-    if (s.estop) [st, label] = ['estop', 'E-STOP'];
-    else if (s.paused) [st, label] = ['paused', 'PAUSED'];
-    else if (s.running) [st, label] = ['running', 'RUNNING'];
-    else [st, label] = ['idle', 'IDLE'];
-  }
-  const status = $('status');
-  status.dataset.state = st;
-  status.textContent = label;
-
+  // The status pill in the top bar is drawn by system-ui.js, as on every page
   const file = s.program_name || s.file || '';
   $('fileName').textContent = file || 'No program loaded';
   $('fileName').title = file;

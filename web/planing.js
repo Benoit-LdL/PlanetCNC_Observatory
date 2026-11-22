@@ -9,6 +9,7 @@ import { buildToolpath } from './gcode.js';
 import { planPlaning, DEFAULTS, fmt } from './planing-gcode.js';
 import { log } from './log.js';
 import { navOnState } from './nav.js';
+import { initSystem, systemOnState } from './system-ui.js';
 
 const $ = (id) => document.getElementById(id);
 const FIELDS = ['length', 'width', 'thickness', 'zMode', 'toolD', 'depth', 'direction',
@@ -416,6 +417,7 @@ async function pollState() {
     $('machineName').textContent = name;
     document.title = name + ' – planing';
     navOnState(s);
+    systemOnState(s);   // status and E-stop in the top bar
     const w = s.work || [], m = s.machine || [];
     if (w.length >= 3 && m.length >= 3 && (s.idle || !bedOffset)) bedOffset = [0, 1, 2].map((k) => w[k] - m[k]);
     const next = s.limits && bedOffset ? {
@@ -434,8 +436,11 @@ async function pollState() {
       // Only the notes depend on the bed: no need to restart the simulation
       $('notes').innerHTML = [...plan.warnings, ...bedNotes(plan.info)].map((x) => `<li>${esc(x)}</li>`).join('');
     }
-  } catch { /* server not reachable: try again */ }
-  setTimeout(pollState, document.visibilityState === 'visible' ? 2000 : 10000);
+  } catch {
+    systemOnState({});   // server not reachable: OFFLINE, and no E-stop from here; try again
+  }
+  // Every second, so the status and the E-stop button are as current as on the dashboard
+  setTimeout(pollState, document.visibilityState === 'visible' ? 1000 : 5000);
 }
 
 // ---------------------------------------------------------------- material presets
@@ -588,6 +593,7 @@ $('saveBtn').addEventListener('click', async () => {
 
 (async () => {
   const saved = recall();
+  initSystem();   // the E-stop button
   fillForm({ ...DEFAULTS, ...(saved || {}) });
   await loadPresets(saved?.material || '');
   schedule();

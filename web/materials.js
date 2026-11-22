@@ -2,7 +2,8 @@
 // to change, add, delete, import and export. Stored by the server in planing_presets.json
 // (/api/planing/presets); renaming is saving under the new name and deleting the old one.
 
-import { pollNav } from './nav.js';
+import { followState } from './nav.js';
+import { initSystem, systemOnState } from './system-ui.js';
 
 const $ = (id) => document.getElementById(id);
 const KEYS = ['rpm', 'feed', 'plunge', 'stepdown', 'stepover'];
@@ -172,13 +173,7 @@ $('importFile').addEventListener('change', async (e) => {
           failed ? 'err' : 'ok');
 });
 
-pollNav();
-
-// The machine's name in the top bar, as on the other pages
-fetch('/api/state', { cache: 'no-store' }).then((r) => r.json()).then((s) => {
-  const name = s.machine_name || 'CNC Monitor';
-  $('machineName').textContent = name;
-  document.title = name + ' – materials';
-}).catch(() => {});
+initSystem();   // the E-stop button
+followState(systemOnState, 'materials');
 
 load();

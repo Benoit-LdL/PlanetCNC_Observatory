@@ -75,8 +75,11 @@
 <header class="topbar">
   <div class="brand"><span class="logo">M</span> <span id="machineName">CNC Monitor</span></div>
   <nav class="pagenav" id="pagenav" data-page="planing" aria-label="Pages"></nav>
-  <div class="pagetitle"><b>Planing</b><span>Rough stock: a program that planes its top flat</span></div>
+  <div class="pagetitle"><span>Rough stock: a program that planes its top flat</span></div>
+  <div class="status" id="status" data-state="offline">OFFLINE</div>
+  <button class="estop-btn" data-estop disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.2 2h7.6L22 8.2v7.6L15.8 22H8.2L2 15.8V8.2z"/></svg><span class="estop-label">E-STOP</span></button>
 </header>
+<script src="topbar-boot.js"></script>
 
 <main class="pl-layout">
   <section class="panel pl-view">

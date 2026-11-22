@@ -4,6 +4,7 @@
 // The E-stop is the only thing the dashboard can make the machine do. It only switches
 // E-stop ON; releasing it and starting again always happen at the machine.
 import { log } from './log.js';
+import { saveTopbar } from './nav.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (t) => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -56,6 +57,7 @@ function renderEstop() {
     b.disabled = disabled;
     b.classList.toggle('on', online && !!state.estop);
   }
+  if (!estopBusy) saveTopbar({ estop: { label, title, disabled, on: online && !!state.estop } });
 }
 
 async function estop() {
@@ -249,16 +251,36 @@ async function power(action) {
   else setStatus('updStatus', 'The Pi is shutting down. Switch it off and on at the machine to start it again.');
 }
 
+// ---------------------------------------------------------------- status pill (top bar)
+
+function renderStatus() {
+  const el = $('status');
+  if (!el) return;
+  let st = 'offline', label = 'OFFLINE';
+  if (state.bridge_online) {
+    if (state.estop) [st, label] = ['estop', 'E-STOP'];
+    else if (state.paused) [st, label] = ['paused', 'PAUSED'];
+    else if (state.running) [st, label] = ['running', 'RUNNING'];
+    else [st, label] = ['idle', 'IDLE'];
+  }
+  el.dataset.state = st;
+  el.textContent = label;
+  saveTopbar({ status: [st, label] });
+}
+
 // ---------------------------------------------------------------- wiring
 
+/** The machine state changed (every page): the status pill and the E-stop button follow it. */
 export function systemOnState(s) {
-  state = s;
+  state = s || {};
+  renderStatus();
   renderEstop();
 }
 
 export function initSystem() {
+  // Not drawn until the first state arrives: until then the top bar shows what the previous
+  // page last showed (topbar-boot.js), so it doesn't blink when moving between pages.
   for (const b of document.querySelectorAll('[data-estop]')) b.addEventListener('click', estop);
-  renderEstop();
   if (!$('sysBody')) return;   // the dashboard: only the E-stop
   document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
   load();

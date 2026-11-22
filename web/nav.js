@@ -1,49 +1,47 @@
-// The page menu in the top bar, the same on every page: <nav id="pagenav" data-page="…"> is
-// filled in here, with the current page highlighted. A dot on System says updates are waiting.
-
-const ICON = {
-  dashboard: '<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
-  planing: '<path d="M3 17h18"/><path d="M3 21h18"/><path d="M6 13V5h12v8"/><path d="M9 9h6"/>',
-  materials: '<path d="M12 3 3 8l9 5 9-5-9-5z"/><path d="m3 13 9 5 9-5"/>',
-  system: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/>',
-};
-
-const PAGES = [
-  { id: 'dashboard', href: '/', label: 'Dashboard', title: 'The machine, live' },
-  { id: 'planing', href: '/planing', label: 'Planing', title: 'Make a program that planes rough stock flat' },
-  { id: 'materials', href: '/materials', label: 'Materials', title: 'The cutting values per material used by Planing' },
-  { id: 'system', href: '/system', label: 'System', title: 'Versions, updates, reboot' },
-];
+// The top bar's live parts, the same on every page. The menu itself is drawn by topbar-boot.js
+// while the page loads; this keeps the update dot and the machine name current, and remembers
+// what the top bar shows (sessionStorage) so the next page starts with the same picture.
 
 const nav = document.getElementById('pagenav');
-if (nav) {
-  const cur = nav.dataset.page;
-  nav.innerHTML = PAGES.map((p) => `<a class="pagelink${p.id === cur ? ' active' : ''}" href="${p.href}" data-nav="${p.id}"
-    title="${p.title}"${p.id === cur ? ' aria-current="page"' : ''}><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[p.id]}</svg><span>${p.label}</span>${p.id === 'system' ? '<i class="nav-dot" hidden></i>' : ''}</a>`).join('');
+
+/** Remember part of the top bar for the next page (see topbar-boot.js). */
+export function saveTopbar(patch) {
+  try {
+    const c = JSON.parse(sessionStorage.getItem('topbar') || '{}');
+    sessionStorage.setItem('topbar', JSON.stringify(Object.assign(c, patch)));
+  } catch { /* no storage: the next page just starts plain */ }
 }
 
-/** Show on the System item whether updates are waiting (from /api/state). */
+/** Show on the System item whether updates are waiting, and the machine's name (from /api/state). */
 export function navOnState(s) {
+  if (s?.machine_name) {
+    const el = document.getElementById('machineName');
+    if (el) el.textContent = s.machine_name;
+  }
   const link = nav?.querySelector('[data-nav=system]');
-  if (!link) return;
-  const appN = s?.update?.behind || 0, osN = s?.os_updates || 0;
+  if (!link || !s) return;
+  const appN = s.update?.behind || 0, osN = s.os_updates || 0;
   link.querySelector('.nav-dot').hidden = !(appN || osN);
   const parts = [];
   if (appN) parts.push(`app update available (${appN} change${appN === 1 ? '' : 's'})`);
   if (osN) parts.push(`${osN} OS package update${osN === 1 ? '' : 's'}`);
   link.title = 'Versions, updates, reboot' + (parts.length ? ' – ' + parts.join(', ') : '');
+  saveTopbar({ dot: !!(appN || osN), ...(s.machine_name ? { name: s.machine_name } : {}) });
 }
 
-/** For pages that don't follow the machine state themselves: check every so often. */
-export function pollNav(ms = 60000) {
+/** For pages without the dashboard's live connection: fetch the machine state every second
+ *  (every 5 s while the page is hidden) and pass it on; an empty state when the server is
+ *  unreachable, so the status shows OFFLINE and the E-stop can't be pressed from here. */
+export function followState(onState, page) {
   const tick = async () => {
+    let s = {};
     try {
-      const s = await (await fetch('/api/state', { cache: 'no-store' })).json();
+      s = await (await fetch('/api/state', { cache: 'no-store' })).json();
       navOnState(s);
-      const name = s.machine_name;
-      if (name && document.getElementById('machineName')) document.getElementById('machineName').textContent = name;
-    } catch { /* next time */ }
+      if (s.machine_name) document.title = s.machine_name + (page ? ' – ' + page : '');
+    } catch { /* offline */ }
+    onState(s);
+    setTimeout(tick, document.hidden ? 5000 : 1000);
   };
   tick();
-  setInterval(tick, ms);
 }
