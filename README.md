@@ -38,7 +38,7 @@ the right.*
   dashboard can make the machine do; it only switches E-stop on, and releasing
   it happens at the machine.
 - Job progress: current line, percentage, start time, elapsed time and time
-  remaining, with a progress bar under the top bar.
+  remaining.
 - Live picture from a USB camera pointed at the machine (MJPEG through ffmpeg),
   fullscreen with a double-click. The camera also has a page of its own, for a
   second screen or a phone, and a stream and a still-picture address for other
@@ -450,7 +450,6 @@ the page simply loads).
   | `OFFLINE` | The server gets no updates from the bridge, or this page lost its connection to the server. |
 
 - The red **E-STOP** button, see [E-stop](#e-stop).
-- The thin bar below the top bar shows job progress.
 
 ### E-stop
 

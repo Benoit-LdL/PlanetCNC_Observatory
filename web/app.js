@@ -76,7 +76,6 @@ function renderInfo() {
   const pct = total ? Math.min(100, Math.max(0, (line / total) * 100)) : 0;
   $('lineInfo').textContent = total ? `${line} / ${total}` : '– / –';
   $('pctInfo').textContent = pct.toFixed(pct < 10 ? 1 : 0) + ' %';
-  $('progressFill').style.width = pct + '%';
 
   // Remaining: TNG's own estimate when available, else extrapolate from the
   // progress made since we started watching this job.

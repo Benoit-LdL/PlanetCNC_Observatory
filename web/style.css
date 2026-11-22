@@ -88,8 +88,6 @@ a.linkbtn { text-decoration: none; display: inline-block; }
 .status[data-state="offline"] { color: var(--muted); }
 @keyframes blink { 50% { opacity: .55; } }
 
-.progress { height: 3px; background: var(--panel-2); }
-.progress-fill { height: 100%; width: 0; background: var(--ok); transition: width .3s; }
 
 /* ---------- layout ---------- */
 .layout {
