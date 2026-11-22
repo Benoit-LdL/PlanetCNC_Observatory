@@ -15,8 +15,11 @@
 <body>
 <header class="topbar">
   <div class="brand"><span class="logo">M</span> <span id="machineName">CNC Monitor</span></div>
+  <nav class="pagenav" aria-label="Pages">
+    <a class="pagelink active" href="/" aria-current="page">Dashboard</a>
+    <a class="pagelink" href="/planing" title="Make a program that planes rough stock flat">Planing</a>
+  </nav>
   <div class="file" id="fileName" title="">No program loaded</div>
-  <a class="verbtn toplink" href="/planing" title="Make a program that planes rough stock flat">Planing</a>
   <button class="verbtn" id="verBtn" hidden title="System: versions, updates, reboot"><span id="verText"></span><i class="ver-dot" id="verDot" hidden></i></button>
   <div class="status" id="status" data-state="offline">OFFLINE</div>
   <button class="estop-btn" data-estop id="estopBtn" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.2 2h7.6L22 8.2v7.6L15.8 22H8.2L2 15.8V8.2z"/></svg><span class="estop-label">E-STOP</span></button>

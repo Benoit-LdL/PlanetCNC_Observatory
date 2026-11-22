@@ -427,8 +427,9 @@ Open **http://&lt;pi-address&gt;:8080** (see [step 3](#3-try-the-server)). The p
 
 ### Top bar
 
-- The machine's name (set in Settings) and the loaded file.
-- **Planing**, which opens the [Planing page](#planing-rough-stock).
+- The machine's name (set in Settings), then the page tabs: **Dashboard** and
+  **Planing** (the [Planing page](#planing-rough-stock)); the page you are on
+  is underlined. Then the loaded file.
 - The **System** button with the installed version. When an update of the
   app or of the OS is available it says so. It opens the
   [System window](#system-window).
@@ -672,7 +673,7 @@ loads or starts anything in TNG. Its E-stop button works as in the top bar.
 
 ### Planing rough stock
 
-**http://&lt;pi-address&gt;:8080/planing** (or **Planing** in the top bar)
+**http://&lt;pi-address&gt;:8080/planing** (or the **Planing** tab in the top bar)
 makes the program that planes the top of rough stock flat, with a surfacing
 bit. Millimetres only.
 
@@ -690,14 +691,18 @@ bit. Millimetres only.
 | Spindle speed, Feed, Plunge feed | Plunge feed is for going down to each pass, which always happens beside the stock. |
 | Step-down | Depth per pass at most. The depth is split into equal passes. |
 | Stepover | Sideways step between lines, as % of the bit diameter (40 % is a good start). |
-| More settings | Safe height above the stock (5 mm), how far the bit runs past the edges (5 mm), spindle spin-up time (3 s). |
+| More settings | Safe height above the stock (5 mm), how far the bit's centre runs past the edges (5 mm, less than the bit radius), **Turn round clear of the stock** (off), spindle spin-up time (3 s). |
 
 **The program** goes back and forth over the stock in lines along the chosen
-direction, one Z level after the other. At both ends of every line the whole
-bit leaves the stock, so the step to the next line and the plunge to the next
-level happen in the air, never in the wood. The first line takes a
-stepover-wide bite of the front (or left) edge and the last line overhangs the
-far edge, so the edges are planed as well. Each pass runs the lines back from
+direction, one Z level after the other. The bit's centre runs past every edge
+of the stock by the *run past the edges* amount (less than the bit radius),
+both at the ends of the lines and on the first and last line, so the edges are
+planed as well. The step to the next line happens there, with the bit partly on
+the stock; with **Turn round clear of the stock** on, the lines run on until
+the whole bit has left the stock by that amount, so the step happens in the
+air instead (longer lines, a bit slower). Each level starts with the bit fully
+beside the stock, so the plunges happen in the air, never in the wood. Each
+pass runs the lines back from
 where the last one ended. It starts with `M3` and a `G4` pause for the spindle
 to spin up, and ends with `M5` and the bit above X0 Y0 at the safe height.
 There is no tool change: the bit must already be in the spindle and Z touched
@@ -710,7 +715,8 @@ bit. The page warns when the bit's path leaves the machine's travel: that is
 checked from the *current* work zero, so set X0 Y0 (and Z) on the stock first
 for the check to mean something. Below the view, **Play** runs the simulation
 (1× to 200×; drag the slider to jump): the top turns from rough (dark) to
-planed (light) where the bit passes. The run time is estimated from the feeds,
+planed (light) where the bit passes, in two close tones that take turns from
+one pass to the next, so each pass shows apart. The run time is estimated from the feeds,
 with rapids at 5000 mm/min.
 
 **Materials.** **Save as…** stores the spindle speed, feeds, step-down and

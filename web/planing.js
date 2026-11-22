@@ -11,12 +11,16 @@ import { log } from './log.js';
 
 const $ = (id) => document.getElementById(id);
 const FIELDS = ['length', 'width', 'thickness', 'zMode', 'toolD', 'depth', 'direction',
-                'rpm', 'feed', 'plunge', 'stepdown', 'stepover', 'safe', 'clearance', 'dwell'];
+                'rpm', 'feed', 'plunge', 'stepdown', 'stepover', 'safe', 'clearance', 'clearTurn', 'dwell'];
 const PRESET_KEYS = ['rpm', 'feed', 'plunge', 'stepdown', 'stepover'];   // what a material stores
 const TEXT_FIELDS = new Set(['zMode', 'direction']);
+const CHECK_FIELDS = new Set(['clearTurn']);
 const STORE_KEY = 'planing.form';
 const writeHeaders = { 'X-CNC-Control': '1', 'Content-Type': 'application/json' };
-const COLORS = { rough: new THREE.Color('#8a6a48'), planed: new THREE.Color('#e0c393'), side: new THREE.Color('#5e4630') };
+// Planed: two close tones, one pass in each by turns, so the passes show apart but the
+// finished top still looks like one colour.
+const COLORS = { rough: new THREE.Color('#8a6a48'), side: new THREE.Color('#5e4630'),
+                 planed: [new THREE.Color('#e0c393'), new THREE.Color('#c9a771')] };
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
@@ -119,8 +123,9 @@ class Stock {
     this.dirty = true;
   }
 
-  /** The bit (radius r, flat bottom) moving from a to b: everything under it drops to its height. */
-  cut(a, b, r) {
+  /** The bit (radius r, flat bottom) moving from a to b in a pass: everything under it drops to
+   *  its height, in that pass's tone. */
+  cut(a, b, r, pass = 1) {
     const z = Math.min(a[2], b[2]);
     if (z >= this.top) return;
     const i0 = Math.max(0, Math.ceil((Math.min(a[0], b[0]) - r) / this.dx));
@@ -130,7 +135,7 @@ class Stock {
     if (i0 > i1 || j0 > j1) return;
     const ex = b[0] - a[0], ey = b[1] - a[1];
     const len2 = ex * ex + ey * ey, r2 = r * r;
-    const { planed } = COLORS;
+    const planed = COLORS.planed[(Math.max(pass, 1) - 1) % 2];
     for (let j = j0; j <= j1; j++) {
       const y = j * this.dy;
       for (let i = i0; i <= i1; i++) {
@@ -242,7 +247,7 @@ function cutBetween(t0, t1) {
   if (!stock || !sim.segs.length || t1 <= t0) return;
   for (let i = segAt(t0); i < sim.segs.length && sim.segs[i].t0 < t1; i++) {
     const seg = sim.segs[i];
-    stock.cut(pointIn(seg, Math.max(t0, seg.t0)), pointIn(seg, Math.min(t1, seg.t1)), sim.r);
+    stock.cut(pointIn(seg, Math.max(t0, seg.t0)), pointIn(seg, Math.min(t1, seg.t1)), sim.r, seg.pass);
   }
 }
 
@@ -297,14 +302,19 @@ function readForm() {
   const p = {};
   for (const f of FIELDS) {
     const el = $(f);
-    p[f] = TEXT_FIELDS.has(f) ? el.value : (el.value.trim() === '' ? NaN : Number(el.value));
+    p[f] = CHECK_FIELDS.has(f) ? el.checked
+      : TEXT_FIELDS.has(f) ? el.value : (el.value.trim() === '' ? NaN : Number(el.value));
   }
   p.material = $('material').value;
   return p;
 }
 
 function fillForm(values) {
-  for (const f of FIELDS) if (values[f] !== undefined && values[f] !== null && !Number.isNaN(values[f])) $(f).value = values[f];
+  for (const f of FIELDS) {
+    const v = values[f];
+    if (v === undefined || v === null || Number.isNaN(v)) continue;
+    if (CHECK_FIELDS.has(f)) $(f).checked = !!v; else $(f).value = v;
+  }
 }
 
 function remember(p) {
@@ -326,7 +336,7 @@ function update() {
   const result = planPlaning(p);
   plan = result;
 
-  for (const f of FIELDS) $(f).classList.toggle('bad', !TEXT_FIELDS.has(f) && !(Number.isFinite(p[f]) && p[f] >= 0));
+  for (const f of FIELDS) $(f).classList.toggle('bad', !TEXT_FIELDS.has(f) && !CHECK_FIELDS.has(f) && !(Number.isFinite(p[f]) && p[f] >= 0));
   $('stepoverMm').textContent = Number.isFinite(p.toolD * p.stepover) ? `% of Ø = ${fmt(p.toolD * p.stepover / 100)} mm` : '% of Ø';
   $('zHint').textContent = p.zMode === 'top'
     ? 'Touch off Z on the highest point of the stock.'

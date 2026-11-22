@@ -28,6 +28,8 @@
   .pl-row select, .pl-mat select { font-family: inherit; }
   .pl-row input:focus, .pl-row select:focus, .pl-mat select:focus, .pl-name input:focus { outline: none; border-color: var(--accent); }
   .pl-row input.bad { border-color: var(--err); }
+  .pl-check { display: flex; align-items: center; gap: 8px; min-height: 30px; font-size: 13px; cursor: pointer; }
+  .pl-check input { accent-color: var(--accent); margin: 0; }
   .pl-hint { margin: 0 0 4px; font-size: 11px; color: var(--muted); }
   .pl-mat { display: flex; gap: 4px; align-items: center; margin-bottom: 4px; }
   .pl-mat select { flex: 1; min-width: 0; }
@@ -55,8 +57,7 @@
   .pl-time { font: 12px var(--mono); color: var(--muted); white-space: nowrap; min-width: 9em; text-align: right; }
   .pl-play { min-width: 64px; }
   .legend .stock-swatch { height: 10px; width: 12px; background: #8a6a48; }
-  .legend .planed-swatch { height: 10px; width: 12px; background: #e0c393; }
-  .topbar a.vbtn { text-decoration: none; color: var(--text); }
+  .legend .planed-swatch { height: 10px; width: 12px; background: linear-gradient(90deg, #e0c393 50%, #c9a771 50%); }
   .pl-title { flex: 1; min-width: 0; color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   @media (max-width: 800px) {
     body { height: auto; }
@@ -69,8 +70,11 @@
 <body>
 <header class="topbar">
   <div class="brand"><span class="logo">M</span> <span id="machineName">CNC Monitor</span></div>
+  <nav class="pagenav" aria-label="Pages">
+    <a class="pagelink" href="/">Dashboard</a>
+    <a class="pagelink active" href="/planing" aria-current="page" title="Make a program that planes rough stock flat">Planing</a>
+  </nav>
   <div class="pl-title">Planing rough stock</div>
-  <a class="vbtn" href="/" title="Back to the dashboard">Dashboard</a>
 </header>
 
 <main class="pl-layout">
@@ -114,8 +118,10 @@
         <summary>More settings</summary>
         <div class="pl-row"><label for="safe">Safe height above stock<span class="unit">mm</span></label><input id="safe" type="number" step="any" min="0" inputmode="decimal"></div>
         <div class="pl-row"><label for="clearance">Run past the edges by<span class="unit">mm</span></label><input id="clearance" type="number" step="any" min="0" inputmode="decimal"></div>
+        <label class="pl-check"><input id="clearTurn" type="checkbox"> Turn round clear of the stock</label>
         <div class="pl-row"><label for="dwell">Spindle spin-up<span class="unit">s</span></label><input id="dwell" type="number" step="any" min="0" inputmode="decimal"></div>
-        <p class="pl-hint">At both ends of every line the whole bit leaves the stock by this much, so moves between lines and plunges happen in the air.</p>
+        <p class="pl-hint">How far the bit's centre goes past every edge of the stock, at the ends of the lines and on the first and last line. Less than the bit radius. Plunges always happen beside the stock.</p>
+        <p class="pl-hint">Turn round clear of the stock: the lines run on until the whole bit has left the stock by this much, so the step to the next line happens in the air (longer lines, a bit slower).</p>
       </details>
     </form>
 

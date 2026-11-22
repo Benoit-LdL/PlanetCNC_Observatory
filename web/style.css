@@ -44,6 +44,12 @@ button { font: inherit; color: inherit; }
 }
 .file { flex: 1; min-width: 0; color: var(--muted); font-family: var(--mono); font-size: 13px;
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
+/* Pages: tabs right after the machine name; the current page is underlined */
+.pagenav { display: flex; align-self: stretch; gap: 4px; margin: -8px 0; padding-left: 16px; border-left: 1px solid var(--border); }
+.pagelink { display: flex; align-items: center; padding: 0 12px; color: var(--muted); text-decoration: none; font-weight: 600;
+            font-size: 13px; border-bottom: 2px solid transparent; white-space: nowrap; }
+.pagelink:hover { color: var(--text); background: var(--panel-2); }
+.pagelink.active { color: var(--text); border-bottom-color: var(--accent); }
 .status {
   padding: 3px 12px; border-radius: 4px; font-weight: 700; font-size: 12px; letter-spacing: 1px;
   background: var(--panel-2); border: 1px solid var(--border); white-space: nowrap;
@@ -209,7 +215,6 @@ button { font: inherit; color: inherit; }
 .verbtn { display: inline-flex; align-items: center; gap: 6px; background: var(--panel-2); border: 1px solid var(--border);
           border-radius: 4px; padding: 3px 8px; cursor: pointer; color: var(--muted); font: 12px var(--mono); white-space: nowrap; }
 .verbtn[hidden] { display: none; }
-a.toplink { text-decoration: none; font-family: inherit; }
 .verbtn:hover { border-color: var(--accent); color: var(--text); }
 .verbtn.has-update { color: var(--text); border-color: var(--accent); }
 .ver-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
@@ -328,6 +333,8 @@ a.toplink { text-decoration: none; font-family: inherit; }
   body { height: auto; min-height: 100%; }
   .topbar { padding: 8px 16px; gap: 10px; }
   .brand { display: none; }
+  .pagenav { padding-left: 0; border-left: 0; margin-left: -4px; }
+  .pagelink { padding: 0 8px; }
   .layout { display: flex; flex-direction: column; padding: 8px 16px; }
   .dro-panel { overflow: visible; }
   .axis .value { font-size: 28px; }
