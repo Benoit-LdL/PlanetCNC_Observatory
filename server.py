@@ -2140,9 +2140,10 @@ class Handler(BaseHTTPRequestHandler):
             if self._require_writer():
                 self._system_action(path.rsplit("/", 1)[1])
             return
-        if path in ("/api/files/upload", "/api/files/delete"):
+        if path in ("/api/files/upload", "/api/files/delete", "/api/files/move"):
             if self._require_writer():
-                (self._files_upload if path.endswith("upload") else self._files_delete)()
+                {"upload": self._files_upload, "delete": self._files_delete,
+                 "move": self._files_move}[path.rsplit("/", 1)[1]]()
             return
         if path == "/api/settings":
             if self._require_writer():
@@ -2628,6 +2629,47 @@ class Handler(BaseHTTPRequestHandler):
         log_files.info("deleted %s (from %s)", full, self.client_address[0])
         self._json(200, {"ok": True, "message": "deleted %s" % os.path.basename(full)})
 
+    def _files_move(self):
+        """Move a file into another folder of the files folder (drag and drop in the Files tab).
+        Never the file loaded in TNG: TNG would lose it."""
+        try:
+            data = json.loads(self._read_body() or b"{}")
+            rel, to = str(data.get("path", "")), str(data.get("to", ""))
+            overwrite = bool(data.get("overwrite"))
+        except (ValueError, AttributeError):
+            self._json(400, {"ok": False, "message": "invalid json"})
+            return
+        full = self._files_path(rel)
+        folder = self._files_path(to)
+        if not full or full == os.path.realpath(CONFIG.files_dir) or not os.path.isfile(full):
+            self._json(404, {"ok": False, "message": "file not found (only files can be moved)"})
+            return
+        if not folder or not os.path.isdir(folder):
+            self._json(404, {"ok": False, "message": "folder not found"})
+            return
+        name = os.path.basename(full)
+        if os.path.dirname(full) == folder:
+            self._json(200, {"ok": True, "message": "%s is already there" % name})
+            return
+        loaded = HUB.snapshot()[1].get("file")
+        if loaded and norm_path(loaded) == norm_path(full):
+            self._json(409, {"ok": False, "message": "%s is loaded in TNG: it cannot be moved" % name})
+            return
+        target = os.path.join(folder, name)
+        if os.path.exists(target) and not overwrite:
+            self._json(409, {"ok": False, "exists": True, "message": "%s already exists there" % name})
+            return
+        try:
+            os.replace(full, target)
+        except OSError as e:
+            log_files.error("moving %s to %s failed: %s", full, folder, e)
+            self._json(500, {"ok": False, "message": "could not move: %s" % e})
+            return
+        log_files.info("moved %s to %s (from %s)", full, folder, self.client_address[0])
+        root = os.path.realpath(CONFIG.files_dir)
+        where = os.path.basename(root) if folder == root else os.path.relpath(folder, root).replace(os.sep, "/")
+        self._json(200, {"ok": True, "message": "moved %s to %s" % (name, where)})
+
     # ---------- feeds log (Feeds & steps window, Feeds tab) ----------
 
     def _tuning_change(self):
@@ -2721,6 +2763,10 @@ class Handler(BaseHTTPRequestHandler):
             path = "/camera.html"  # the camera on its own, without the dashboard
         elif path == "/planing":
             path = "/planing.html"  # program for planing rough stock
+        elif path == "/materials":
+            path = "/materials.html"  # the planing page's materials: see, change, add, import, export
+        elif path == "/system":
+            path = "/system.html"  # versions, updates, reboot / shut down
         full = os.path.normpath(os.path.join(WEB_DIR, path.lstrip("/")))
         if not full.startswith(WEB_DIR) or not os.path.isfile(full):
             self._send(404, "Not found", "text/plain")

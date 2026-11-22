@@ -1,5 +1,5 @@
-// The E-stop button, and the System window: the Pi's details, updates (this app, the bridge
-// in TNG, Raspberry Pi OS packages) and reboot / shut down.
+// The E-stop button (dashboard and System page), and the System page's panel: the Pi's details,
+// updates (this app, the bridge in TNG, Raspberry Pi OS packages) and reboot / shut down.
 //
 // The E-stop is the only thing the dashboard can make the machine do. It only switches
 // E-stop ON; releasing it and starting again always happen at the machine.
@@ -49,7 +49,7 @@ function renderEstop() {
   if (estopBusy) label = 'STOPPING…';
   else if (online && state.estop) [label, title, disabled] = ['ENGAGED', 'E-stop is active – release it at the machine', true];
   else if (!online) [title, disabled] = ['TNG is not connected – use the E-stop at the machine', true];
-  else if (proto < ESTOP_PROTOCOL) [title, disabled] = ['The bridge in TNG is too old for this – see the System window', true];
+  else if (proto < ESTOP_PROTOCOL) [title, disabled] = ['The bridge in TNG is too old for this – see the System page', true];
   for (const b of document.querySelectorAll('[data-estop]')) {
     b.querySelector('.estop-label').textContent = label;
     b.title = title;
@@ -71,19 +71,7 @@ async function estop() {
   }
 }
 
-// ---------------------------------------------------------------- top bar button
-
-function renderBadge() {
-  const u = state.update, osN = state.os_updates || 0;
-  $('verBtn').hidden = false;
-  const appN = u?.behind || 0;
-  $('verText').textContent = appN ? `Update available (${appN})` : osN ? `OS updates (${osN})` : u?.current || 'System';
-  $('verDot').hidden = !(appN || osN);
-  $('verBtn').classList.toggle('has-update', !!(appN || osN));
-  $('verBtn').title = 'System: versions, updates, reboot' + (appN || osN ? ' – updates available' : '');
-}
-
-// ---------------------------------------------------------------- the System window
+// ---------------------------------------------------------------- the System page
 
 function row(label, value, title = '') {
   return `<div class="upd-row"><span>${esc(label)}</span><b title="${esc(title || value)}">${esc(value)}</b></div>`;
@@ -189,12 +177,7 @@ async function load() {
     setStatus('updStatus', 'Server unreachable', 'err');
   }
   clearTimeout(pollTimer);
-  if ($('sysDlg').open) pollTimer = setTimeout(load, sys?.os?.busy ? 1500 : 5000);
-}
-
-export function openSystem() {
-  if (!$('sysDlg').open) $('sysDlg').showModal();
-  load();
+  if (!document.hidden) pollTimer = setTimeout(load, sys?.os?.busy ? 1500 : 5000);
 }
 
 let checking = false;
@@ -271,15 +254,14 @@ async function power(action) {
 export function systemOnState(s) {
   state = s;
   renderEstop();
-  renderBadge();
 }
 
 export function initSystem() {
   for (const b of document.querySelectorAll('[data-estop]')) b.addEventListener('click', estop);
-  $('verBtn').addEventListener('click', openSystem);
-  $('sysOpenBtn').addEventListener('click', openSystem);
-  $('sysDlgClose').addEventListener('click', () => $('sysDlg').close());
-  $('sysDlg').addEventListener('close', () => clearTimeout(pollTimer));
+  renderEstop();
+  if (!$('sysBody')) return;   // the dashboard: only the E-stop
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+  load();
   $('updCheckBtn').addEventListener('click', checkAll);
   $('updApplyBtn').addEventListener('click', () => appRun('/api/update/apply',
     `Install ${sys?.app?.commits?.length || ''} update(s) from GitHub?\n\nThe dashboard restarts and reloads itself; TNG and the machine are not interrupted.`));
@@ -288,5 +270,4 @@ export function initSystem() {
   $('osUpgradeBtn').addEventListener('click', osUpgrade);
   $('rebootBtn').addEventListener('click', () => power('reboot'));
   $('poweroffBtn').addEventListener('click', () => power('poweroff'));
-  renderEstop();
 }

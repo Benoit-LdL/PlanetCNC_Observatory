@@ -8,6 +8,7 @@ import { Viewer } from './viewer.js';
 import { buildToolpath } from './gcode.js';
 import { planPlaning, DEFAULTS, fmt } from './planing-gcode.js';
 import { log } from './log.js';
+import { navOnState } from './nav.js';
 
 const $ = (id) => document.getElementById(id);
 const FIELDS = ['length', 'width', 'thickness', 'zMode', 'toolD', 'depth', 'direction',
@@ -414,6 +415,7 @@ async function pollState() {
     const name = s.machine_name || 'CNC Monitor';
     $('machineName').textContent = name;
     document.title = name + ' – planing';
+    navOnState(s);
     const w = s.work || [], m = s.machine || [];
     if (w.length >= 3 && m.length >= 3 && (s.idle || !bedOffset)) bedOffset = [0, 1, 2].map((k) => w[k] - m[k]);
     const next = s.limits && bedOffset ? {
@@ -510,6 +512,14 @@ $('matDelete').addEventListener('click', async () => {
   } catch (e) {
     message('Could not delete the material: ' + esc(e.message), 'err');
   }
+});
+
+// Materials changed on the Materials page (another tab, or another device): pick them up
+// when this page is shown again.
+document.addEventListener('visibilitychange', async () => {
+  if (document.hidden) return;
+  await loadPresets();
+  showMaterialChanged(readForm());
 });
 
 // ---------------------------------------------------------------- saving the program

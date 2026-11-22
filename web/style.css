@@ -17,6 +17,10 @@
   --code-active: #2f5d74;
   --mono: "Cascadia Mono", "Consolas", "DejaVu Sans Mono", monospace;
   color-scheme: dark;
+  /* Shared by every page, so they all line up */
+  --bar-h: 52px;      /* top bar */
+  --side-w: 380px;    /* side panel: the dashboard's G-code/Files/Settings, the planing settings */
+  --page-w: 980px;    /* single-panel pages (Materials, System) */
 }
 
 * { box-sizing: border-box; }
@@ -32,8 +36,8 @@ button { font: inherit; color: inherit; }
 
 /* ---------- top bar ---------- */
 .topbar {
-  display: flex; align-items: center; gap: 16px;
-  padding: 8px 16px;
+  display: flex; align-items: center; gap: 16px; flex: none;
+  height: var(--bar-h); padding: 0 16px;
   background: var(--panel);
   border-bottom: 1px solid var(--border);
 }
@@ -44,12 +48,26 @@ button { font: inherit; color: inherit; }
 }
 .file { flex: 1; min-width: 0; color: var(--muted); font-family: var(--mono); font-size: 13px;
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
-/* Pages: tabs right after the machine name; the current page is underlined */
-.pagenav { display: flex; align-self: stretch; gap: 4px; margin: -8px 0; padding-left: 16px; border-left: 1px solid var(--border); }
-.pagelink { display: flex; align-items: center; padding: 0 12px; color: var(--muted); text-decoration: none; font-weight: 600;
-            font-size: 13px; border-bottom: 2px solid transparent; white-space: nowrap; }
+/* Page menu (nav.js): a row of buttons in a tray; the current page is filled in. Then the
+   page's title, after a divider: plain text, so it doesn't look clickable. */
+.pagenav { display: flex; gap: 2px; padding: 3px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; }
+.pagelink { position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 6px;
+            color: var(--muted); text-decoration: none; font-weight: 600; font-size: 13px; white-space: nowrap;
+            transition: background .12s, color .12s; }
+.pagelink svg { width: 15px; height: 15px; flex: none; fill: none; stroke: currentColor; stroke-width: 2;
+                stroke-linecap: round; stroke-linejoin: round; }
 .pagelink:hover { color: var(--text); background: var(--panel-2); }
-.pagelink.active { color: var(--text); border-bottom-color: var(--accent); }
+.pagelink:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.pagelink.active { color: #082029; background: var(--accent); }
+.nav-dot { position: absolute; top: 3px; right: 3px; width: 8px; height: 8px; border-radius: 50%;
+           background: var(--warn); box-shadow: 0 0 0 2px var(--bg); }
+.nav-dot[hidden] { display: none; }
+.pagetitle { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 10px; padding-left: 16px;
+             border-left: 1px solid var(--border); white-space: nowrap; overflow: hidden; }
+.pagetitle b { font-size: 16px; font-weight: 600; color: var(--text); }
+.pagetitle > span { min-width: 0; color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; }
+.pagetitle .file { flex: 1; }
+a.linkbtn { text-decoration: none; display: inline-block; }
 .status {
   padding: 3px 12px; border-radius: 4px; font-weight: 700; font-size: 12px; letter-spacing: 1px;
   background: var(--panel-2); border: 1px solid var(--border); white-space: nowrap;
@@ -67,7 +85,7 @@ button { font: inherit; color: inherit; }
 .layout {
   flex: 1; min-height: 0;
   display: grid;
-  grid-template-columns: 300px 1fr 380px;
+  grid-template-columns: 300px 1fr var(--side-w);
   gap: 8px; padding: 8px;
 }
 .panel {
@@ -119,6 +137,9 @@ button { font: inherit; color: inherit; }
 .frow { display: flex; gap: 6px; align-items: center; padding: 2px 6px 2px 10px; height: 28px;
         border-bottom: 1px solid var(--border); font-size: 13px; }
 .frow:hover { background: var(--panel-2); }
+.frow[draggable="true"] { cursor: grab; }
+.frow.dragging { opacity: .45; }
+.frow.move-over, .crumbs button.move-over { background: var(--code-active); outline: 1px solid var(--accent); outline-offset: -1px; }
 .frow .fname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .frow .fname button { background: none; border: 0; padding: 0; cursor: pointer; color: var(--accent); font: inherit; }
 .frow .fsize { color: var(--muted); font-family: var(--mono); font-size: 11px; }
@@ -195,6 +216,7 @@ button { font: inherit; color: inherit; }
         color: var(--muted); font-size: 12px; display: inline-flex; align-items: center; gap: 5px; }
 .ptab:hover { color: var(--text); }
 .ptab.active { color: var(--text); border-bottom-color: var(--accent); }
+span.ptab { cursor: default; }   /* a panel's title, not a tab */
 .badge { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
 .badge.err { background: var(--err); }
 .console { flex: 1; min-height: 0; display: flex; flex-direction: column; }
@@ -212,18 +234,13 @@ button { font: inherit; color: inherit; }
 .cline.tng .cx { color: #c9b8f0; }
 .console-empty { color: var(--muted); font-family: "Segoe UI", system-ui, sans-serif; padding: 10px 0; }
 /* ---------- settings + software update ---------- */
-.verbtn { display: inline-flex; align-items: center; gap: 6px; background: var(--panel-2); border: 1px solid var(--border);
-          border-radius: 4px; padding: 3px 8px; cursor: pointer; color: var(--muted); font: 12px var(--mono); white-space: nowrap; }
-.verbtn[hidden] { display: none; }
-.verbtn:hover { border-color: var(--accent); color: var(--text); }
-.verbtn.has-update { color: var(--text); border-color: var(--accent); }
-.ver-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
 .vbtn.primary { background: var(--accent); color: #082029; border-color: var(--accent); font-weight: 600; }
 .vbtn:disabled { opacity: .45; cursor: not-allowed; }
 .settings { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 12px 12px; font-size: 13px; }
 .set-group { display: flex; flex-direction: column; gap: 6px; padding: 10px 0; border-bottom: 1px solid var(--border); }
 .set-group:last-of-type { border-bottom: 0; }
-.set-group h3 { margin: 0; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+/* Section titles (settings, System page, Planing): bright, so they stand out from the grey hints */
+.set-group h3 { margin: 0; font-size: 12px; font-weight: 700; color: var(--text); text-transform: uppercase; letter-spacing: .6px; }
 .set-row { display: flex; gap: 6px; align-items: center; }
 .set-row label { width: 52px; flex: none; color: var(--muted); }
 .set-row input, .set-row select { flex: 1; min-width: 0; background: var(--bg); color: var(--text); border: 1px solid var(--border);
@@ -232,6 +249,21 @@ button { font: inherit; color: inherit; }
 .set-row select:disabled { opacity: .5; }
 .set-btns { display: flex; gap: 6px; padding-left: 58px; }
 .set-hint { margin: 0; font-size: 11px; color: var(--muted); }
+/* Help: a round "?" after a settings title opens the explanation in a popup (help.js) */
+.help-btn { display: inline-grid; place-items: center; width: 16px; height: 16px; margin-left: 6px; padding: 0;
+            vertical-align: 1px; border-radius: 50%; border: 1px solid var(--border); background: var(--panel-2);
+            color: var(--muted); font: 700 10px/1 "Segoe UI", system-ui, sans-serif; text-transform: none; letter-spacing: 0;
+            cursor: help; transition: background .12s, color .12s, border-color .12s; }
+.help-btn:hover, .help-btn:focus-visible, .help-btn[aria-expanded="true"] { background: var(--accent); border-color: var(--accent);
+            color: #082029; outline: none; }
+.help-pop { position: fixed; z-index: 1000; width: max-content; max-width: min(320px, calc(100vw - 16px));
+            display: flex; flex-direction: column; gap: 6px; padding: 9px 11px; border-radius: 6px;
+            background: var(--panel-2); border: 1px solid var(--border); box-shadow: 0 8px 24px rgba(0, 0, 0, .45);
+            font-size: 12px; line-height: 1.45; color: var(--text); }
+.help-pop[hidden], .help-pop .set-help[hidden] { display: none; }
+.help-pop .set-help { margin: 0; }
+.help-pop a { color: var(--accent); }
+.help-pop code { font: 11px var(--mono); overflow-wrap: anywhere; }
 .set-msg { font-size: 12px; color: var(--muted); min-height: 1.4em; }
 .set-msg.ok { color: var(--ok); }
 .set-msg.err { color: var(--err); }
@@ -333,8 +365,9 @@ button { font: inherit; color: inherit; }
   body { height: auto; min-height: 100%; }
   .topbar { padding: 8px 16px; gap: 10px; }
   .brand { display: none; }
-  .pagenav { padding-left: 0; border-left: 0; margin-left: -4px; }
-  .pagelink { padding: 0 8px; }
+  .pagelink { padding: 4px 8px; }
+  .pagetitle { padding-left: 10px; }
+  .pagetitle > span { display: none; }
   .layout { display: flex; flex-direction: column; padding: 8px 16px; }
   .dro-panel { overflow: visible; }
   .axis .value { font-size: 28px; }
@@ -454,10 +487,13 @@ button { font: inherit; color: inherit; }
 .estop-btn.small { padding: 3px 10px; font-size: 12px; }
 .estop-btn.small svg { width: 14px; height: 14px; }
 
-/* ---------- System window ---------- */
-.sys-dlg { width: min(640px, calc(100vw - 32px)); }
+/* ---------- single-panel pages (Materials, System) ---------- */
+.page-main { flex: 1; min-height: 0; overflow-y: auto; padding: 8px; }
+.page-panel { max-width: var(--page-w); margin: 0 auto; }
+.page-panel > .code-head .vbtn { font-size: 12px; }
+.page-body { padding: 8px 14px 12px; font-size: 13px; }
 .set-group[hidden] { display: none; }
-.sys-body { overflow-y: auto; padding: 0 14px 12px; font-size: 13px; }
+.sys-body { padding-top: 0; }
 .sys-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .comp { display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; margin-top: 4px;
         background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; }
@@ -475,12 +511,12 @@ button { font: inherit; color: inherit; }
 @media (max-width: 700px) {
   .topbar { gap: 8px; padding: 8px 16px; }
   .estop-btn { padding: 5px 10px; }
-  .sys-dlg { width: 100vw; }
+  .page-main { padding: 8px 16px; }
 }
 @media (max-width: 520px) {
-  #verText { display: none; }
-  .verbtn::before { content: "Sys"; }
-  .file { display: none; }
+  .pagelink span { display: none; }   /* icons only; the title says which page this is */
+  .pagelink { padding: 5px 8px; }
+  .pagetitle b { font-size: 14px; }
   .topbar .status { margin-left: auto; }
 }
 

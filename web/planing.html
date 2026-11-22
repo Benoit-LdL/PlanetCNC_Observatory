@@ -14,10 +14,11 @@
 } }
 </script>
 <style>
-  .pl-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: 340px 1fr; gap: 8px; padding: 8px; }
-  .pl-form { padding: 10px 12px; overflow-y: auto; gap: 4px; }
-  .pl-form h3 { margin: 10px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted);
-                font-weight: 600; display: flex; justify-content: space-between; align-items: baseline; }
+  .pl-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr var(--side-w); gap: 8px; padding: 8px; }
+  /* As the dashboard: the 3D view, and the settings in a panel on the right */
+  .pl-form { flex: 1; min-height: 0; padding: 10px 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+  .pl-form h3 { margin: 10px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--text);
+                font-weight: 700; display: flex; justify-content: space-between; align-items: baseline; }
   .pl-form h3:first-child { margin-top: 0; }
   .pl-row { display: grid; grid-template-columns: 1fr 120px; align-items: center; gap: 8px; min-height: 30px; }
   .pl-row label { font-size: 13px; }
@@ -34,6 +35,9 @@
   .pl-mat { display: flex; gap: 4px; align-items: center; margin-bottom: 4px; }
   .pl-mat select { flex: 1; min-width: 0; }
   .pl-mat .vbtn { white-space: nowrap; }
+  .pl-mat-io { text-align: right; }
+  .pl-mat-io a { color: var(--accent); text-decoration: none; }
+  .pl-mat-io a:hover { text-decoration: underline; }
   .pl-changed { color: var(--warn); font-size: 11px; text-transform: none; letter-spacing: 0; font-weight: 400; }
   .pl-form details { margin-top: 8px; }
   .pl-form summary { cursor: pointer; font-size: 12px; color: var(--accent); }
@@ -58,84 +62,23 @@
   .pl-play { min-width: 64px; }
   .legend .stock-swatch { height: 10px; width: 12px; background: #8a6a48; }
   .legend .planed-swatch { height: 10px; width: 12px; background: linear-gradient(90deg, #e0c393 50%, #c9a771 50%); }
-  .pl-title { flex: 1; min-width: 0; color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   @media (max-width: 800px) {
     body { height: auto; }
     .pl-layout { grid-template-columns: 1fr; }
     .pl-view { height: 70vh; }
     .pl-form { overflow: visible; }
+    .pl-side { overflow: visible; }
   }
 </style>
 </head>
 <body>
 <header class="topbar">
   <div class="brand"><span class="logo">M</span> <span id="machineName">CNC Monitor</span></div>
-  <nav class="pagenav" aria-label="Pages">
-    <a class="pagelink" href="/">Dashboard</a>
-    <a class="pagelink active" href="/planing" aria-current="page" title="Make a program that planes rough stock flat">Planing</a>
-  </nav>
-  <div class="pl-title">Planing rough stock</div>
+  <nav class="pagenav" id="pagenav" data-page="planing" aria-label="Pages"></nav>
+  <div class="pagetitle"><b>Planing</b><span>Rough stock: a program that planes its top flat</span></div>
 </header>
 
 <main class="pl-layout">
-  <section class="panel pl-form">
-    <form id="form" autocomplete="off" novalidate>
-      <h3>Stock</h3>
-      <div class="pl-row"><label for="length">Length (X)<span class="unit">mm</span></label><input id="length" type="number" step="any" min="0" inputmode="decimal"></div>
-      <div class="pl-row"><label for="width">Width (Y)<span class="unit">mm</span></label><input id="width" type="number" step="any" min="0" inputmode="decimal"></div>
-      <div class="pl-row"><label for="thickness">Thickness (rough)<span class="unit">mm</span></label><input id="thickness" type="number" step="any" min="0" inputmode="decimal"></div>
-      <div class="pl-row"><label for="zMode">Z zero</label>
-        <select id="zMode">
-          <option value="top">Top of the stock</option>
-          <option value="bed">Spoilboard</option>
-        </select></div>
-      <p class="pl-hint" id="zHint"></p>
-      <p class="pl-hint">X0 Y0 is the front-left corner of the stock.</p>
-
-      <h3>Bit and cut</h3>
-      <div class="pl-row"><label for="toolD">Bit diameter<span class="unit">mm</span></label><input id="toolD" type="number" step="any" min="0" inputmode="decimal"></div>
-      <div class="pl-row"><label for="depth">Depth to remove<span class="unit">mm</span></label><input id="depth" type="number" step="any" min="0" inputmode="decimal"></div>
-      <div class="pl-row"><label for="direction">Cut direction</label>
-        <select id="direction">
-          <option value="x">Along X</option>
-          <option value="y">Along Y</option>
-        </select></div>
-      <p class="pl-hint">Usually along the grain.</p>
-
-      <h3>Material <span class="pl-changed" id="matChanged" hidden>changed</span></h3>
-      <div class="pl-mat">
-        <select id="material" aria-label="Material"></select>
-        <button class="vbtn" type="button" id="matSave" title="Save these cutting values for a material">Save as…</button>
-        <button class="vbtn" type="button" id="matDelete" title="Delete this material" disabled>Delete</button>
-      </div>
-      <div class="pl-row"><label for="rpm">Spindle speed<span class="unit">rpm</span></label><input id="rpm" type="number" step="any" min="0" inputmode="decimal"></div>
-      <div class="pl-row"><label for="feed">Feed<span class="unit">mm/min</span></label><input id="feed" type="number" step="any" min="0" inputmode="decimal"></div>
-      <div class="pl-row"><label for="plunge">Plunge feed<span class="unit">mm/min</span></label><input id="plunge" type="number" step="any" min="0" inputmode="decimal"></div>
-      <div class="pl-row"><label for="stepdown">Step-down<span class="unit">mm/pass</span></label><input id="stepdown" type="number" step="any" min="0" inputmode="decimal"></div>
-      <div class="pl-row"><label for="stepover">Stepover<span class="unit" id="stepoverMm">% of Ø</span></label><input id="stepover" type="number" step="any" min="0" inputmode="decimal"></div>
-
-      <details>
-        <summary>More settings</summary>
-        <div class="pl-row"><label for="safe">Safe height above stock<span class="unit">mm</span></label><input id="safe" type="number" step="any" min="0" inputmode="decimal"></div>
-        <div class="pl-row"><label for="clearance">Run past the edges by<span class="unit">mm</span></label><input id="clearance" type="number" step="any" min="0" inputmode="decimal"></div>
-        <label class="pl-check"><input id="clearTurn" type="checkbox"> Turn round clear of the stock</label>
-        <div class="pl-row"><label for="dwell">Spindle spin-up<span class="unit">s</span></label><input id="dwell" type="number" step="any" min="0" inputmode="decimal"></div>
-        <p class="pl-hint">How far the bit's centre goes past every edge of the stock, at the ends of the lines and on the first and last line. Less than the bit radius. Plunges always happen beside the stock.</p>
-        <p class="pl-hint">Turn round clear of the stock: the lines run on until the whole bit has left the stock by this much, so the step to the next line happens in the air (longer lines, a bit slower).</p>
-      </details>
-    </form>
-
-    <h3>Program</h3>
-    <dl class="pl-sum" id="summary"></dl>
-    <ul class="pl-notes" id="notes"></ul>
-    <div class="pl-name">
-      <input id="fileName" aria-label="File name" spellcheck="false">
-      <button class="vbtn primary" type="button" id="saveBtn">Save</button>
-    </div>
-    <p class="pl-hint" id="folderHint"></p>
-    <div class="pl-msg" id="saveMsg" aria-live="polite"></div>
-  </section>
-
   <section class="panel pl-view">
     <div class="view-toolbar">
       <button class="vbtn active" data-view="3d">3D</button>
@@ -167,6 +110,68 @@
       </select>
       <input type="range" id="simSlider" min="0" max="1000" value="0" step="1" aria-label="Simulation time">
       <span class="pl-time" id="simTime">0:00 / 0:00</span>
+    </div>
+  </section>
+
+  <section class="panel pl-side">
+    <div class="code-head"><span class="ptabs"><span class="ptab active">Settings</span></span></div>
+    <div class="pl-form">
+      <form id="form" autocomplete="off" novalidate>
+        <h3>Stock</h3>
+        <div class="pl-row"><label for="length">Length (X)<span class="unit">mm</span></label><input id="length" type="number" step="any" min="0" inputmode="decimal"></div>
+        <div class="pl-row"><label for="width">Width (Y)<span class="unit">mm</span></label><input id="width" type="number" step="any" min="0" inputmode="decimal"></div>
+        <div class="pl-row"><label for="thickness">Thickness (rough)<span class="unit">mm</span></label><input id="thickness" type="number" step="any" min="0" inputmode="decimal"></div>
+        <div class="pl-row"><label for="zMode">Z zero</label>
+          <select id="zMode">
+            <option value="top">Top of the stock</option>
+            <option value="bed">Spoilboard</option>
+          </select></div>
+        <p class="pl-hint" id="zHint"></p>
+        <p class="pl-hint">X0 Y0 is the front-left corner of the stock.</p>
+
+        <h3>Bit and cut</h3>
+        <div class="pl-row"><label for="toolD">Bit diameter<span class="unit">mm</span></label><input id="toolD" type="number" step="any" min="0" inputmode="decimal"></div>
+        <div class="pl-row"><label for="depth">Depth to remove<span class="unit">mm</span></label><input id="depth" type="number" step="any" min="0" inputmode="decimal"></div>
+        <div class="pl-row"><label for="direction">Cut direction</label>
+          <select id="direction">
+            <option value="x">Along X</option>
+            <option value="y">Along Y</option>
+          </select></div>
+        <p class="pl-hint">Usually along the grain.</p>
+
+        <h3>Material <span class="pl-changed" id="matChanged" hidden>changed</span></h3>
+        <div class="pl-mat">
+          <select id="material" aria-label="Material"></select>
+          <button class="vbtn" type="button" id="matSave" title="Save these cutting values for a material">Save as…</button>
+          <button class="vbtn" type="button" id="matDelete" title="Delete this material" disabled>Delete</button>
+        </div>
+        <p class="pl-hint pl-mat-io"><a href="/materials">All materials: change, import, export →</a></p>
+        <div class="pl-row"><label for="rpm">Spindle speed<span class="unit">rpm</span></label><input id="rpm" type="number" step="any" min="0" inputmode="decimal"></div>
+        <div class="pl-row"><label for="feed">Feed<span class="unit">mm/min</span></label><input id="feed" type="number" step="any" min="0" inputmode="decimal"></div>
+        <div class="pl-row"><label for="plunge">Plunge feed<span class="unit">mm/min</span></label><input id="plunge" type="number" step="any" min="0" inputmode="decimal"></div>
+        <div class="pl-row"><label for="stepdown">Step-down<span class="unit">mm/pass</span></label><input id="stepdown" type="number" step="any" min="0" inputmode="decimal"></div>
+        <div class="pl-row"><label for="stepover">Stepover<span class="unit" id="stepoverMm">% of Ø</span></label><input id="stepover" type="number" step="any" min="0" inputmode="decimal"></div>
+
+        <details>
+          <summary>More settings</summary>
+          <div class="pl-row"><label for="safe">Safe height above stock<span class="unit">mm</span></label><input id="safe" type="number" step="any" min="0" inputmode="decimal"></div>
+          <div class="pl-row"><label for="clearance">Run past the edges by<span class="unit">mm</span></label><input id="clearance" type="number" step="any" min="0" inputmode="decimal"></div>
+          <label class="pl-check"><input id="clearTurn" type="checkbox"> Turn round clear of the stock</label>
+          <div class="pl-row"><label for="dwell">Spindle spin-up<span class="unit">s</span></label><input id="dwell" type="number" step="any" min="0" inputmode="decimal"></div>
+          <p class="pl-hint">How far the bit's centre goes past every edge of the stock, at the ends of the lines and on the first and last line. Less than the bit radius. Plunges always happen beside the stock.</p>
+          <p class="pl-hint">Turn round clear of the stock: the lines run on until the whole bit has left the stock by this much, so the step to the next line happens in the air (longer lines, a bit slower).</p>
+        </details>
+      </form>
+
+      <h3>Program</h3>
+      <dl class="pl-sum" id="summary"></dl>
+      <ul class="pl-notes" id="notes"></ul>
+      <div class="pl-name">
+        <input id="fileName" aria-label="File name" spellcheck="false">
+        <button class="vbtn primary" type="button" id="saveBtn">Save</button>
+      </div>
+      <p class="pl-hint" id="folderHint"></p>
+      <div class="pl-msg" id="saveMsg" aria-live="polite"></div>
     </div>
   </section>
 </main>

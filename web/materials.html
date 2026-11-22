@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Materials</title>
+<!-- The Planing page's materials (cutting values per material): see them all, change, add,
+     delete, import and export. Kept on the Pi in planing_presets.json. See materials.js. -->
+<link rel="stylesheet" href="style.css">
+<style>
+  .mt-hint { margin: 0 0 10px; font-size: 12px; color: var(--muted); }
+  .mt-wrap { overflow-x: auto; }
+  table.mt { border-collapse: collapse; width: 100%; font-size: 13px; }
+  .mt th { text-align: left; font-weight: 600; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px;
+           padding: 4px 6px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .mt th .unit { text-transform: none; letter-spacing: 0; font-weight: 400; }
+  .mt td { padding: 4px 6px; border-bottom: 1px solid var(--border); }
+  .mt tr.changed td { background: rgba(242, 179, 61, .06); }
+  .mt tr.add-row td { border-bottom: 0; padding-top: 10px; }
+  .mt input { width: 100%; min-width: 70px; padding: 4px 6px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+              color: var(--text); font: 13px var(--mono); }
+  .mt input.name { min-width: 120px; font-family: inherit; }
+  .mt input:focus { outline: none; border-color: var(--accent); }
+  .mt input.bad { border-color: var(--err); }
+  .mt .acts { white-space: nowrap; text-align: right; width: 1%; }
+  .mt .acts .vbtn + .vbtn { margin-left: 4px; }
+  .mt-empty { color: var(--muted); padding: 14px 6px; }
+  .mt-msg { font-size: 12px; min-height: 18px; margin-top: 8px; }
+  .mt-msg.ok { color: var(--ok); }
+  .mt-msg.err { color: var(--err); }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="logo">M</span> <span id="machineName">CNC Monitor</span></div>
+  <nav class="pagenav" id="pagenav" data-page="materials" aria-label="Pages"></nav>
+  <div class="pagetitle"><b>Materials</b><span>Cutting values used by Planing</span></div>
+</header>
+
+<main class="page-main">
+  <section class="panel page-panel">
+    <div class="code-head">
+      <span class="ptabs"><span class="ptab active">Materials</span></span>
+      <button class="vbtn" type="button" id="importBtn" title="Add the materials from a JSON file made with Export">Import…</button>
+      <button class="vbtn" type="button" id="exportBtn" title="Download all the materials as a JSON file">Export…</button>
+      <input type="file" id="importFile" accept=".json,application/json" hidden>
+    </div>
+    <div class="page-body">
+    <p class="mt-hint">The cutting values the Planing page fills in when you pick a material. Change a value and press
+      <b>Save</b> on that row; add a new material in the last row. They are kept on the Pi, so every device sees the same ones.</p>
+    <div class="mt-wrap">
+      <table class="mt">
+        <thead><tr>
+          <th>Name</th>
+          <th>Spindle <span class="unit">rpm</span></th>
+          <th>Feed <span class="unit">mm/min</span></th>
+          <th>Plunge <span class="unit">mm/min</span></th>
+          <th>Step-down <span class="unit">mm</span></th>
+          <th>Stepover <span class="unit">% of Ø</span></th>
+          <th></th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+        <tfoot>
+          <tr class="add-row" id="addRow">
+            <td><input class="name" data-k="name" placeholder="New material" maxlength="40" aria-label="Name"></td>
+            <td><input data-k="rpm" type="number" step="any" min="0" inputmode="decimal" aria-label="Spindle speed"></td>
+            <td><input data-k="feed" type="number" step="any" min="0" inputmode="decimal" aria-label="Feed"></td>
+            <td><input data-k="plunge" type="number" step="any" min="0" inputmode="decimal" aria-label="Plunge feed"></td>
+            <td><input data-k="stepdown" type="number" step="any" min="0" inputmode="decimal" aria-label="Step-down"></td>
+            <td><input data-k="stepover" type="number" step="any" min="0" inputmode="decimal" aria-label="Stepover"></td>
+            <td class="acts"><button class="vbtn primary" type="button" id="addBtn">Add</button></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <div class="mt-msg" id="msg"></div>
+    </div>
+  </section>
+</main>
+
+<script type="module" src="materials.js"></script>
+</body>
+</html>

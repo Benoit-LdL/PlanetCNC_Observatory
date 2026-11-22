@@ -3,6 +3,8 @@ import { buildToolpath, parseTools } from './gcode.js';
 import { log } from './log.js';
 import { initTune, openTune, tuneLogLoad } from './tune-ui.js';
 import { initSystem, systemOnState } from './system-ui.js';
+import { navOnState } from './nav.js';
+import { initHelp } from './help.js';
 
 const $ = (id) => document.getElementById(id);
 const ROW_H = 20;          // must match .row height in style.css
@@ -466,6 +468,7 @@ function onState(s) {
   renderSystem(s.system);
   consoleUpdate(s.console_seq);
   systemOnState(s);
+  navOnState(s);
   camUpdate(s.camera);
 }
 
@@ -586,9 +589,10 @@ async function filesLoad(path) {
   $('filesDirOpenBtn').disabled = !filesAbs || filesAbs === filesDir;
 
   const parts = d.path ? d.path.split('/') : [];
-  let crumbs = `<button data-path="" title="${esc(d.root)}">${esc(d.root)}</button>`;
+  let crumbs = `<button data-path="" data-folder="" title="${esc(d.root)}">${esc(d.root)}</button>`;
   parts.forEach((p, i) => {
-    crumbs += `<span>/</span><button data-path="${esc(parts.slice(0, i + 1).join('/'))}">${esc(p)}</button>`;
+    const to = esc(parts.slice(0, i + 1).join('/'));
+    crumbs += `<span>/</span><button data-path="${to}" data-folder="${to}">${esc(p)}</button>`;
   });
   $('filesCrumbs').innerHTML = crumbs;
 
@@ -596,7 +600,7 @@ async function filesLoad(path) {
     const rel = joinPath(d.path, e.name);
     const p = esc(rel);
     if (e.dir) {
-      return `<div class="frow"><span class="fname"><button data-open="${p}">📁 ${esc(e.name)}</button></span></div>`;
+      return `<div class="frow" data-folder="${p}"><span class="fname"><button data-open="${p}">📁 ${esc(e.name)}</button></span></div>`;
     }
     const acts = [
       GCODE_RE.test(e.name) ? `<button class="ficon" data-preview="${p}" title="Preview in 3D view">${ICONS.view}</button>` : '',
@@ -604,7 +608,7 @@ async function filesLoad(path) {
       `<a class="ficon" href="/api/files/download?path=${encodeURIComponent(rel)}" download title="Download">${ICONS.down}</a>`,
       `<button class="ficon del" data-delete="${p}" title="Delete">${ICONS.del}</button>`,
     ].join('');
-    return `<div class="frow" title="${esc(e.name)} – ${fmtDate(e.mtime)}"><span class="fname">${esc(e.name)}</span>
+    return `<div class="frow" draggable="true" data-file="${p}" title="${esc(e.name)} – ${fmtDate(e.mtime)} · drag onto a folder to move it"><span class="fname">${esc(e.name)}</span>
       <span class="fsize">${fmtSize(e.size)}</span><span class="facts">${acts}</span></div>`;
   });
   $('filesList').innerHTML = rows.join('') || '<div class="files-empty">Empty folder – drop files here</div>';
@@ -700,6 +704,73 @@ filesPanel.addEventListener('click', async (e) => {
     filesMessage(res.message || (res.ok ? 'Deleted' : 'Delete failed'), res.ok ? 'ok' : 'err');
     await filesLoad(filesPath);
   }
+});
+
+// Moving a file: drag its row onto a folder row, or onto a folder in the path above the list.
+const MOVE_TYPE = 'application/x-cnc-file';
+let moving = null;   // path of the file being dragged
+const isMove = (e) => moving !== null && [...(e.dataTransfer?.types || [])].includes(MOVE_TYPE);
+const moveTarget = (e) => {
+  const t = e.target.closest?.('[data-folder]');
+  return t && filesPanel.contains(t) ? t : null;
+};
+const parentOf = (p) => p.split('/').slice(0, -1).join('/');
+const clearMoveOver = () => filesPanel.querySelectorAll('.move-over').forEach((el) => el.classList.remove('move-over'));
+filesPanel.addEventListener('dragstart', (e) => {
+  const row = e.target.closest?.('[data-file]');
+  if (!row) return;
+  moving = row.dataset.file;
+  e.dataTransfer.setData(MOVE_TYPE, moving);
+  e.dataTransfer.setData('text/plain', moving.split('/').pop());
+  e.dataTransfer.effectAllowed = 'move';
+  row.classList.add('dragging');
+});
+filesPanel.addEventListener('dragend', (e) => {
+  e.target.closest?.('[data-file]')?.classList.remove('dragging');
+  moving = null;
+  clearMoveOver();
+});
+filesPanel.addEventListener('dragover', (e) => {
+  if (!isMove(e)) return;
+  const t = moveTarget(e);
+  clearMoveOver();
+  if (!t || t.dataset.folder === parentOf(moving)) { e.dataTransfer.dropEffect = 'none'; return; }
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  t.classList.add('move-over');
+});
+filesPanel.addEventListener('dragleave', (e) => {
+  if (isMove(e) && !filesPanel.contains(e.relatedTarget)) clearMoveOver();
+});
+filesPanel.addEventListener('drop', async (e) => {
+  if (!isMove(e)) return;
+  e.preventDefault();
+  e.stopPropagation();
+  clearMoveOver();
+  const t = moveTarget(e);
+  const path = moving;
+  moving = null;
+  if (!t || t.dataset.folder === parentOf(path)) return;
+  const to = t.dataset.folder;
+  const name = path.split('/').pop();
+  const send = async (overwrite) => {
+    try {
+      const r = await fetch('/api/files/move', {
+        method: 'POST', headers: { 'X-CNC-Control': '1', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path, to, overwrite }),
+      });
+      return await r.json().catch(() => ({ ok: false, message: `HTTP ${r.status}` }));
+    } catch {
+      return { ok: false, message: 'Server unreachable' };
+    }
+  };
+  let res = await send(false);
+  if (res.exists) {
+    if (!confirm(`"${name}" already exists in ${to || filesRoot}. Replace it?`)) return;
+    res = await send(true);
+  }
+  await filesLoad(filesPath);
+  filesMessage(res.message || (res.ok ? 'Moved' : 'Move failed'), res.ok ? 'ok' : 'err');
 });
 
 // Drag & drop onto the right panel, whichever tab it shows. dragenter/dragleave also fire
@@ -1156,6 +1227,7 @@ try {
   else if (tab === 'files' || tab === 'feeds') savedTab = tab;
 } catch { /* ignore */ }
 initSystem();
+initHelp($('sidePanel'));
 renderDro();
 renderCode(true);
 connect();

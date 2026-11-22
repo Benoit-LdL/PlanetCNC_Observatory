@@ -94,7 +94,8 @@ the right.*
   with a warning when the path doesn't fit.
 - A simulation of the cut: play, pause, speed and scrub through it, with the
   stock's top going from rough to planed and the estimated run time.
-- Cutting values saved per material (oak, cherry, …), shared by every device.
+- Cutting values saved per material (oak, cherry, …), shared by every device,
+  on a Materials page where you can change, add, delete, import and export them.
 - The program is saved in the Files folder; you load and run it in TNG.
 
 **The Raspberry Pi and the app**
@@ -147,7 +148,7 @@ starting and ending, with how long each took.
 ![Desktop: the Settings tab](media/screenshots/desktop-settings.png)
 
 The **Settings** tab: machine name, camera, Files folder, how the tool is
-drawn, the way to the System window, and logs.
+drawn, the way to the System page, and logs.
 
 ![Desktop: the Planing page](media/screenshots/desktop-planing.png)
 
@@ -223,10 +224,10 @@ default the server only accepts a bridge from the Pi itself.
 | `bridge/bridge_autostart.py` | Started by TNG at startup; runs the bridge in the background and restarts it after a crash. |
 | `bridge/Expr_WebMonitor.txt` | Tells TNG to run `bridge_autostart.py` when it starts. |
 | `update.sh` | Gets the latest version from GitHub and copies the bridge files into TNG's profile. |
-| `tools/setup-sudo.sh` | Optional: lets the System window upgrade OS packages and reboot the Pi (see [step 7](#7-optional-allow-os-upgrades-and-reboot-from-the-dashboard)). |
+| `tools/setup-sudo.sh` | Optional: lets the System page upgrade OS packages and reboot the Pi (see [step 7](#7-optional-allow-os-upgrades-and-reboot-from-the-dashboard)). |
 | `tools/screenshots.py` | Retakes the README screenshots from the demo (on a PC, not needed on the Pi). |
 | `media/` | The animation and screenshots in this README. |
-| `web/` | The dashboard page (HTML, CSS, JavaScript). `tune.js` reads and rewrites programs for the Feeds & steps window; `system-ui.js` holds the E-stop button and the System window; `camera.html` is the camera page on its own; `planing.html`, `planing.js` and `planing-gcode.js` are the Planing page. |
+| `web/` | The dashboard page (HTML, CSS, JavaScript). `tune.js` reads and rewrites programs for the Feeds & steps window; `system-ui.js` holds the E-stop button and the System page (`system.html`, `system.js`); `nav.js` is the menu in the top bar on every page; `help.js` the **?** help popups in Settings; `materials.html` and `materials.js` the Materials page; `camera.html` is the camera page on its own; `planing.html`, `planing.js` and `planing-gcode.js` are the Planing page. |
 | `settings.json` | Created when you change a setting in the dashboard; it also holds the Telegram bot token, so only its owner may read it. Not part of git. |
 | `timelapses/` | The last 20 job timelapses. Not part of git. |
 | `tuning.json` | The Feeds tab's log of adjusted files. Not part of git. |
@@ -375,7 +376,7 @@ then run `sudo systemctl daemon-reload && sudo systemctl restart planetcnc-web`.
 
 ### 7. Optional: allow OS upgrades and reboot from the dashboard
 
-The System window shows which Raspberry Pi OS packages can be upgraded. To
+The System page shows which Raspberry Pi OS packages can be upgraded. To
 also upgrade them, refresh the package lists, and reboot or shut down the Pi
 from there, the server needs to run those few commands as root. Allow exactly
 those, and nothing else:
@@ -427,12 +428,15 @@ Open **http://&lt;pi-address&gt;:8080** (see [step 3](#3-try-the-server)). The p
 
 ### Top bar
 
-- The machine's name (set in Settings), then the page tabs: **Dashboard** and
-  **Planing** (the [Planing page](#planing-rough-stock)); the page you are on
-  is underlined. Then the loaded file.
-- The **System** button with the installed version. When an update of the
-  app or of the OS is available it says so. It opens the
-  [System window](#system-window).
+The top bar is the same on every page.
+
+- The machine's name (set in Settings).
+- The menu: **Dashboard**, **Planing** (the [Planing page](#planing-rough-stock)),
+  **Materials** (the [Materials page](#materials)) and **System** (the
+  [System page](#system-page)). The page you are on is filled in blue. An
+  orange dot on **System** means an update of the app or of the OS is
+  available. On a phone the menu shows only its icons.
+- The page's title, and next to it, on the dashboard, the loaded file.
 - The status:
 
   | Status | Meaning |
@@ -449,7 +453,7 @@ Open **http://&lt;pi-address&gt;:8080** (see [step 3](#3-try-the-server)). The p
 ### E-stop
 
 The red **E-STOP** button at the right of the top bar (also at the top of the
-Feeds & steps and System windows) switches TNG's E-stop on, like the E-stop
+Feeds & steps window and of the System page) switches TNG's E-stop on, like the E-stop
 command in TNG. TNG stops the machine at once.
 
 - One tap, no confirmation: it is meant for an emergency.
@@ -461,7 +465,7 @@ command in TNG. TNG stops the machine at once.
   directly.
 - It's greyed out while TNG isn't connected ("use the E-stop at the
   machine"), while E-stop is already on (**ENGAGED**), and while the bridge in
-  TNG is too old for it (install the update; see the System window).
+  TNG is too old for it (install the update; see the System page).
 - If it fails, the page says so in a pop-up: use the machine's E-stop.
 - The Console and the log say who pressed it (the device's address and
   browser).
@@ -552,6 +556,10 @@ Settings. The tab only appears when there is a folder.
   bin deletes it (after asking).
 - **Drag files onto the panel** (on any tab), or press **Upload**, to put them
   in the folder shown. An existing file is only replaced after you confirm.
+- **Move a file** by dragging its row onto a folder in the list, or onto a
+  folder in the path at the top (to move it up). An existing file of the same
+  name is only replaced after you confirm. The file loaded in TNG can't be
+  moved. Drag and drop needs a mouse: it may not work on phones and tablets.
 
 **Feeds.** Every file saved from the Feeds & steps window (see below), newest
 first: what changed in each operation compared to Fusion, and each job run
@@ -585,15 +593,17 @@ with it ("ran to the end" or "stopped at line …", with how long it took).
   applies to every open dashboard right away.
 - **Telegram** and **Timelapse:** see
   [Telegram notifications and timelapse](#telegram-notifications-and-timelapse).
-- **Software and system:** opens the [System window](#system-window).
+- **Software and system:** opens the [System page](#system-page).
 - **Logs:** see [Logs and debugging](#logs-and-debugging).
 
-Settings are saved in `settings.json` next to `server.py`. Updates keep them.
+The explanations are behind the round **?** next to each title: hover over
+it, or tap it on a phone or tablet. Settings are saved in `settings.json` next
+to `server.py`. Updates keep them.
 
-### System window
+### System page
 
-Open it with the **System** button in the top bar (or **Settings → Software
-and system**).
+**http://&lt;pi-address&gt;:8080/system**: open it with **System** in the top
+bar (or **Settings → Software and system**).
 
 - **Raspberry Pi:** model, OS, kernel, Python, name and address, how long the
   Pi and the dashboard server have been running.
@@ -673,9 +683,10 @@ loads or starts anything in TNG. Its E-stop button works as in the top bar.
 
 ### Planing rough stock
 
-**http://&lt;pi-address&gt;:8080/planing** (or the **Planing** tab in the top bar)
+**http://&lt;pi-address&gt;:8080/planing** (or **Planing** in the top bar)
 makes the program that planes the top of rough stock flat, with a surfacing
-bit. Millimetres only.
+bit. Millimetres only. Laid out like the dashboard: the 3D view, and the
+settings in the panel on the right.
 
 **Inputs**
 
@@ -723,13 +734,34 @@ with rapids at 5000 mm/min.
 stepover under a name (Oak, Cherry, …); picking it later fills them in. The
 stock size, bit and depth are entered each time. "changed" next to the title
 means the form no longer matches the saved material. Materials are kept on
-the Pi in `planing_presets.json`, so every device sees the same ones.
+the Pi in `planing_presets.json`, so every device sees the same ones. To see
+them all, change, rename, import or export them, use the
+[Materials page](#materials) (the link under the material list, or the
+**Materials** tab).
 
 **Save** writes the program to the top of the Files folder (set in Settings),
 named after the material, size and depth, e.g. `plane_oak_600x200_3mm.nc`; you
 can type another name. If the file exists, it asks before replacing it. As
 everywhere in the dashboard, nothing is sent to TNG: load and start the
 program at the machine. The last values entered are remembered in the browser.
+
+### Materials
+
+**http://&lt;pi-address&gt;:8080/materials** (or **Materials** in the
+top bar) shows all the Planing page's materials in one table: name, spindle
+speed, feed, plunge feed, step-down and stepover (% of the bit diameter).
+
+- **Change** a value or the name in a row: the row turns yellow and its
+  **Save** button lights up. Saving under another name renames the material.
+- **Delete** removes a material (after asking).
+- **Add** a material in the last row: a name and all five values, above 0.
+- **Export…** downloads all of them as `planing-materials.json`: a backup (the
+  materials only live on the Pi), or to move them to another Pi.
+- **Import…** adds the materials from such a file. If some names already
+  exist, it asks once whether to replace them or keep yours.
+
+A name already used (in any case: Oak = oak) is only replaced after you
+confirm. The Planing page picks up the changes when you go back to it.
 
 ### The camera on its own
 
@@ -982,7 +1014,7 @@ Good to know:
 - **Roll back** returns to the version installed before the last update.
 - Updating is refused while a program runs.
 - The same window upgrades the Raspberry Pi OS packages, see
-  [System window](#system-window).
+  [System page](#system-page).
 - If the section says updates are unavailable, it says why (git missing, or
   the folder isn't a git clone).
 
@@ -1000,7 +1032,7 @@ Notes:
   would overwrite them. `update.sh` names them. `git checkout -- <file>`
   undoes a change.
 - This version's bridge (version 3) adds the E-stop. A bridge from before
-  self-reloading (version 1) needs one TNG restart; the System window says
+  self-reloading (version 1) needs one TNG restart; the System page says
   which version runs.
 - `bridge_autostart.py` is only read when TNG starts. When an update changes
   it, restart TNG once at a convenient moment.
@@ -1025,7 +1057,7 @@ can be looked at after it happened.
 | `pcnc.camera` | ffmpeg starting and stopping (with the reason), camera errors, viewers. |
 | `pcnc.system` | A status line every 5 minutes (bridge rate, job line, open dashboards, server memory, CPU, temperature), and warnings for under-voltage, throttling, heat, a full disk or memory. |
 | `pcnc.update` | Update checks and installs with git's output; OS package checks and upgrades. |
-| `pcnc.files` | Uploads, deletions and adjusted files saved from the Feeds & steps window. |
+| `pcnc.files` | Uploads, moves, deletions and adjusted files saved from the Feeds & steps window. |
 | `pcnc.telegram` | The bot connecting, commands from the chat, failed sends, timelapses started and made (with ffmpeg's error if it failed). |
 
 The bridge keeps up to 300 lines while it can't reach the server and sends
@@ -1170,7 +1202,7 @@ Look at **Settings → Logs** first: most problems leave a warning there.
 | No bed grid, only a small grid around zero | TNG's motor limits aren't set (Settings → Motors → Limits). |
 | Camera shows "No camera signal" | Check `ls /dev/video*` and the `pcnc.camera` lines in the log (they include ffmpeg's error). `v4l2-ctl --list-formats-ext` (package `v4l-utils`) lists the sizes the camera supports; set one with `--camera-size`. |
 | No camera panel at all | ffmpeg isn't installed (Settings → Camera says so), Camera is set to **Off**, or no camera is plugged in. After plugging one in, press **Rescan**. |
-| The E-stop button stays grey | Hover over it for the reason: TNG not connected, E-stop already on, or the bridge too old (System window → Bridge in TNG). |
+| The E-stop button stays grey | Hover over it for the reason: TNG not connected, E-stop already on, or the bridge too old (System page → Bridge in TNG). |
 | The E-stop button says it failed with "this TNG has no planetcnc.estop()" | Your TNG version names the function differently. Use the machine's E-stop, and open an issue with your TNG version. |
 | No timelapse video | Look for `pcnc.telegram` lines with "timelapse" in the log: "only 0 photo(s)" means the camera gave no picture; an ffmpeg error says why the video failed. |
 | Telegram or timelapse problems | See [Problems with Telegram](#problems-with-telegram). |
