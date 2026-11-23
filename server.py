@@ -58,6 +58,7 @@ COMMAND_WAIT = 10.0    # how long a browser request waits for TNG's answer
 ESTOP_PROTOCOL = 3     # first bridge version that accepts the E-stop request
 MAX_UPLOAD_BYTES = 200 * 1024 * 1024
 CONSOLE_LINES = 500      # console history kept in memory
+JOB_CONFIRM_LINES = 2    # a run is a job (not homing or a jog) once the program line has gone up this much
 
 # ---------------------------------------------------------------------------
 # What the (generic) bridge reads from TNG, and how that becomes dashboard state.
@@ -335,6 +336,8 @@ class Hub:
         self.bridge_updates = 0
         self.offline_since = None
         self.job_started = None      # time.time() when the running job started (None when no job runs)
+        self.run_since = None        # time.time() when _hw_run last went on (a job, or homing, a jog, MDI...)
+        self.run_low_line = None     # lowest program line seen since then
 
     # ----- machine commands: browser -> server -> bridge (in its /api/state reply) -----
 
@@ -420,8 +423,8 @@ class Hub:
             self.log("err" if new.get("estop") else "info", "E-stop active" if new.get("estop") else "E-stop released")
         if new.get("file") != old.get("file") and new.get("file"):
             self.log("info", "Program loaded: %s" % new["file"])
-        if changed("running"):
-            if new.get("running"):
+        if changed("job"):
+            if new.get("job"):
                 self.log("info", "Job started: %s" % (new.get("file") or "program"))
                 if TUNING:
                     TUNING.job_started(new.get("file"))
@@ -445,8 +448,37 @@ class Hub:
         if changed("idle"):
             log_machine.debug("machine %s", "idle" if new.get("idle") else "busy")
 
+    def _mark_job(self, state):
+        """Set state["job"]: is the machine running the loaded program, not just moving?
+
+        TNG's _hw_run is on for every motion it executes: homing, jogging and MDI as well as
+        a program. So a run only counts as a job once a program is loaded and its line number
+        moves up by JOB_CONFIRM_LINES from the lowest it was during the run; from then on it
+        stays a job until _hw_run goes off. The job start time is when _hw_run went on, kept
+        here so a dashboard opened mid-job still shows the real elapsed time.
+        """
+        if not state.get("running"):
+            self.run_since = self.run_low_line = self.job_started = None
+            state["job"] = False
+            return
+        line = int(state.get("line") or 0)
+        if self.run_since is None:
+            self.run_since, self.run_low_line = time.time(), line
+        self.run_low_line = min(self.run_low_line, line)
+        if self.job_started is None and state.get("line_count") and state.get("file") \
+                and line >= self.run_low_line + JOB_CONFIRM_LINES:
+            self.job_started = self.run_since
+            log_machine.info("job confirmed: line %d of %d, %.1f s after the run started",
+                             line, state["line_count"], time.time() - self.run_since)
+        state["job"] = self.job_started is not None
+
     def set_state(self, state, source=""):
         with self.cond:
+            was_running = bool(self.state.get("running"))
+            self._mark_job(state)
+            if state.get("running") != was_running and self.state:
+                log_machine.debug("_hw_run %s at line %s of %s", "on" if state.get("running") else "off",
+                                  state.get("line"), state.get("line_count"))
             gap = time.time() - self.last_state_time
             if source and gap >= BRIDGE_TIMEOUT:
                 if self.offline_since:
@@ -461,11 +493,6 @@ class Hub:
                     log_bridge.warning("no update from the bridge for %.1f s (TNG busy, or the Pi overloaded?)", gap)
                 if self.state:
                     self._log_changes(self.state, state)
-            # Job start time, kept here so a dashboard opened mid-job still shows the real elapsed time.
-            if not state.get("running"):
-                self.job_started = None
-            elif self.job_started is None:
-                self.job_started = time.time()
             if NOTIFY:  # also after a reconnect, so a job that ended meanwhile is noticed
                 NOTIFY.on_state(self.state, state)
             self.bridge_updates += 1
@@ -1538,7 +1565,8 @@ class Notifier:
     def on_state(self, old, new):
         if not old:
             return
-        running, was = bool(new.get("running")), bool(old.get("running"))
+        # "job", not "running": homing, jogging and MDI moves are not reported (see Hub._mark_job)
+        running, was = bool(new.get("job")), bool(old.get("job"))
         if new.get("estop") and not old.get("estop"):  # first: the most urgent message
             self.q.put(("estop", dict(new, line=old.get("line") if was else new.get("line"), running=was)))
         if running and not was:
@@ -1816,7 +1844,7 @@ def status_text():
     if s.get("file"):
         lines.append(_html(_job_name(s["file"])))
     total = s.get("line_count") or 0
-    if s.get("running") and total:
+    if s.get("job") and total:
         line = s.get("line") or 0
         lines.append("Line %s of %s (%d %%)" % (line, total, 100 * line / total))
         left = s.get("time_to_end") or -1
@@ -3312,7 +3340,7 @@ def watch_bridge():
             with HUB.cond:
                 HUB.offline_since = HUB.last_state_time
             HUB.log("warn", "TNG bridge lost - no updates for %d s" % BRIDGE_TIMEOUT)
-            if NOTIFY and HUB.state.get("running"):
+            if NOTIFY and HUB.state.get("job"):
                 NOTIFY.event("bridge_lost")
         online = now_online
 
@@ -3333,7 +3361,7 @@ def heartbeat():
         last = (now, updates)
         seq, s = HUB.snapshot()
         parts = ["bridge %s (%.1f updates/s)" % ("online" if s["bridge_online"] else "OFFLINE", rate)]
-        if s.get("running"):
+        if s.get("job"):
             total = s.get("line_count") or 0
             parts.append("job line %s/%s (%.0f %%)%s" % (
                 s.get("line"), total or "?", 100.0 * s.get("line", 0) / total if total else 0,

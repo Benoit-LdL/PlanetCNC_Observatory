@@ -900,6 +900,10 @@ or, when it goes wrong:
 
 All messages:
 
+Only running the loaded program counts as a job. Homing, jogging and MDI
+moves send nothing (TNG reports them as "running" too, so a run only becomes a
+job once the program's line number starts moving up).
+
 | When | Message | Photo |
 |---|---|---|
 | A job starts | The file, and TNG's estimated time when it has one. | yes ¹ |
