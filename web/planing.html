@@ -119,8 +119,8 @@
         <p class="pl-hint pl-mat-io"><a href="/materials">All materials: change, import, export →</a></p>
         </section>
 
-        <details class="pl-group">
-          <summary><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg><span>More settings</span></summary>
+        <section class="pl-group" aria-label="More settings">
+          <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg><span>More settings</span></h3>
         <div class="pl-row"><label for="safe">Safe height above stock<span class="unit">mm</span></label><input id="safe" type="number" step="any" min="0" inputmode="decimal"></div>
         <div class="pl-row"><label for="clearance">Run past the edges by<span class="unit">mm</span></label><input id="clearance" type="number" step="any" min="0" inputmode="decimal"></div>
           <label class="pl-check" for="clearTurn"><input id="clearTurn" type="checkbox"><span class="help-at">Turn round clear of the stock</span></label>
@@ -128,7 +128,7 @@
           <p class="set-help" data-help-for="clearance">How far the bit's centre goes past every edge of the stock, at the ends of the lines and on the first and last line. Less than the bit radius. Plunges always happen beside the stock.</p>
           <p class="set-help" data-help-for="clearTurn">The lines run on until the whole bit has left the stock by the "run past the edges" amount, so the step to the next line happens in the air (longer lines, a bit slower).</p>
           <p class="set-help" data-help-for="dwell">How long the program waits after starting the spindle (<code>M3</code>, then <code>G4</code>), so the bit is at full speed before it moves to the stock. 0 = no wait.</p>
-        </details>
+        </section>
       </form>
 
       <section class="pl-group" aria-label="Program">

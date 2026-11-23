@@ -141,17 +141,23 @@ const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 let checkingApp = false, checkingOs = false;
 let appBusy = '';           // 'Updating' / 'Rolling back' while this page runs one
 
-/** The badge or button on the right of a row. Only kind 'update' can be pressed. */
+/** The badge or button on the right of a row. Kind 'update' can be pressed; so can 'ok' on a
+ *  button (app, OS): on hover it turns into "Check update", which checks that row only. */
 function setBadge(id, kind, label, { title = '', disabled = false } = {}) {
   const b = $(id);
+  const recheck = kind === 'ok' && 'disabled' in b;
   if (b.dataset.kind !== kind || b.dataset.label !== label) {   // not on every poll: the spinner would restart
     const [ic, turns] = BADGE[kind];
     b.dataset.kind = kind;
     b.dataset.label = label;
-    b.innerHTML = icon(ic, turns ? 'spin' : '') + `<span>${esc(label)}</span>`;
+    b.innerHTML = recheck
+      ? `<span class="ubtn-face">${icon(ic)}<span>${esc(label)}</span></span>`
+        + `<span class="ubtn-face alt">${icon('refresh')}<span>Check update</span></span>`
+      : icon(ic, turns ? 'spin' : '') + `<span>${esc(label)}</span>`;
   }
-  b.title = title;
-  if ('disabled' in b) b.disabled = kind !== 'update' || disabled;
+  b.classList.toggle('recheck', recheck);
+  b.title = recheck && !title ? 'Check for an update of this one now' : title;
+  if ('disabled' in b) b.disabled = !(kind === 'update' || recheck) || disabled;
 }
 
 /** The small line under a row's version: what went wrong, or what is happening. */
@@ -330,8 +336,8 @@ async function load() {
 async function checkAll({ app: withApp = true, os: withOs = true } = {}) {
   withOs = withOs && !!sys?.os;
   if (!withApp && !withOs) return;
-  checkingApp = withApp;
-  checkingOs = withOs;
+  if (withApp) checkingApp = true;   // checking one row leaves the other one's check running
+  if (withOs) checkingOs = true;
   if (withApp) setStatus('updStatus', '');
   if (withOs) setStatus('osStatus', 'Refreshing the package lists can take a minute.');
   render();
@@ -462,13 +468,13 @@ export function initSystem() {
   document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
   load().then(autoCheck);
   $('updCheckBtn').addEventListener('click', () => checkAll());
-  $('appAct').addEventListener('click', () => appRun('/api/update/apply', {
+  $('appAct').addEventListener('click', () => ($('appAct').dataset.kind === 'ok' ? checkAll({ os: false }) : appRun('/api/update/apply', {
     title: `Install ${plural(sys?.app?.commits?.length || 0, 'change')}?`, ok: 'Install',
-    text: 'The update comes from GitHub. The dashboard restarts and reloads itself; TNG and the machine are not interrupted.' }));
+    text: 'The update comes from GitHub. The dashboard restarts and reloads itself; TNG and the machine are not interrupted.' })));
   $('updRollbackBtn').addEventListener('click', () => appRun('/api/update/rollback', {
     title: 'Roll back?', ok: 'Roll back',
     text: 'Go back to the version that was installed before the last update.' }));
-  $('osAct').addEventListener('click', osUpgrade);
+  $('osAct').addEventListener('click', () => ($('osAct').dataset.kind === 'ok' ? checkAll({ app: false }) : osUpgrade()));
   for (const btn of document.querySelectorAll('[data-more]')) {
     btn.addEventListener('click', () => {
       const more = $(btn.dataset.more);

@@ -756,6 +756,13 @@ span.ptab::after { display: none; }
 .ubtn[data-kind="update"] { height: 40px; padding: 0 20px 0 16px; border-radius: 20px; box-shadow: none; cursor: pointer;
                             background: var(--md-primary); color: var(--md-on-primary); font-size: 14px; }
 .ubtn[data-kind="update"]:disabled { opacity: .38; cursor: not-allowed; }
+/* "Up-to-date" that turns into "Check update" on hover: both faces in one cell, so the width stays */
+.ubtn.recheck { display: inline-grid; cursor: pointer; }
+.ubtn-face { grid-area: 1 / 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.ubtn-face.alt { visibility: hidden; }
+.ubtn.recheck:is(:hover, :focus-visible):not(:disabled) { color: var(--md-primary); box-shadow: inset 0 0 0 1px var(--md-primary); }
+.ubtn.recheck:is(:hover, :focus-visible):not(:disabled) .ubtn-face { visibility: hidden; }
+.ubtn.recheck:is(:hover, :focus-visible):not(:disabled) .ubtn-face.alt { visibility: visible; }
 .info-btn { display: inline-grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 50%;
             background: none; color: var(--md-on-surface-variant); cursor: pointer; }
 .info-btn svg { width: 20px; height: 20px; transition: transform .2s; }
@@ -799,11 +806,11 @@ span.ptab::after { display: none; }
 /* One card per group (Stock, Bit and cut, Material, More settings, Program), as on the Settings page */
 .pl-group { display: flex; flex-direction: column; gap: 6px; padding: 0 14px 14px; border-radius: 14px;
             border: 1px solid var(--md-outline-variant); background: var(--md-surface-container-lowest); }
-.pl-group > h3, .pl-group > summary {
+.pl-group > h3 {
   display: flex; align-items: center; gap: 10px; min-height: 48px; margin: 0 -14px 6px; padding: 0 14px;
   font-size: 16px; line-height: 22px; font-weight: 500; color: var(--md-on-surface);
   border-bottom: 1px solid var(--md-outline-variant); }
-.pl-group > h3 > svg, .pl-group > summary > svg {
+.pl-group > h3 > svg {
   flex: none; width: 18px; height: 18px; padding: 6px; box-sizing: content-box; border-radius: 10px;
   fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
   color: var(--md-on-primary-container); background: var(--md-primary-container); }
@@ -819,14 +826,6 @@ span.ptab::after { display: none; }
 .pl-mat-io a:hover { text-decoration: underline; }
 .pl-changed { font-size: 12px; font-weight: 500; padding: 1px 8px; border-radius: 6px;
               background: var(--md-warning-container); color: var(--md-on-warning-container); }
-/* More settings: folded, a card with only its title bar until opened */
-details.pl-group:not([open]) { padding-bottom: 0; }
-details.pl-group:not([open]) > summary { margin-bottom: 0; border-bottom: 0; }
-.pl-group > summary { cursor: pointer; list-style: none; }
-.pl-group > summary::-webkit-details-marker { display: none; }
-.pl-group > summary::after { content: ""; margin-left: auto; width: 8px; height: 8px; border: solid var(--md-on-surface-variant);
-  border-width: 0 2px 2px 0; transform: translateY(-2px) rotate(45deg); transition: transform .15s; }
-details.pl-group[open] > summary::after { transform: translateY(2px) rotate(-135deg); }
 .pl-sum { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; padding: 12px 14px; border-radius: 12px;
           background: var(--md-surface-container); font-size: 13px; }
 .pl-sum:empty { display: none; }
