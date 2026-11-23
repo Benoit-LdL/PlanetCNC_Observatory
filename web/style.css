@@ -4,6 +4,7 @@
   --panel-2: #2b333b;
   --border: #39434d;
   --text: #d7dee5;
+  --text-strong: #f1f5f8;
   --muted: #8a96a3;
   --accent: #3fc1e6;
   --dro: #49d0f5;
@@ -277,12 +278,6 @@ span.ptab { cursor: default; }   /* a panel's title, not a tab */
 .set-msg.err { color: var(--err); }
 .upd-btns { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .upd-btns .sep { flex: 1; }
-.upd-row { display: flex; justify-content: space-between; gap: 12px; }
-.upd-row span { color: var(--muted); }
-.upd-row b { font-weight: 500; font-family: var(--mono); font-size: 12px; text-align: right; overflow: hidden; text-overflow: ellipsis; }
-.upd-status { padding: 6px 0; }
-.upd-status.ok { color: var(--ok); }
-.upd-status.err { color: var(--err); }
 .upd-commits { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
 .upd-commits li { display: grid; grid-template-columns: 64px 1fr; gap: 8px; padding: 4px 6px; background: var(--bg); border-radius: 4px; }
 .upd-commits code { color: var(--accent); font: 12px var(--mono); }
@@ -509,19 +504,85 @@ span.ptab { cursor: default; }   /* a panel's title, not a tab */
 .page-panel > .code-head .vbtn { font-size: 12px; }
 .page-body { padding: 8px 14px 12px; font-size: 13px; }
 .set-group[hidden] { display: none; }
-.sys-body { padding-top: 0; }
-.sys-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.comp { display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; margin-top: 4px;
-        background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; }
-.comp h4 { margin: 0 0 2px; font-size: 13px; font-weight: 600; }
-.comp .upd-commits li { background: var(--panel); }
-.sys-note { margin: 4px 0; padding: 6px 8px; font-size: 12px; border: 1px solid var(--border); border-radius: 4px; }
-.sys-note.warn { border-color: var(--warn); background: #3a3016; }
+/* ---------- the System page: cards, each part a row like an update manager ---------- */
+.sys-page { max-width: var(--page-w); margin: 0 auto; display: grid; gap: 12px; align-items: start;
+            grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+.sys-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; font-size: 13px; }
+.card[hidden] { display: none; }
+.card svg { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 2;
+            stroke-linecap: round; stroke-linejoin: round; }
+.card-h { display: flex; align-items: center; gap: 10px; min-height: 50px; padding: 6px 8px 6px 14px;
+          background: var(--panel-2); border-bottom: 1px solid var(--border); }
+.card-h h2 { flex: 1; margin: 0; font-size: 17px; font-weight: 500; color: var(--text-strong); }
+.card-sub { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.card-h .card-sub:last-child { padding-right: 6px; }
+.card-note { margin: 0; padding: 9px 14px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+.card-note code { font: 11px var(--mono); }
+.card-note[hidden], .card-note:empty { display: none; }
+.icon-btn { display: inline-grid; place-items: center; width: 34px; height: 34px; flex: none; padding: 0; border: 0;
+            border-radius: 50%; background: none; color: var(--accent); cursor: pointer; }
+.icon-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.icon-btn:disabled { color: var(--muted); cursor: default; }
+.spin svg, svg.spin { animation: spin 1.1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.urow { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; align-items: center;
+        padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.urow:last-of-type { border-bottom: 0; }
+.urow + .card-note { border-top: 1px solid var(--border); }
+.urow-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.urow-name { font-size: 14px; font-weight: 600; color: var(--text-strong); }
+.urow-ver { display: flex; align-items: center; gap: 5px; min-width: 0; white-space: nowrap; overflow: hidden; }
+.urow-ver.wrap { white-space: normal; color: var(--muted); }
+.urow-ver code { font: 12.5px var(--mono); }
+.urow-ver .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.urow-ver .dim { color: var(--muted); }
+.urow-ver.new { color: var(--accent); }
+.urow-ver svg { width: 15px; height: 15px; }
+.urow-msg { font-size: 12px; color: var(--muted); }
+.urow-msg:empty, .urow-msg[hidden] { display: none; }
+.urow-msg.ok { color: var(--ok); }
+.urow-msg.warn { color: var(--warn); }
+.urow-msg.err { color: var(--err); }
+.urow-act { display: flex; align-items: center; gap: 8px; }
+.urow-more { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; margin-top: 10px; padding: 8px 10px;
+             background: var(--bg); border-radius: 6px; }
+.urow-more[hidden] { display: none; }
+.urow-more .upd-commits li { background: var(--panel); }
+.urow > .upd-out { grid-column: 1 / -1; margin-top: 8px; }
+
+/* The badge on the right of a row; a button when there is something to do */
+.ubtn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid var(--border);
+        border-radius: 4px; background: none; color: var(--muted); font: 600 12px/1 inherit; letter-spacing: .5px;
+        text-transform: uppercase; white-space: nowrap; }
+.ubtn svg { width: 15px; height: 15px; }
+.ubtn[data-kind="ok"] { color: color-mix(in srgb, var(--ok) 70%, var(--panel)); border-color: color-mix(in srgb, var(--ok) 35%, var(--panel)); }
+.ubtn[data-kind="warn"] { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 55%, var(--panel)); }
+.ubtn[data-kind="err"] { color: var(--err); border-color: color-mix(in srgb, var(--err) 55%, var(--panel)); }
+.ubtn:is([data-kind="update"], [data-kind="action"]) { color: var(--accent); border-color: var(--accent); cursor: pointer; }
+.ubtn[data-kind="danger"] { color: var(--err); border-color: var(--err); cursor: pointer; }
+.ubtn:is([data-kind="update"], [data-kind="action"]):hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.ubtn[data-kind="danger"]:hover:not(:disabled) { background: color-mix(in srgb, var(--err) 14%, transparent); }
+.ubtn:is([data-kind="update"], [data-kind="action"], [data-kind="danger"]):disabled { opacity: .45; cursor: not-allowed; }
+.info-btn { display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 1px solid var(--border);
+            border-radius: 4px; background: none; color: var(--muted); cursor: pointer; }
+.info-btn:hover, .info-btn[aria-expanded="true"] { color: var(--text); border-color: var(--muted); }
+.info-btn[hidden] { display: none; }
+.info-btn svg { width: 16px; height: 16px; }
+
+.kv { display: flex; justify-content: space-between; gap: 12px; padding: 8px 14px; border-bottom: 1px solid var(--border); }
+.kv:last-child { border-bottom: 0; }
+.kv span { color: var(--muted); white-space: nowrap; }
+.kv b { min-width: 0; overflow: hidden; font-weight: 500; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+.urow-more .kv { padding: 2px 0; border: 0; font-size: 12px; }
+.pkg-list { margin: 0; padding: 0; list-style: none; max-height: 200px; overflow-y: auto; font: 12px var(--mono); }
+.pkg-list li { display: flex; justify-content: space-between; gap: 10px; padding: 2px 0; }
+.pkg-list li span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.upd-commits[hidden], .pkg-list[hidden] { display: none; }
+.sys-note { margin: 0; padding: 6px 8px; font-size: 12px; border: 1px solid var(--border); border-radius: 4px; }
 .sys-note code { font: 11px var(--mono); }
-.os-pkgs summary { cursor: pointer; color: var(--accent); font-size: 12px; }
-.os-pkgs ul { margin: 4px 0 0; padding: 0; list-style: none; max-height: 200px; overflow-y: auto; font: 12px var(--mono); }
-.os-pkgs li { display: flex; justify-content: space-between; gap: 10px; padding: 2px 6px; }
-.os-pkgs li span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 800px) { .sys-page { grid-template-columns: minmax(0, 1fr); } }
 .vbtn.danger { border-color: var(--err); color: var(--err); }
 .set-btns.flush { padding-left: 0; }
 @media (max-width: 700px) {

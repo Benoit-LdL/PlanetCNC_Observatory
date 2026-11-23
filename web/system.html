@@ -19,69 +19,113 @@
 <script src="topbar-boot.js"></script>
 
 <main class="page-main">
-  <section class="panel page-panel">
-  <div class="code-head"><span class="ptabs"><span class="ptab active">System</span></span></div>
-  <div class="page-body sys-body" id="sysBody">
-      <section class="set-group">
-        <h3>Raspberry Pi</h3>
-        <div id="hostRows"></div>
-      </section>
-      <section class="set-group">
-        <div class="sys-h"><h3>Updates</h3><button class="vbtn" id="updCheckBtn">Check for updates</button></div>
-        <p class="set-hint">GitHub and the package lists are also checked by the Pi itself every 6 hours.</p>
+  <div class="sys-page" id="sysBody">
+    <div class="sys-col">
+      <section class="card">
+        <header class="card-h">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
+          <h2>Updates</h2>
+          <span class="card-sub" id="updChecked"></span>
+          <button class="icon-btn" id="updCheckBtn" title="Check for updates now" aria-label="Check for updates now"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg></button>
+        </header>
 
-        <div class="comp">
-          <h4>PlanetCNC Web Monitor</h4>
-          <div class="upd-row"><span>Installed</span><b id="updCurrent">–</b></div>
-          <div class="upd-row"><span>On GitHub</span><b id="updLatest">–</b></div>
-          <div class="upd-status" id="updStatus"></div>
-          <ul class="upd-commits" id="updCommits"></ul>
-          <div class="upd-btns">
-            <span class="sep"></span>
-            <button class="vbtn" id="updRollbackBtn" hidden>Roll back</button>
-            <button class="vbtn primary" id="updApplyBtn" disabled>Install update</button>
+        <div class="urow">
+          <div class="urow-main">
+            <b class="urow-name">PlanetCNC Web Monitor</b>
+            <span class="urow-ver" id="appVer">–</span>
+            <span class="urow-msg" id="updStatus"></span>
+          </div>
+          <div class="urow-act">
+            <button class="info-btn" data-more="appMore" aria-expanded="false" title="Details" aria-label="Details"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></button>
+            <button class="ubtn" id="appAct" disabled></button>
+          </div>
+          <div class="urow-more" id="appMore" hidden>
+            <div id="appRows"></div>
+            <ul class="upd-commits" id="updCommits" hidden></ul>
+            <div class="upd-btns"><span class="sep"></span><button class="vbtn" id="updRollbackBtn" hidden>Roll back to the previous version</button></div>
           </div>
           <pre class="upd-out" id="updOut" hidden></pre>
         </div>
 
-        <div class="comp">
-          <h4>Bridge in TNG</h4>
-          <div id="bridgeRows"></div>
-          <p class="set-hint">Comes with the app: installing an update also updates the bridge, which reloads itself inside TNG.</p>
-        </div>
-
-        <div class="comp">
-          <h4>Raspberry Pi OS packages</h4>
-          <p class="set-hint" id="osNone" hidden>Only on the Pi (Linux with apt).</p>
-          <div id="osBlock" hidden>
-            <div class="upd-status" id="osStatus"></div>
-            <p class="set-hint" id="osLists"></p>
-            <details class="os-pkgs" id="osPkgs" hidden>
-              <summary>Show <span id="osPkgCount"></span></summary>
-              <ul id="osPkgList"></ul>
-            </details>
-            <p class="sys-note warn" id="osReboot" hidden>The Pi needs a reboot to finish an upgrade.</p>
-            <p class="sys-note" id="osSudo" hidden>To refresh the lists and upgrade from here, run
-              <code>~/PlanetCNC_webapp/tools/setup-sudo.sh</code> on the Pi once (see README).</p>
-            <div class="upd-btns">
-              <span class="sep"></span>
-              <button class="vbtn primary" id="osUpgradeBtn" disabled>Upgrade packages</button>
-            </div>
-            <pre class="upd-out" id="osOut" hidden></pre>
+        <div class="urow">
+          <div class="urow-main">
+            <b class="urow-name">Bridge in TNG</b>
+            <span class="urow-ver" id="bridgeVer">–</span>
+            <span class="urow-msg" id="bridgeMsg"></span>
+          </div>
+          <div class="urow-act">
+            <button class="info-btn" data-more="bridgeMore" aria-expanded="false" title="Details" aria-label="Details"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></button>
+            <span class="ubtn" id="bridgeAct"></span>
+          </div>
+          <div class="urow-more" id="bridgeMore" hidden>
+            <div id="bridgeRows"></div>
+            <p class="set-hint">Comes with the app: installing an update also updates the bridge, which reloads itself inside TNG.</p>
           </div>
         </div>
-      </section>
-      <section class="set-group" id="powerBlock" hidden>
-        <h3>Power</h3>
-        <p class="set-hint">Not while a program runs. TNG closes with the Pi, so the machine can do nothing until TNG runs again.</p>
-        <p class="sys-note" id="powerSudo" hidden>Needs <code>~/PlanetCNC_webapp/tools/setup-sudo.sh</code> on the Pi once (see README).</p>
-        <div class="upd-btns">
-          <button class="vbtn" id="rebootBtn" disabled>Reboot Pi</button>
-          <button class="vbtn danger" id="poweroffBtn" disabled>Shut down Pi</button>
+
+        <div class="urow">
+          <div class="urow-main">
+            <b class="urow-name">Raspberry Pi OS packages</b>
+            <span class="urow-ver" id="osVer">–</span>
+            <span class="urow-msg" id="osStatus"></span>
+            <span class="urow-msg warn" id="osReboot" hidden>The Pi needs a reboot to finish an upgrade.</span>
+          </div>
+          <div class="urow-act">
+            <button class="info-btn" data-more="osMore" aria-expanded="false" title="Details" aria-label="Details" id="osInfoBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></button>
+            <button class="ubtn" id="osAct" disabled></button>
+          </div>
+          <div class="urow-more" id="osMore" hidden>
+            <div id="osRows"></div>
+            <ul class="pkg-list" id="osPkgList" hidden></ul>
+            <p class="set-hint" id="osHeld" hidden></p>
+            <p class="sys-note" id="osSudo" hidden>To refresh the lists and upgrade from here, run
+              <code>~/PlanetCNC_webapp/tools/setup-sudo.sh</code> on the Pi once (see README).</p>
+          </div>
+          <pre class="upd-out" id="osOut" hidden></pre>
         </div>
+
+        <p class="card-note">Checked each time this page opens, and by the Pi itself every 6 hours.</p>
       </section>
     </div>
-  </section>
+
+    <div class="sys-col">
+      <section class="card">
+        <header class="card-h">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/></svg>
+          <h2>Raspberry Pi</h2>
+        </header>
+        <div id="hostRows"></div>
+      </section>
+
+      <section class="card" id="powerBlock" hidden>
+        <header class="card-h">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/></svg>
+          <h2>Power</h2>
+          <span class="card-sub">Not while a program runs</span>
+        </header>
+        <div class="urow">
+          <div class="urow-main">
+            <b class="urow-name">Reboot</b>
+            <span class="urow-ver wrap">TNG closes with the Pi; all is back after a minute or two.</span>
+          </div>
+          <div class="urow-act">
+            <button class="ubtn" data-kind="action" id="rebootBtn" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg><span>Reboot</span></button>
+          </div>
+        </div>
+        <div class="urow">
+          <div class="urow-main">
+            <b class="urow-name">Shut down</b>
+            <span class="urow-ver wrap">To start it again, switch the Pi off and on at the machine.</span>
+          </div>
+          <div class="urow-act">
+            <button class="ubtn" data-kind="danger" id="poweroffBtn" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/></svg><span>Shut down</span></button>
+          </div>
+        </div>
+        <p class="card-note" id="powerSudo" hidden>Needs <code>~/PlanetCNC_webapp/tools/setup-sudo.sh</code> on the Pi once (see README).</p>
+        <p class="card-note urow-msg" id="powerMsg"></p>
+      </section>
+    </div>
+  </div>
 </main>
 
 <script type="module" src="system.js"></script>

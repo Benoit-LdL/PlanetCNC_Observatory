@@ -915,6 +915,7 @@ class Updater:
         self.lock = threading.Lock()
         self.info = {"git": True, "checked": None, "error": ""}
         self.busy = False
+        self.check_lock = threading.Lock()   # one GitHub check at a time, see check()
         threading.Thread(target=self._auto_check, daemon=True).start()
 
     @staticmethod
@@ -972,7 +973,17 @@ class Updater:
             return {"behind": self.info.get("behind", 0), "current": (self.info.get("current") or {}).get("sha")}
 
     def check(self):
-        return self.refresh(fetch=True)
+        """Check GitHub now. The System page checks each time it opens, so a check may already
+        be running (another browser, the 6-hourly one): then wait for it and use its answer."""
+        if not self.check_lock.acquire(blocking=False):
+            with self.check_lock:
+                pass
+            with self.lock:
+                return dict(self.info, ok=not self.info["error"])
+        try:
+            return self.refresh(fetch=True)
+        finally:
+            self.check_lock.release()
 
     def apply(self, action):
         """Run update.sh (update | rollback). Returns {ok, output, restarting}."""
@@ -1003,7 +1014,7 @@ class Updater:
     def _auto_check(self):
         time.sleep(20)
         while True:
-            self.refresh(fetch=True)
+            self.check()
             time.sleep(UPDATE_CHECK_EVERY)
 
 
@@ -1051,6 +1062,7 @@ class OsPackages:
         self.lock = threading.Lock()
         self.info = {"checked": None, "packages": [], "error": ""}
         self.job = None   # the running or last upgrade: {running, started, ended, exit, output, who}
+        self.check_lock = threading.Lock()   # one apt-get update at a time, see check()
         threading.Thread(target=self._auto_check, name="os-check", daemon=True).start()
 
     @staticmethod
@@ -1096,6 +1108,18 @@ class OsPackages:
         with self.lock:
             self.info = info
         return self.status()
+
+    def check(self):
+        """Fetch the package lists and look again. When a check is already running (another
+        browser, the 6-hourly one), wait for it and use its answer: apt allows one at a time."""
+        if not self.check_lock.acquire(blocking=False):
+            with self.check_lock:
+                pass
+            return self.status()
+        try:
+            return self.refresh(update_lists=True)
+        finally:
+            self.check_lock.release()
 
     @staticmethod
     def _lists_date():
@@ -1155,7 +1179,7 @@ class OsPackages:
         while True:
             if not HUB.snapshot()[1].get("running") and not (self.job and self.job["running"]):
                 try:
-                    self.refresh(update_lists=True)
+                    self.check()
                 except Exception:
                     log_update.exception("OS package check failed")
             time.sleep(OS_CHECK_EVERY)
@@ -2398,7 +2422,7 @@ class Handler(BaseHTTPRequestHandler):
             self._json(409, {"ok": False, "message": "only available on a Linux computer with apt"})
             return
         if action == "check":
-            self._json(200, dict(OS_PACKAGES.refresh(update_lists=True), ok=True))
+            self._json(200, dict(OS_PACKAGES.check(), ok=True))
             return
         if HUB.snapshot()[1].get("running"):
             self._json(409, {"ok": False, "message": "A program is running - do this afterwards"})

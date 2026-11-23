@@ -614,22 +614,30 @@ to `server.py`. Updates keep them.
 **http://&lt;pi-address&gt;:8080/system**: open it with **System** in the top
 bar (or **Settings → Software and system**).
 
-- **Raspberry Pi:** model, OS, kernel, Python, name and address, how long the
-  Pi and the dashboard server have been running.
-- **Updates:** **Check for updates** checks GitHub and refreshes the OS
-  package lists now; the Pi also does both every 6 hours.
-  - **PlanetCNC Web Monitor:** the installed version and what is on GitHub,
-    with **Install update** and **Roll back**, see [Updating](#updating).
+- **Updates**, one row per part, like an update manager: its name, the
+  installed version (in blue, *installed › new*, when there is an update),
+  and on the right **Up-to-date**, **Update** / **Upgrade**, or what is wrong
+  (**Error**, **Blocked**, **Old**...). The **i** opens the details.
+  - Checked each time the page opens: GitHub every time; the OS package lists
+    when they are more than 15 minutes old and no program runs (refreshing
+    them takes a while and works the Pi hard). The round arrow at the top
+    checks both now. The Pi also checks both by itself every 6 hours.
+  - **PlanetCNC Web Monitor:** **Update** installs what is on GitHub. The
+    details list the new changes and have **Roll back**, see
+    [Updating](#updating).
   - **Bridge in TNG:** the version running inside TNG, and whether the copy in
-    TNG's profile is the same as this version of the app.
-  - **Raspberry Pi OS packages:** how many packages can be upgraded (**Show**
-    lists them, with old and new version) and how old the package lists are.
-    **Upgrade packages** runs `apt-get upgrade`; its output appears below, live.
-    It can take several minutes. Afterwards, restart TNG or reboot the Pi so
-    everything uses the new libraries; the window says when the Pi needs a
+    TNG's profile is the same as this version of the app. It is updated with
+    the app.
+  - **Raspberry Pi OS packages:** how many packages can be upgraded; the
+    details list them, with old and new version, and say how old the package
+    lists are. **Upgrade** runs `apt-get upgrade`; its output appears below,
+    live. It can take several minutes. Afterwards, restart TNG or reboot the
+    Pi so everything uses the new libraries; the row says when the Pi needs a
     reboot. Packages that need `apt full-upgrade` are listed as held back: do
     those over SSH.
-- **Power:** **Reboot Pi** and **Shut down Pi**, after a confirmation. TNG
+- **Raspberry Pi:** model, OS, kernel, Python, name and address, how long the
+  Pi and the dashboard server have been running.
+- **Power:** **Reboot** and **Shut down**, after a confirmation. TNG
   closes with the Pi. After a reboot the page reloads itself when the Pi is
   back; after a shutdown, switch the Pi off and on to start it again.
 
@@ -1014,8 +1022,8 @@ Good to know:
 **From the dashboard:** open the **System** window (button in the top bar).
 
 - It shows the installed version and what is on GitHub. GitHub is checked
-  every 6 hours; **Check for updates** checks now.
-- **Install update** installs the new version:
+  each time the page opens, and by the Pi every 6 hours.
+- **Update** installs the new version:
   - the server restarts and the page reloads itself;
   - the bridge inside TNG notices its new file and reloads itself within a few
     seconds;

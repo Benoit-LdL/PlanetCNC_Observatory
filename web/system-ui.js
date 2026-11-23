@@ -1,5 +1,5 @@
-// The E-stop button (dashboard and System page), and the System page's panel: the Pi's details,
-// updates (this app, the bridge in TNG, Raspberry Pi OS packages) and reboot / shut down.
+// The E-stop button (dashboard and System page), and the System page: updates (this app, the
+// bridge in TNG, Raspberry Pi OS packages), the Pi's details and reboot / shut down.
 //
 // The E-stop is the only thing the dashboard can make the machine do. It only switches
 // E-stop ON; releasing it and starting again always happen at the machine.
@@ -74,80 +74,172 @@ async function estop() {
 }
 
 // ---------------------------------------------------------------- the System page
+// Laid out like an update manager: one row per part with its name, its version (in blue with
+// "installed › new" when there is an update), details behind the "i", and on the right a
+// badge (up to date, error...) or the button that updates it. Icons: Lucide (ISC licence).
 
-function row(label, value, title = '') {
-  return `<div class="upd-row"><span>${esc(label)}</span><b title="${esc(title || value)}">${esc(value)}</b></div>`;
+const ICON = {
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  update: '<circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4"/><path d="M12 16V8"/>',
+  alert: '<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
+  refresh: '<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>',
+  off: '<circle cx="12" cy="12" r="10"/><path d="M8 12h8"/>',
+};
+const icon = (name, cls = '') => `<svg viewBox="0 0 24 24" aria-hidden="true"${cls ? ` class="${cls}"` : ''}>${ICON[name]}</svg>`;
+// The icon of each kind of badge, and whether it turns
+const BADGE = { ok: ['check'], update: ['update'], err: ['alert'], warn: ['alert'], busy: ['refresh', true],
+  checking: ['refresh', true], na: ['off'] };
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+let checkingApp = false, checkingOs = false;
+let appBusy = '';           // 'Updating' / 'Rolling back' while this page runs one
+
+/** The badge or button on the right of a row. Only kind 'update' can be pressed. */
+function setBadge(id, kind, label, { title = '', disabled = false } = {}) {
+  const b = $(id);
+  if (b.dataset.kind !== kind || b.dataset.label !== label) {   // not on every poll: the spinner would restart
+    const [ic, turns] = BADGE[kind];
+    b.dataset.kind = kind;
+    b.dataset.label = label;
+    b.innerHTML = icon(ic, turns ? 'spin' : '') + `<span>${esc(label)}</span>`;
+  }
+  b.title = title;
+  if ('disabled' in b) b.disabled = kind !== 'update' || disabled;
 }
 
+/** The small line under a row's version: what went wrong, or what is happening. */
 function setStatus(id, text, kind = '') {
   $(id).textContent = text;
-  $(id).className = 'upd-status' + (kind ? ' ' + kind : '');
+  $(id).className = 'urow-msg' + (kind ? ' ' + kind : '') + (id === 'powerMsg' ? ' card-note' : '');
+}
+
+function setVersion(id, html, isNew = false, title = '') {
+  $(id).className = 'urow-ver' + (isNew ? ' new' : '');
+  $(id).innerHTML = (isNew ? icon('refresh') : '') + `<span class="t">${html}</span>`;
+  $(id).title = title;
+}
+
+function kv(label, value, title = '') {
+  return `<div class="kv"><span>${esc(label)}</span><b title="${esc(title || value)}">${esc(value)}</b></div>`;
 }
 
 function renderHost(h) {
   $('hostRows').innerHTML = [
-    row('Model', h.model || '–'),
-    row('System', h.os || '–'),
-    row('Kernel', h.kernel || '–'),
-    row('Python', h.python || '–'),
-    row('Address', `${h.hostname} · ${h.address}`),
-    row('Up', h.uptime != null ? fmtUp(h.uptime) : '–'),
-    row('Dashboard server', 'running ' + fmtUp(Date.now() / 1000 - h.server_started)),
+    kv('Model', h.model || '–'),
+    kv('System', h.os || '–'),
+    kv('Kernel', h.kernel || '–'),
+    kv('Python', h.python || '–'),
+    kv('Address', `${h.hostname} · ${h.address}`),
+    kv('Up', h.uptime != null ? fmtUp(h.uptime) : '–'),
+    kv('Dashboard server', 'running ' + fmtUp(Date.now() / 1000 - h.server_started)),
   ].join('');
 }
 
 function renderApp(info, running) {
   const c = info.current, l = info.latest;
-  $('updCurrent').textContent = c ? `${c.sha} · ${c.subject}` : '–';
-  $('updCurrent').title = c ? fmtDay(c.date) : '';
-  $('updLatest').textContent = l ? `${l.sha} · checked ${fmtAgo(info.checked)}` : info.git ? `checked ${fmtAgo(info.checked)}` : '–';
   const commits = info.commits || [];
+  const blocked = info.dirty?.length ? info.dirty : null;
+  if (c && l && commits.length) {
+    setVersion('appVer', `<code>${esc(c.sha)}</code> › <code>${esc(l.sha)}</code><span class="dim"> · ${plural(commits.length, 'change')}</span>`,
+      true, `Installed ${c.sha} from ${fmtDay(c.date)}; on GitHub ${l.sha} from ${fmtDay(l.date)}`);
+  } else if (c) {
+    setVersion('appVer', `<code>${esc(c.sha)}</code><span class="dim"> · ${esc(c.subject)}</span>`, false, `${c.subject} (${fmtDay(c.date)})`);
+  } else {
+    setVersion('appVer', info.git ? '–' : 'not a git clone');
+  }
+  $('updChecked').textContent = info.git ? `Checked ${fmtAgo(info.checked)}` : '';
+
+  // Details: what is installed, what is new, roll back
+  $('appRows').innerHTML = (c ? kv('Installed', `${c.sha} · ${fmtDay(c.date)}`, c.subject) : '')
+    + (l ? kv('On GitHub', `${l.sha} · ${fmtDay(l.date)}`, l.subject) : '')
+    + (info.git ? kv('Checked', fmtAgo(info.checked)) : '');
+  $('updCommits').hidden = !commits.length;
   $('updCommits').innerHTML = commits.map((m) =>
     `<li><code>${esc(m.sha)}</code><span>${esc(m.subject)}</span><small>${esc(m.author)} · ${fmtDay(m.date)}</small></li>`).join('');
-  if (restarting) { /* keep the restart message */ }
-  else if (!info.git) setStatus('updStatus', `Updates unavailable: ${info.message || 'the app folder must be a git clone – see README'}.`, 'err');
-  else if (info.error) setStatus('updStatus', info.error, 'err');
-  else if (info.dirty && info.dirty.length) setStatus('updStatus', `Files changed on the Pi, update blocked: ${info.dirty.join(', ')}`, 'err');
-  else if (commits.length) setStatus('updStatus', `${commits.length} update${commits.length === 1 ? '' : 's'} available:`);
-  else setStatus('updStatus', 'Up to date.', 'ok');
-  $('updApplyBtn').disabled = running || info.busy || !commits.length || !!info.error || !!(info.dirty && info.dirty.length);
-  $('updApplyBtn').title = running ? 'Not while a program runs' : '';
   $('updRollbackBtn').hidden = !info.can_rollback;
-  $('updRollbackBtn').disabled = running || info.busy;
+  $('updRollbackBtn').disabled = running || info.busy || !!appBusy || restarting;
+  $('updRollbackBtn').title = running ? 'Not while a program runs' : '';
+
+  if (restarting || appBusy) setBadge('appAct', 'busy', appBusy || 'Updating');
+  else if (checkingApp) setBadge('appAct', 'checking', 'Checking');
+  else if (info.busy) setBadge('appAct', 'busy', 'Updating');
+  else if (!info.git) setBadge('appAct', 'na', 'Unavailable');
+  else if (info.error) setBadge('appAct', 'err', 'Error');
+  else if (blocked) setBadge('appAct', 'warn', 'Blocked');
+  else if (commits.length) {
+    setBadge('appAct', 'update', 'Update', { disabled: running,
+      title: running ? 'Not while a program runs' : `Install ${plural(commits.length, 'change')} from GitHub` });
+  } else setBadge('appAct', 'ok', 'Up-to-date');
+
+  if (restarting || appBusy) return;   // keep "Installing…" / "Restarting…"
+  if (!info.git) setStatus('updStatus', `Updates unavailable: ${info.message || 'the app folder must be a git clone – see README'}.`, 'err');
+  else if (info.error) setStatus('updStatus', info.error, 'err');
+  else if (blocked) setStatus('updStatus', `Files changed on the Pi, update blocked: ${blocked.join(', ')}`, 'warn');
+  else if (!checkingApp) setStatus('updStatus', '');
 }
 
 function renderBridge(b) {
   const p = b.protocol;
-  const running = !b.online ? 'not connected'
-    : p == null ? '–'
-    : p >= b.expected ? `version ${p} – current`
-    : p >= 2 ? `version ${p} – old: it reloads itself after the update`
-    : `version ${p} – old: restart TNG once after the update`;
-  const copy = { current: 'same as this version', different: 'differs – install the update, or run update.sh',
-    missing: 'not found' }[b.installed] || '–';
-  $('bridgeRows').innerHTML = row('Running', running) + row('Copy in TNG', copy, b.path);
+  let msg = '', msgKind = '';
+  if (!b.online) {
+    setVersion('bridgeVer', 'not connected');
+    setBadge('bridgeAct', 'na', 'Offline', { title: 'TNG is not running, or the bridge is not loaded in it' });
+  } else if (p == null) {
+    setVersion('bridgeVer', '–');
+    setBadge('bridgeAct', 'na', 'Unknown');
+  } else if (p >= b.expected) {
+    setVersion('bridgeVer', `version ${p}`);
+    setBadge('bridgeAct', 'ok', 'Up-to-date');
+  } else {
+    setVersion('bridgeVer', `version ${p} › ${b.expected}`, true);
+    setBadge('bridgeAct', 'warn', 'Old');
+    msg = p >= 2 ? 'It reloads itself after the app update.' : 'Restart TNG once after the app update.';
+  }
+  if (b.installed === 'different') [msg, msgKind] = ['The copy in TNG differs from this version: install the update, or run update.sh.', 'warn'];
+  else if (b.installed === 'missing') [msg, msgKind] = ["Not found in TNG's profile – see README.", 'warn'];
+  if (msgKind && $('bridgeAct').dataset.kind === 'ok') setBadge('bridgeAct', 'warn', b.installed === 'missing' ? 'Not found' : 'Differs');
+  setStatus('bridgeMsg', msg, msgKind);
+  const copy = { current: 'same as this version', different: 'differs from this version', missing: 'not found' }[b.installed] || '–';
+  $('bridgeRows').innerHTML = kv('Running', !b.online ? 'not connected' : p == null ? '–' : `version ${p}`)
+    + kv('This app needs', `version ${b.expected}`) + kv('Copy in TNG', copy, b.path);
 }
 
 function renderOs(o, running) {
-  $('osBlock').hidden = !o;
-  $('osNone').hidden = !!o;
-  if (!o) return;
+  $('osInfoBtn').hidden = !o;
+  if (!o) {
+    setVersion('osVer', 'only on the Pi (Linux with apt)');
+    setBadge('osAct', 'na', 'N/A');
+    $('osReboot').hidden = true;
+    return;
+  }
   const pk = o.packages || [];
   const job = o.job;
-  if (o.busy) setStatus('osStatus', `Upgrading… (started ${fmtAgo(job.started)})`);
+  if (pk.length) setVersion('osVer', `${plural(pk.length, 'package')} can be upgraded`, true);
+  else setVersion('osVer', `package lists from ${fmtAgo(o.lists_date)}`);
+  if (o.busy) setBadge('osAct', 'busy', 'Upgrading');
+  else if (checkingOs) setBadge('osAct', 'checking', 'Checking');
+  else if (o.error) setBadge('osAct', 'err', 'Error');
+  else if (pk.length) {
+    setBadge('osAct', 'update', 'Upgrade', { disabled: running || !o.can_upgrade,
+      title: running ? 'Not while a program runs' : !o.can_upgrade ? 'Needs tools/setup-sudo.sh on the Pi (see README)'
+        : `Upgrade ${plural(pk.length, 'package')}` });
+  } else setBadge('osAct', 'ok', 'Up-to-date');
+
+  if (o.busy) setStatus('osStatus', `Upgrading, started ${fmtAgo(job.started)}…`);
+  else if (checkingOs) { /* keep "can take a minute" */ }
   else if (o.error) setStatus('osStatus', o.error, 'err');
-  else if (pk.length) setStatus('osStatus', `${pk.length} package${pk.length === 1 ? '' : 's'} can be upgraded.`);
-  else setStatus('osStatus', 'Up to date.', 'ok');
-  $('osLists').textContent = `Package lists from ${fmtAgo(o.lists_date)}.`
-    + (o.kept_back?.length ? ` Held back (upgrade over SSH with apt full-upgrade): ${o.kept_back.join(', ')}.` : '');
-  $('osPkgs').hidden = !pk.length;
-  $('osPkgCount').textContent = `${pk.length} package${pk.length === 1 ? '' : 's'}`;
+  else setStatus('osStatus', '');
+  $('osReboot').hidden = !o.reboot_required;
+
+  // Details: the lists, the packages, what is held back
+  $('osRows').innerHTML = kv('Package lists', `from ${fmtAgo(o.lists_date)}`) + kv('Checked', fmtAgo(o.checked));
+  $('osPkgList').hidden = !pk.length;
   $('osPkgList').innerHTML = pk.map((p) =>
     `<li><b>${esc(p.name)}</b><span>${esc(p.from)} → ${esc(p.to)}</span></li>`).join('');
-  $('osReboot').hidden = !o.reboot_required;
+  $('osHeld').hidden = !o.kept_back?.length;
+  $('osHeld').textContent = o.kept_back?.length
+    ? `Held back (upgrade over SSH with apt full-upgrade): ${o.kept_back.join(', ')}.` : '';
   $('osSudo').hidden = !!(o.can_upgrade && o.can_update);
-  $('osUpgradeBtn').disabled = running || o.busy || !pk.length || !o.can_upgrade;
-  $('osUpgradeBtn').title = running ? 'Not while a program runs' : !o.can_upgrade ? 'Needs tools/setup-sudo.sh (see README)' : '';
   const out = $('osOut');
   out.hidden = !job;
   if (job) {
@@ -156,6 +248,7 @@ function renderOs(o, running) {
     out.textContent = job.output.join('\n') + end;
     if (atEnd) out.scrollTop = out.scrollHeight;
   }
+
   $('powerSudo').hidden = !!o.can_power;
   $('rebootBtn').disabled = $('poweroffBtn').disabled = running || !o.can_power || o.busy;
   $('rebootBtn').title = $('poweroffBtn').title = running ? 'Not while a program runs' : o.busy ? 'Wait for the upgrade' : '';
@@ -168,7 +261,9 @@ function render() {
   renderBridge(sys.bridge);
   renderOs(sys.os, sys.running);
   $('powerBlock').hidden = !sys.os;
-  $('updCheckBtn').disabled = !!(sys.app.busy || sys.os?.busy) || checking;
+  const checking = checkingApp || checkingOs;
+  $('updCheckBtn').disabled = !!(sys.app.busy || sys.os?.busy || appBusy) || checking;
+  $('updCheckBtn').classList.toggle('spin', checking);
 }
 
 async function load() {
@@ -182,24 +277,38 @@ async function load() {
   if (!document.hidden) pollTimer = setTimeout(load, sys?.os?.busy ? 1500 : 5000);
 }
 
-let checking = false;
-async function checkAll() {
-  checking = true;
-  $('updCheckBtn').disabled = true;
-  setStatus('updStatus', 'Checking GitHub…');
-  if (sys?.os) setStatus('osStatus', 'Checking the package lists… (can take a minute)');
-  const [app, os] = await Promise.all([post('/api/update/check'), sys?.os ? post('/api/system/os/check') : null]);
-  checking = false;
-  if (app.git === undefined) setStatus('updStatus', app.message || 'Check failed', 'err');
-  if (os && !os.ok) setStatus('osStatus', os.message || 'Check failed', 'err');
+async function checkAll({ app: withApp = true, os: withOs = true } = {}) {
+  withOs = withOs && !!sys?.os;
+  if (!withApp && !withOs) return;
+  checkingApp = withApp;
+  checkingOs = withOs;
+  if (withApp) setStatus('updStatus', '');
+  if (withOs) setStatus('osStatus', 'Refreshing the package lists can take a minute.');
+  render();
+  const [app, os] = await Promise.all([
+    withApp ? post('/api/update/check').finally(() => { checkingApp = false; }) : null,
+    withOs ? post('/api/system/os/check').finally(() => { checkingOs = false; }) : null,
+  ]);
   await load();
-  if (app.git === undefined) setStatus('updStatus', app.message || 'Check failed', 'err');
+  if (app && app.git === undefined) setStatus('updStatus', app.message || 'Check failed', 'err');
+  if (os && !os.ok) setStatus('osStatus', os.message || 'Check failed', 'err');
 }
 
-/** After an update the server restarts; wait until it answers again, then load the new page. */
-async function waitForServer(message, first, tries) {
-  restarting = true;
-  setStatus('updStatus', message);
+// On opening the page: GitHub is checked every time (quick, and right after pushing a change
+// is when it matters). The package lists only when older than this and no program runs:
+// apt-get update takes a while and works the Pi hard.
+const OS_AUTO_CHECK_AFTER = 15 * 60;   // s
+
+function autoCheck() {
+  if (!sys) return;
+  const o = sys.os;
+  const osStale = o && !o.busy && !sys.running && (!o.checked || Date.now() / 1000 - o.checked > OS_AUTO_CHECK_AFTER);
+  checkAll({ app: !!sys.app?.git && !sys.app.busy, os: !!osStale });
+}
+
+/** After an update or a reboot the server restarts; wait until it answers again, then reload. */
+async function waitForServer(statusId, message, first, tries) {
+  setStatus(statusId, message);
   await sleep(first);
   for (let i = 0; i < tries; i++) {
     try {
@@ -209,17 +318,25 @@ async function waitForServer(message, first, tries) {
     await sleep(1000);
   }
   restarting = false;
-  setStatus('updStatus', 'The server did not come back – check it over SSH: journalctl -u planetcnc-web -n 30', 'err');
+  setStatus(statusId, 'The server did not come back – check it over SSH: journalctl -u planetcnc-web -n 30', 'err');
+  render();
 }
 
 async function appRun(path, question) {
   if (!confirm(question)) return;
-  $('updApplyBtn').disabled = $('updRollbackBtn').disabled = $('updCheckBtn').disabled = true;
-  setStatus('updStatus', path.endsWith('rollback') ? 'Rolling back…' : 'Updating…');
+  const back = path.endsWith('rollback');
+  appBusy = back ? 'Rolling back' : 'Updating';
+  setStatus('updStatus', back ? 'Going back to the previous version…' : 'Installing the update…');
+  render();
   const res = await post(path);
   $('updOut').hidden = false;
   $('updOut').textContent = res.output || res.message || '';
-  if (res.restarting) { waitForServer('Restarting the server with the new version…', 2500, 60); return; }
+  if (res.restarting) {
+    restarting = true;
+    waitForServer('updStatus', 'Restarting the server with the new version…', 2500, 60);
+    return;
+  }
+  appBusy = '';
   await load();
   if (!res.ok) {
     setStatus('updStatus', res.message || 'Failed', 'err');
@@ -232,10 +349,10 @@ async function osUpgrade() {
   if (!confirm(`Upgrade ${n} Raspberry Pi OS package${n === 1 ? '' : 's'}?\n\n`
     + 'This can take several minutes. TNG keeps running, but nothing should run on the machine meanwhile. '
     + 'Afterwards, restart TNG (or reboot the Pi) so it uses the new libraries.')) return;
-  $('osUpgradeBtn').disabled = true;
+  setBadge('osAct', 'busy', 'Upgrading');
   const res = await post('/api/system/os/upgrade');
   if (!res.ok) setStatus('osStatus', res.message || 'Failed', 'err');
-  else load();
+  load();
 }
 
 async function power(action) {
@@ -247,8 +364,8 @@ async function power(action) {
   const res = await post('/api/system/power', { action });
   if (!res.ok) { alert(res.message || 'Failed'); return; }
   $('rebootBtn').disabled = $('poweroffBtn').disabled = true;
-  if (action === 'reboot') waitForServer('The Pi is rebooting… this page reloads when it is back.', 20000, 240);
-  else setStatus('updStatus', 'The Pi is shutting down. Switch it off and on at the machine to start it again.');
+  if (action === 'reboot') waitForServer('powerMsg', 'The Pi is rebooting… this page reloads when it is back.', 20000, 240);
+  else setStatus('powerMsg', 'The Pi is shutting down. Switch it off and on at the machine to start it again.');
 }
 
 // ---------------------------------------------------------------- status pill (top bar)
@@ -283,13 +400,20 @@ export function initSystem() {
   for (const b of document.querySelectorAll('[data-estop]')) b.addEventListener('click', estop);
   if (!$('sysBody')) return;   // the dashboard: only the E-stop
   document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
-  load();
-  $('updCheckBtn').addEventListener('click', checkAll);
-  $('updApplyBtn').addEventListener('click', () => appRun('/api/update/apply',
-    `Install ${sys?.app?.commits?.length || ''} update(s) from GitHub?\n\nThe dashboard restarts and reloads itself; TNG and the machine are not interrupted.`));
+  load().then(autoCheck);
+  $('updCheckBtn').addEventListener('click', () => checkAll());
+  $('appAct').addEventListener('click', () => appRun('/api/update/apply',
+    `Install ${plural(sys?.app?.commits?.length || 0, 'change')} from GitHub?\n\nThe dashboard restarts and reloads itself; TNG and the machine are not interrupted.`));
   $('updRollbackBtn').addEventListener('click', () => appRun('/api/update/rollback',
     'Go back to the version that was installed before the last update?'));
-  $('osUpgradeBtn').addEventListener('click', osUpgrade);
+  $('osAct').addEventListener('click', osUpgrade);
+  for (const btn of document.querySelectorAll('[data-more]')) {
+    btn.addEventListener('click', () => {
+      const more = $(btn.dataset.more);
+      more.hidden = !more.hidden;
+      btn.setAttribute('aria-expanded', String(!more.hidden));
+    });
+  }
   $('rebootBtn').addEventListener('click', () => power('reboot'));
   $('poweroffBtn').addEventListener('click', () => power('poweroff'));
 }
