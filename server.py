@@ -2146,6 +2146,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, {"lines": HUB.console_since(after)})
         elif path == "/api/files":
             self._files_list()
+        elif path == "/api/folders":
+            self._folders()
         elif path == "/api/files/download":
             self._files_download()
         elif path == "/api/tuning":
@@ -2180,10 +2182,10 @@ class Handler(BaseHTTPRequestHandler):
             if self._require_writer():
                 self._system_action(path.rsplit("/", 1)[1])
             return
-        if path in ("/api/files/upload", "/api/files/delete", "/api/files/move"):
+        if path in ("/api/files/upload", "/api/files/delete", "/api/files/move", "/api/files/mkdir"):
             if self._require_writer():
                 {"upload": self._files_upload, "delete": self._files_delete,
-                 "move": self._files_move}[path.rsplit("/", 1)[1]]()
+                 "move": self._files_move, "mkdir": self._files_mkdir}[path.rsplit("/", 1)[1]]()
             return
         if path == "/api/settings":
             if self._require_writer():
@@ -2581,6 +2583,32 @@ class Handler(BaseHTTPRequestHandler):
             return None  # "..", absolute paths or links pointing outside
         return full
 
+    def _folders(self):
+        """The folders (names only, never files) in a folder anywhere on the Pi: the folder
+        picker of Settings > Files. Starts in the Files folder; shortcuts to home, USB drives
+        and the root."""
+        start = CONFIG.files_dir or os.path.expanduser("~")
+        full = os.path.realpath(os.path.expanduser(self._query("path") or start))
+        if not os.path.isdir(full):
+            self._json(404, {"ok": False, "message": "folder not found: %s" % full})
+            return
+        try:
+            with os.scandir(full) as it:
+                dirs = sorted((e.name for e in it if not e.name.startswith(".") and e.is_dir()), key=str.lower)
+        except OSError as e:
+            self._json(403, {"ok": False, "path": full, "message": "cannot open %s: %s" % (full, e.strerror or e)})
+            return
+        parent = os.path.dirname(full)
+        home = os.path.realpath(os.path.expanduser("~"))
+        places = [{"name": "Home", "path": home}]
+        for usb in ("/media/" + os.path.basename(home), "/media", "/mnt"):
+            if os.path.isdir(usb):
+                places.append({"name": "USB drives", "path": usb})
+                break
+        places.append({"name": "Whole disk", "path": os.path.abspath(os.sep)})
+        self._json(200, {"ok": True, "path": full, "parent": parent if parent != full else None,
+                         "dirs": dirs, "places": places})
+
     def _files_list(self):
         rel = self._query("path")
         full = self._files_path(rel)
@@ -2671,6 +2699,35 @@ class Handler(BaseHTTPRequestHandler):
             return
         log_files.info("deleted %s (from %s)", full, self.client_address[0])
         self._json(200, {"ok": True, "message": "deleted %s" % os.path.basename(full)})
+
+    def _files_mkdir(self):
+        """Make a new folder inside a folder of the files folder (New folder in the Files tab)."""
+        try:
+            data = json.loads(self._read_body() or b"{}")
+            rel, name = str(data.get("path", "")), str(data.get("name", "")).strip()
+        except (ValueError, AttributeError):
+            self._json(400, {"ok": False, "message": "invalid json"})
+            return
+        parent = self._files_path(rel)
+        if not parent or not os.path.isdir(parent):
+            self._json(404, {"ok": False, "message": "folder not found"})
+            return
+        if (not name or name in (".", "..") or name.startswith(".") or len(name) > 100
+                or any(c in name for c in '/\\<>:"|?*\0')):
+            self._json(400, {"ok": False, "message": "invalid folder name"})
+            return
+        target = os.path.join(parent, name)
+        if os.path.exists(target):
+            self._json(409, {"ok": False, "message": "%s already exists" % name})
+            return
+        try:
+            os.mkdir(target)
+        except OSError as e:
+            log_files.error("making folder %s failed: %s", target, e)
+            self._json(500, {"ok": False, "message": "could not make the folder: %s" % e})
+            return
+        log_files.info("made folder %s (from %s)", target, self.client_address[0])
+        self._json(200, {"ok": True, "message": "made folder %s" % name})
 
     def _files_move(self):
         """Move a file into another folder of the files folder (drag and drop in the Files tab).

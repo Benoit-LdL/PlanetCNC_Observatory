@@ -134,6 +134,7 @@
       <button class="vbtn text" id="resumeBtn" hidden>Follow line</button>
       <button class="vbtn tonal" id="tuneLoadedBtn" hidden title="Change feeds and step height of the loaded program (saved as a new file)">Feeds &amp; steps</button>
       <button class="vbtn text" id="consoleClearBtn" hidden title="Clear this view (the server keeps its history)">Clear</button>
+      <button class="vbtn text" id="filesMkdirBtn" hidden title="Make a new folder here">New folder</button>
       <button class="vbtn tonal" id="filesUploadBtn" hidden title="Upload files to this folder">Upload</button>
     </div>
     <div class="code" id="code"><div class="code-spacer" id="codeSpacer"></div><div class="code-rows" id="codeRows"></div></div>
@@ -191,10 +192,11 @@
           <button class="vbtn" type="submit">Save</button>
         </form>
         <div class="set-btns">
+          <button class="vbtn tonal" id="filesDirBrowseBtn" type="button" title="Choose a folder on the Pi"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Browse…</button>
           <button class="vbtn" id="filesDirOpenBtn" type="button" title="Use the folder that is open in the Files tab">Use open folder</button>
           <button class="vbtn" id="filesDirResetBtn" type="button" title="Back to the folder given when the server starts (--files-dir)">Default</button>
         </div>
-        <p class="set-help">The folder shown in the Files tab; the Planing page saves its programs there. <b>Use open folder</b> takes the folder that is open in the Files tab.</p>
+        <p class="set-help">The folder shown in the Files tab; the Planing page saves its programs there. <b>Browse…</b> picks a folder on the Pi (a USB stick too); <b>Use open folder</b> takes the folder that is open in the Files tab.</p>
         <p class="set-help" id="filesDirHint"></p>
       </section>
       <section class="set-group">
@@ -286,6 +288,20 @@
   </section>
 </main>
 </div>
+
+<dialog class="m3-dlg" id="folderDlg" aria-labelledby="folderDlgTitle">
+  <header class="m3-dlg-head">
+    <h2 id="folderDlgTitle">Choose the Files folder</h2>
+    <code class="folder-path" id="folderPath"></code>
+    <div class="folder-places" id="folderPlaces"></div>
+  </header>
+  <div class="folder-list" id="folderList" role="listbox" aria-label="Folders"></div>
+  <p class="folder-msg" id="folderMsg"></p>
+  <footer class="m3-dlg-foot">
+    <button class="vbtn text" type="button" id="folderCancel">Cancel</button>
+    <button class="vbtn primary" type="button" id="folderUse">Use this folder</button>
+  </footer>
+</dialog>
 
 <dialog class="tune-dlg" id="tuneDlg" aria-labelledby="tuneHead">
   <header class="tune-head" id="tuneHead">

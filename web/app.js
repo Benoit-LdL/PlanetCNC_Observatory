@@ -408,6 +408,13 @@ $('camFullBtn').addEventListener('click', () => {
   else camPanel.requestFullscreen?.().catch(() => {});
 });
 $('camView').addEventListener('dblclick', () => { if (camEnabled) $('camFullBtn').click(); });
+// In full screen the button takes you back (as do Esc and a double-click); Hide makes no sense there.
+document.addEventListener('fullscreenchange', () => {
+  const full = document.fullscreenElement === camPanel;
+  $('camFullBtn').textContent = full ? 'Exit full screen' : 'Full';
+  $('camFullBtn').title = full ? 'Back to the dashboard (Esc)' : 'Fullscreen';
+  camToggle.hidden = full;
+});
 // Don't keep a video stream running from the Pi for a background tab.
 document.addEventListener('visibilitychange', camSync);
 
@@ -667,6 +674,22 @@ async function filesUpload(fileList) {
 }
 
 $('filesUploadBtn').addEventListener('click', () => $('filesUploadInput').click());
+$('filesMkdirBtn').addEventListener('click', async () => {
+  const name = (prompt(`New folder in ${filesPath || filesRoot}:`) || '').trim();
+  if (!name) return;
+  let res;
+  try {
+    const r = await fetch('/api/files/mkdir', {
+      method: 'POST', headers: { 'X-CNC-Control': '1', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: filesPath, name }),
+    });
+    res = await r.json().catch(() => ({ ok: false, message: `HTTP ${r.status}` }));
+  } catch {
+    res = { ok: false, message: 'Server unreachable' };
+  }
+  filesMessage(res.message || (res.ok ? 'Folder made' : 'Could not make the folder'), res.ok ? 'ok' : 'err');
+  await filesLoad(filesPath);
+});
 $('filesUploadInput').addEventListener('change', (e) => {
   const files = [...e.target.files];
   e.target.value = '';
@@ -833,6 +856,7 @@ function setTab(tab) {
   $('resumeBtn').hidden = tab !== 'code' || followCode;
   $('consoleClearBtn').hidden = tab !== 'console';
   $('filesUploadBtn').hidden = tab !== 'files';
+  $('filesMkdirBtn').hidden = tab !== 'files';
   if (tab === 'console') {
     $('consoleBadge').hidden = true;
     const log = $('consoleLog');
@@ -995,6 +1019,50 @@ $('filesDirForm').addEventListener('submit', (e) => {
   filesDirSave($('filesDirInput').value);
 });
 $('filesDirOpenBtn').addEventListener('click', () => filesDirSave(filesAbs));
+
+// ---------------------------------------------------------------- folder picker (Settings > Files)
+// Folders on the Pi, by name only (/api/folders), to choose the Files folder without typing it.
+
+const folderDlg = $('folderDlg');
+let folderAt = '';
+
+async function folderShow(path) {
+  let d;
+  try {
+    d = await (await fetch('/api/folders' + (path ? '?path=' + encodeURIComponent(path) : ''), { cache: 'no-store' })).json();
+  } catch {
+    d = { ok: false, message: 'Server unreachable' };
+  }
+  $('folderMsg').textContent = d.ok ? '' : d.message || 'Cannot open that folder';
+  if (!d.ok) return;
+  folderAt = d.path;
+  $('folderPath').textContent = d.path;
+  $('folderPlaces').innerHTML = d.places.map((p) =>
+    `<button class="vbtn toggle${p.path === d.path ? ' active' : ''}" type="button" data-folder="${esc(p.path)}">${esc(p.name)}</button>`).join('');
+  const icon = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg>`;
+  const up = d.parent
+    ? `<button class="frow" type="button" data-folder="${esc(d.parent)}">${icon('M12 19V5M5 12l7-7 7 7')}<span class="fname">Up one level</span></button>` : '';
+  $('folderList').innerHTML = up + (d.dirs.length
+    ? d.dirs.map((n) => `<button class="frow" type="button" role="option" data-folder="${esc(d.path.replace(/[\\/]$/, '') + (d.path.includes('\\') ? '\\' : '/') + n)}">`
+      + `${icon('M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z')}<span class="fname">${esc(n)}</span></button>`).join('')
+    : '<p class="files-empty">No folders inside</p>');
+  $('folderList').scrollTop = 0;
+}
+
+$('filesDirBrowseBtn').addEventListener('click', () => {
+  folderDlg.showModal();
+  folderShow($('filesDirInput').value.trim() || filesDir);
+});
+folderDlg.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-folder]');
+  if (b) folderShow(b.dataset.folder);
+});
+$('folderCancel').addEventListener('click', () => folderDlg.close());
+$('folderUse').addEventListener('click', () => {
+  folderDlg.close();
+  $('filesDirInput').value = folderAt;
+  filesDirSave(folderAt);
+});
 $('filesDirResetBtn').addEventListener('click', () => filesDirSave(''));
 
 // ---------------------------------------------------------------- settings: Telegram and timelapse
