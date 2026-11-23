@@ -794,6 +794,7 @@ span.ptab::after { display: none; }
 .pl-foot { flex: none; display: flex; flex-direction: column; gap: 6px; padding: 12px 16px 14px; border-top: 1px solid var(--md-outline-variant); }
 .pl-name { display: flex; gap: 8px; }
 .pl-name input { flex: 1; font: 14px var(--mono); }
+.pl-load { width: 100%; justify-content: center; }
 .pl-msg { font-size: 13px; min-height: 18px; }
 .pl-msg:empty { display: none; }
 .pl-msg.ok { color: var(--md-success); }

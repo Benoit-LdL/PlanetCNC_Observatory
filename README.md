@@ -62,8 +62,8 @@ the right.*
 
 **On your phone, through Telegram**
 
-- Messages from your own Telegram bot when a job starts, every 10, 20, 25 or
-  50 %, when it pauses, on E-stop and when it ends (finished, or stopped at
+- Messages from your own Telegram bot when a job starts, every few percent
+  or minutes (you choose), when it pauses, on E-stop and when it ends (finished, or stopped at
   which line), each with a camera photo. Also when TNG drops out during a job,
   and Pi warnings (under-voltage, heat).
 - A **timelapse** of every job from the camera: a short video, sent with the
@@ -99,7 +99,8 @@ the right.*
   stock's top going from rough to planed and the estimated run time.
 - Cutting values saved per material (oak, cherry, …), shared by every device,
   on a Materials page where you can change, add, delete, import and export them.
-- The program is saved in the Files folder; you load and run it in TNG.
+- The program is saved in the Files folder, and can be loaded in TNG from
+  the page; you start it at the machine.
 
 **Look**
 
@@ -124,12 +125,15 @@ the right.*
 
 **Left out on purpose**
 
-- **No machine control, apart from the E-stop.** The dashboard can't move,
-  home, start, pause or resume the machine, release the E-stop, send G-code, or
-  load a program into TNG. For safety, everything that makes the machine do
-  something happens at the machine, in TNG. This isn't just hidden in the
-  page: the server has no way to send such a command, and the bridge inside
-  TNG refuses anything but reading and switching the E-stop on.
+- **No machine control, apart from the E-stop and loading a program.** The
+  dashboard can't move, home, start, pause or resume the machine, release the
+  E-stop, or send G-code. For safety, everything that makes the machine do
+  something happens at the machine, in TNG. It can load a G-code file from
+  the Files folder into TNG (when nothing runs), which only opens the file:
+  starting it is still done at the machine. This isn't just hidden in the
+  page: the server has no way to send other commands, and the bridge inside
+  TNG refuses anything but reading, switching the E-stop on and opening a
+  G-code file while the machine isn't running.
 - **No password.** Anyone on the home network who opens the page can see it,
   manage the files in the Files tab, press the E-stop and, once you allow it,
   upgrade or reboot the Pi when no job runs. Don't make the dashboard
@@ -224,8 +228,9 @@ There are three parts:
    there can Python read TNG's state through the `planetcnc` module. Five
    times a second it reads the values the server asks for and sends them to
    the server. When the loaded program changes, it sends the program to the
-   server as well. It only reads, with one exception: when the dashboard's
-   E-stop button is pressed, it switches TNG's E-stop on.
+   server as well. It only reads, with two exceptions: when the dashboard's
+   E-stop button is pressed, it switches TNG's E-stop on, and it opens a
+   program in TNG when asked to (never while the machine runs).
 2. **The server** (`server.py`) is a small web server written in Python, using
    only the standard library, so there's nothing to `pip install`. It turns the
    bridge's raw values into what the dashboard shows and pushes every change
@@ -597,9 +602,10 @@ Settings. The tab only appears when there is a folder.
 - Per folder: the pencil renames it (not the folder holding the file loaded
   in TNG), and the arrow downloads it, with everything in it, as a zip.
   **Download all** does the same for the folder shown.
-- Per file: the eye previews G-code in the 3D view, the sliders open the
-  [Feeds & steps](#feeds--steps) window, the arrow downloads the file, and the
-  bin deletes it (after asking).
+- Per file: the eye previews G-code in the 3D view, the tray arrow loads it
+  in TNG (only when the machine isn't running; it is not started), the
+  sliders open the [Feeds & steps](#feeds--steps) window, the arrow downloads
+  the file, and the bin deletes it (after asking).
 - **New folder** makes a folder in the folder shown.
 - **Drag files onto the panel** (on any tab), or press **Upload**, to put them
   in the folder shown. An existing file is only replaced after you confirm.
@@ -802,9 +808,10 @@ them all, change, rename, import or export them, use the
 
 **Save** writes the program to the top of the Files folder (set in Settings),
 named after the material, size and depth, e.g. `plane_oak_600x200_3mm.nc`; you
-can type another name. If the file exists, it asks before replacing it. As
-everywhere in the dashboard, nothing is sent to TNG: load and start the
-program at the machine. The last values entered are remembered in the browser.
+can type another name. If the file exists, it asks before replacing it.
+**Save & load in TNG** saves it the same way, then opens it in TNG, ready to
+run; it is greyed out while the machine runs or TNG isn't connected. Starting
+the program always happens at the machine. The last values entered are remembered in the browser.
 
 ### Materials
 
@@ -907,7 +914,7 @@ job once the program's line number starts moving up).
 | When | Message | Photo |
 |---|---|---|
 | A job starts | The file, and TNG's estimated time when it has one. | yes ¹ |
-| Every 10, 20, 25 % or at 50 % | The percentage, the line and the time left. | yes ¹ |
+| Every few % or minutes (see **Progress** below) | The percentage, the line and the time left. | yes ¹ |
 | The job pauses | The line it paused at. | yes ¹ |
 | The job resumes | Sent silently (no sound on your phone). | no |
 | E-stop | Right away, before anything else, with the line. | yes ¹ |
@@ -983,7 +990,8 @@ with the machine's status and a camera photo arrives in Telegram.
 
 | Setting | What it does | Default |
 |---|---|---|
-| **Progress** | No progress messages, every 10 %, 20 %, 25 %, or only at 50 %. | every 25 % |
+| **Progress** | A progress message every 5 %, 10 %, 20 %, 25 %, only at 50 %, or not by percentage. | every 10 % |
+| **Or by time** | Also a progress message every 5, 10, 15, 30 or 60 minutes, or not by time. Whichever of the two comes first sends the message. Each message (or a resume) restarts the clock, and a percentage step that comes soon after a timed message is skipped, so they don't come in pairs. Both off: no progress messages. | not by time |
 | **A camera photo with each message** | Messages come as a photo with the text under it. | on |
 | **Raspberry Pi warnings** | Under-voltage, throttling and heat. | on |
 | **Updates, start-up and shut-down of the Pi** | The app updated or rolled back, the Pi started, rebooting or shutting down. | on |
@@ -1262,9 +1270,14 @@ need a new bridge:
   a single `planetcnc` function, but only reading functions (`param_get`,
   `hw_…`, `is_…`, `get_…` and a few others). The one other request it accepts
   is the E-stop: it reads `_hw_estop`, and only when E-stop is off does it call
-  `planetcnc.estop()`. So it can switch E-stop on, never off. The bridge
-  refuses everything else, so even a changed server can't move, start or
-  reconfigure the machine through it.
+  `planetcnc.estop()`. So it can switch E-stop on, never off. It also opens a
+  program: only an existing G-code file (`.nc`, `.ngc`, `.gcode`, …), only
+  while `_hw_run` is off, through TNG's open-file function (the bridge tries
+  `planetcnc.open_file` and a few other likely names; when TNG has none of
+  them, the error lists the file functions it does have). The server only
+  asks for files inside the Files folder. The bridge refuses everything else,
+  so even a changed server can't move, start or reconfigure the machine
+  through it.
 - **Self-reload.** When `planetcnc_bridge.py` changes on disk (after an
   update), the bridge loads the new version within a few seconds. A new
   version that doesn't compile is ignored, and the running one keeps going.

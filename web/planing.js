@@ -350,7 +350,7 @@ function update() {
   if (result.errors.length) {
     $('summary').innerHTML = '';
     $('notes').innerHTML = notes.join('');
-    $('saveBtn').disabled = true;
+    syncButtons();
     return;
   }
   const { info } = result;
@@ -365,7 +365,7 @@ function update() {
     ['Run time', `about ${duration(info.time)}`],
   ];
   $('summary').innerHTML = rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('');
-  $('saveBtn').disabled = !filesEnabled;
+  syncButtons();
   if (!nameEdited) $('fileName').value = defaultName(p);
 
   showStock(p, info);
@@ -429,6 +429,10 @@ async function pollState() {
     bed = next;
     viewer.setBed(bed);
     $('bedNote').textContent = bed ? 'Box: machine travel' : '';
+    tngLoad = !s.bridge_online ? 'TNG is not connected'
+      : (s.bridge_protocol || 1) < 4 ? 'The bridge in TNG is too old to load programs: install the update, or restart TNG'
+      : s.running ? 'The machine is running: load it when it has stopped' : '';
+    syncButtons();
     if (s.files_enabled !== filesEnabled) {
       filesEnabled = !!s.files_enabled;
       showFolder();
@@ -438,6 +442,8 @@ async function pollState() {
       $('notes').innerHTML = [...plan.warnings, ...bedNotes(plan.info)].map((x) => `<li>${esc(x)}</li>`).join('');
     }
   } catch {
+    tngLoad = 'The server is not reachable';
+    syncButtons();
     systemOnState({});   // server not reachable: OFFLINE, and no E-stop from here; try again
   }
   // Every second, so the status and the E-stop button are as current as on the dashboard
@@ -546,13 +552,23 @@ function message(html, kind = '') {
   $('saveMsg').className = 'pl-msg' + (kind ? ' ' + kind : '');
 }
 
+let busy = false;      // saving or loading
+let tngLoad = 'TNG is not connected';   // why the program can't be loaded in TNG now ('' = it can)
+
+function syncButtons() {
+  const canSave = filesEnabled && !!plan && !plan.errors.length && !busy;
+  $('saveBtn').disabled = !canSave;
+  $('loadBtn').disabled = !canSave || !!tngLoad;
+  $('loadBtn').title = tngLoad || (!filesEnabled ? 'Choose a Files folder in the dashboard\'s Settings first'
+    : 'Save the program, then open it in TNG (it does not start it)');
+}
+
 async function showFolder() {
+  syncButtons();
   if (!filesEnabled) {
     $('folderHint').textContent = 'No Files folder: choose one in the dashboard\'s Settings to save programs.';
-    $('saveBtn').disabled = true;
     return;
   }
-  $('saveBtn').disabled = !plan || !!plan.errors.length;
   try {
     const d = await (await fetch('/api/files?path=', { cache: 'no-store' })).json();
     $('folderHint').textContent = d.ok ? `Saved in ${d.abs}` : '';
@@ -566,35 +582,67 @@ async function upload(name, text, overwrite) {
   return r.json().catch(() => ({ ok: false, message: `HTTP ${r.status}` }));
 }
 
-$('saveBtn').addEventListener('click', async () => {
-  if (!plan || plan.errors.length) return;
+/** Save the program in the Files folder; returns its name, or null when it wasn't saved. */
+async function saveProgram() {
+  if (!plan || plan.errors.length) return null;
   let name = $('fileName').value.trim();
-  if (!name || /[\\/<>:"|?*]/.test(name) || name.startsWith('.')) { message('Enter a valid file name.', 'err'); return; }
+  if (!name || /[\\/<>:"|?*]/.test(name) || name.startsWith('.')) { message('Enter a valid file name.', 'err'); return null; }
   if (!/\.[a-z0-9]{1,5}$/i.test(name)) name += '.nc';
   $('fileName').value = name;
   // The program carries the date it was made: rebuild it now, with the values on screen
   const text = planPlaning(lastParams).text;
-  $('saveBtn').disabled = true;
   message('Saving…');
   try {
     let res = await upload(name, text, false);
     if (!res.ok && res.exists) {
       if (!await ask({ title: 'Replace the file?', text: `${name} already exists in the Files folder.`, ok: 'Replace', danger: true })) {
         message('');
-        return;   // finally: the button comes back
+        return null;
       }
       res = await upload(name, text, true);
     }
     if (!res.ok) throw new Error(res.message || 'failed');
-    message(`Saved ${esc(name)}. Load it in TNG to run it.`, 'ok');
     log.info(`planing: saved ${name} (${plan.info.passes} passes, ${fmt(lastParams.depth)} mm)`);
+    return name;
   } catch (e) {
     log.warn(`planing: saving ${name} failed:`, e.message);
     message('Could not save: ' + esc(e.message), 'err');
-  } finally {
-    $('saveBtn').disabled = !filesEnabled;
+    return null;
   }
-});
+}
+
+async function withButtons(work) {
+  busy = true;
+  syncButtons();
+  try { await work(); } finally { busy = false; syncButtons(); }
+}
+
+$('saveBtn').addEventListener('click', () => withButtons(async () => {
+  const name = await saveProgram();
+  if (name) message(`Saved ${esc(name)}. Load it in TNG to run it.`, 'ok');
+}));
+
+$('loadBtn').addEventListener('click', () => withButtons(async () => {
+  const name = await saveProgram();
+  if (!name) return;
+  message(`Saved ${esc(name)}. Loading it in TNG…`);
+  let res;
+  try {
+    const r = await fetch('/api/tng/open', { method: 'POST', headers: writeHeaders, body: JSON.stringify({ path: name }) });
+    res = await r.json().catch(() => ({ ok: false, message: `HTTP ${r.status}` }));
+  } catch {
+    res = { ok: false, message: 'Server unreachable' };
+  }
+  if (res.ok && res.loaded) {
+    message(`Saved ${esc(name)} and loaded it in TNG. Start it at the machine.`, 'ok');
+    log.info(`planing: loaded ${name} in TNG`);
+  } else if (res.ok) {
+    message(`Saved ${esc(name)}. ${esc(res.message)}: check TNG.`, 'err');
+  } else {
+    log.warn(`planing: loading ${name} in TNG failed:`, res.message);
+    message(`Saved ${esc(name)}, but could not load it in TNG: ${esc(res.message || 'failed')}`, 'err');
+  }
+}));
 
 // ---------------------------------------------------------------- start
 

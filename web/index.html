@@ -228,13 +228,26 @@
         <div class="set-row">
           <label for="tgProgress">Progress</label>
           <select id="tgProgress">
-            <option value="0">No progress messages</option>
+            <option value="0">Not by percentage</option>
+            <option value="5">Every 5 %</option>
             <option value="10">Every 10 %</option>
             <option value="20">Every 20 %</option>
             <option value="25">Every 25 %</option>
             <option value="50">At 50 %</option>
           </select>
         </div>
+        <div class="set-row">
+          <label for="tgMinutes">Or by time</label>
+          <select id="tgMinutes">
+            <option value="0">Not by time</option>
+            <option value="5">Every 5 minutes</option>
+            <option value="10">Every 10 minutes</option>
+            <option value="15">Every 15 minutes</option>
+            <option value="30">Every 30 minutes</option>
+            <option value="60">Every hour</option>
+          </select>
+        </div>
+        <p class="set-hint">A progress message goes out at whichever comes first; each message restarts the clock. Both off: no progress messages.</p>
         <label class="set-check"><input type="checkbox" id="tgPhotos"> A camera photo with each message</label>
         <label class="set-check"><input type="checkbox" id="tgPi"> Raspberry Pi warnings (under-voltage, heat)</label>
         <label class="set-check"><input type="checkbox" id="tgSystem"> Updates, start-up and shut-down of the Pi</label>

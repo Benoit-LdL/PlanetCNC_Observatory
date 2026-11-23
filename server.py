@@ -56,6 +56,8 @@ BRIDGE_TIMEOUT = 3.0  # seconds without an update before the bridge is reported 
 COMMAND_TTL = 2.0      # a command the bridge hasn't picked up by then is dropped, never run late
 COMMAND_WAIT = 10.0    # how long a browser request waits for TNG's answer
 ESTOP_PROTOCOL = 3     # first bridge version that accepts the E-stop request
+OPEN_PROTOCOL = 4      # first bridge version that can open a program in TNG
+GCODE_EXTS = (".nc", ".ngc", ".gcode", ".gc", ".tap", ".cnc", ".txt")  # as the Files tab and the bridge
 MAX_UPLOAD_BYTES = 200 * 1024 * 1024
 CONSOLE_LINES = 500      # console history kept in memory
 JOB_CONFIRM_LINES = 2    # a run is a job (not homing or a jog) once the program line has gone up this much
@@ -338,6 +340,7 @@ class Hub:
         self.job_started = None      # time.time() when the running job started (None when no job runs)
         self.run_since = None        # time.time() when _hw_run last went on (a job, or homing, a jog, MDI...)
         self.run_low_line = None     # lowest program line seen since then
+        self.run_late = False        # that run was already going when the server first heard from TNG
 
     # ----- machine commands: browser -> server -> bridge (in its /api/state reply) -----
 
@@ -464,6 +467,7 @@ class Hub:
         line = int(state.get("line") or 0)
         if self.run_since is None:
             self.run_since, self.run_low_line = time.time(), line
+            self.run_late = not self.state
         self.run_low_line = min(self.run_low_line, line)
         if self.job_started is None and state.get("line_count") and state.get("file") \
                 and line >= self.run_low_line + JOB_CONFIRM_LINES:
@@ -471,6 +475,7 @@ class Hub:
             log_machine.info("job confirmed: line %d of %d, %.1f s after the run started",
                              line, state["line_count"], time.time() - self.run_since)
         state["job"] = self.job_started is not None
+        state["job_late"] = state["job"] and self.run_late
 
     def set_state(self, state, source=""):
         with self.cond:
@@ -1570,22 +1575,43 @@ class Notifier:
         if new.get("estop") and not old.get("estop"):  # first: the most urgent message
             self.q.put(("estop", dict(new, line=old.get("line") if was else new.get("line"), running=was)))
         if running and not was:
-            self.job = {"file": new.get("file"), "started": time.time(), "bucket": 0}
-            self.q.put(("job_start", dict(new)))
+            # A job that was already going when the server started: only its end is reported.
+            self.job = {"file": new.get("file"), "started": time.time(), "bucket": None, "late": bool(new.get("job_late")),
+                        "last": time.time()}
+            if not self.job["late"]:
+                self.q.put(("job_start", dict(new)))
         elif was and not running:
             job, self.job = self.job, None
             self.q.put(("job_end", dict(old, job=job, estop=bool(new.get("estop")))))
         if new.get("paused") != old.get("paused") and running and was:
             self.q.put(("paused" if new.get("paused") else "resumed", dict(new)))
-        step = SETTINGS["notify_progress"]
-        total = new.get("line_count") or 0
-        if self.job and running and step and total:
-            bucket = int(100.0 * (new.get("line") or 0) / total // step)
-            if bucket > self.job["bucket"]:
-                first = self.job["bucket"] == 0 and bucket > 1  # joined late: don't report what already passed
-                self.job["bucket"] = bucket
-                if not first and 0 < bucket * step < 100:
+            if self.job:
+                self.job["last"] = time.time()  # the timed progress messages count from here
+        self._progress(new)
+
+    def _progress(self, new):
+        """A progress message at every `notify_progress` % and, when `notify_minutes` is set, also
+        when that long has passed since the last message - whichever comes first. A percentage
+        step right after a timed message (within half the interval) is skipped: no pairs."""
+        job, total = self.job, new.get("line_count") or 0
+        if not job or job["late"] or not new.get("job") or not total:
+            return
+        step, minutes = SETTINGS["notify_progress"], SETTINGS["notify_minutes"]
+        pct = 100.0 * (new.get("line") or 0) / total
+        if step:
+            bucket = int(pct // step)
+            if job["bucket"] is None or step != job.get("step"):  # first look, or the setting changed:
+                job["bucket"], job["step"] = bucket, step            # nothing to report for what already passed
+            elif bucket > job["bucket"]:
+                job["bucket"] = bucket
+                just_timed = job.get("timed") and time.time() - job["last"] < minutes * 30
+                if 0 < bucket * step < 100 and not just_timed:
+                    job["last"], job["timed"] = time.time(), False
                     self.q.put(("progress", dict(new, pct=bucket * step)))
+                    return
+        if minutes and time.time() - job["last"] >= minutes * 60 and not new.get("paused") and pct < 100:
+            job["last"], job["timed"] = time.time(), True
+            self.q.put(("progress", dict(new, pct=int(pct))))
 
     def event(self, kind, **data):
         self.q.put((kind, data))
@@ -1926,9 +1952,11 @@ TOOL_CAMS = {"fusion": "Fusion 360"}
 SETTINGS = {"name": DEFAULT_NAME, "camera": None, "camera_view": True, "log_debug": False, "files_dir": None,
             "tool_shape": True, "tool_cam": "fusion",
             # Telegram notifications and the job timelapse (see Notifier, Timelapse)
-            "telegram_token": "", "telegram_chat": "", "notify_progress": 25, "notify_photos": True,
+            "telegram_token": "", "telegram_chat": "", "notify_progress": 10, "notify_minutes": 0,
+            "notify_photos": True,
             "notify_pi": True, "notify_system": True, "timelapse": True, "timelapse_interval": 10}
-NOTIFY_PROGRESS_STEPS = (0, 10, 20, 25, 50)
+NOTIFY_PROGRESS_STEPS = (0, 5, 10, 20, 25, 50)
+NOTIFY_MINUTES = (0, 5, 10, 15, 30, 60)   # progress message at least this often (0 = only by percentage)
 TIMELAPSE_INTERVALS = (5, 10, 20, 30, 60)
 SETTINGS_LOCK = threading.Lock()
 
@@ -2191,7 +2219,7 @@ class Handler(BaseHTTPRequestHandler):
             took = time.time() - self._started
             path = urlparse(getattr(self, "path", "")).path
             if took > SLOW_REQUEST and path not in ("/api/events", "/api/camera.mjpg", "/api/camera.jpg", "/api/tng/call",
-                                                     "/api/estop",
+                                                     "/api/estop", "/api/tng/open",
                                                      "/api/update/check", "/api/update/apply", "/api/update/rollback",
                                                      "/api/system/os/check"):
                 log_http.warning("slow request: %s %s from %s took %.1f s", self.command, path,
@@ -2292,6 +2320,10 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/estop":
             if self._require_writer():
                 self._estop()
+            return
+        if path == "/api/tng/open":
+            if self._require_writer():
+                self._tng_open()
             return
         if path == "/api/telegram/test":
             if self._require_writer():
@@ -2522,6 +2554,51 @@ class Handler(BaseHTTPRequestHandler):
                 "E-stop: %s" % (result.get("message") or ("done" if result["ok"] else "failed")))
         self._json(200 if result["ok"] else 409, result)
 
+    def _tng_open(self):
+        """POST /api/tng/open {"path": "<inside the Files folder>"}: load that program in TNG.
+
+        Loading only: the program is never started, and the bridge refuses while the machine runs.
+        """
+        try:
+            rel = str(json.loads(self._read_body() or b"{}").get("path") or "")
+        except (ValueError, AttributeError):
+            self._json(400, {"ok": False, "message": "expected JSON with a path"})
+            return
+        full = self._files_path(rel) if rel else None
+        state = HUB.snapshot()[1]
+        if not full or not os.path.isfile(full):
+            result = {"ok": False, "message": "file not found in the Files folder"}
+        elif not full.lower().endswith(GCODE_EXTS):
+            result = {"ok": False, "message": "not a G-code file"}
+        elif not state["bridge_online"]:
+            result = {"ok": False, "message": "TNG bridge is offline"}
+        elif (state.get("bridge_protocol") or 1) < OPEN_PROTOCOL:
+            result = {"ok": False, "message": "the bridge running in TNG is too old to load programs - "
+                                              "install the update, or restart TNG"}
+        elif state.get("running"):
+            result = {"ok": False, "message": "the machine is running - load it when it has stopped"}
+        else:
+            who = "%s %s" % (self.client_address[0], short_agent(self.headers.get("User-Agent", "")))
+            result = HUB.wait_result(HUB.queue_command({"op": "open", "path": full}))
+            HUB.log("info" if result["ok"] else "err", "Load in TNG: %s - %s (%s)" % (
+                os.path.basename(full), result.get("message") or ("done" if result["ok"] else "failed"), who))
+            if result["ok"]:
+                result["loaded"] = self._wait_loaded(full)
+                if not result["loaded"]:
+                    result["message"] = "Asked TNG to open it, but TNG doesn't show it as loaded yet"
+        self._json(200 if result["ok"] else 409, result)
+
+    @staticmethod
+    def _wait_loaded(full, timeout=4.0):
+        """True once TNG reports `full` as its loaded program (TNG may open it a moment later)."""
+        end = time.time() + timeout
+        while True:
+            if norm_path(HUB.snapshot()[1].get("file")) == norm_path(full):
+                return True
+            if time.time() >= end:
+                return False
+            time.sleep(0.25)
+
     def _timelapse_download(self):
         path = TIMELAPSE.path(self._query("name")) if TIMELAPSE else None
         if not path:
@@ -2596,7 +2673,8 @@ class Handler(BaseHTTPRequestHandler):
                 "tool_shape": bool(SETTINGS["tool_shape"]), "tool_cam": SETTINGS["tool_cam"],
                 "tool_cams": [{"id": k, "label": v} for k, v in TOOL_CAMS.items()],
                 "telegram": NOTIFY.view() if NOTIFY else None,
-                "notify_progress": SETTINGS["notify_progress"], "notify_photos": bool(SETTINGS["notify_photos"]),
+                "notify_progress": SETTINGS["notify_progress"], "notify_minutes": SETTINGS["notify_minutes"],
+                "notify_photos": bool(SETTINGS["notify_photos"]),
                 "notify_pi": bool(SETTINGS["notify_pi"]), "notify_system": bool(SETTINGS["notify_system"]),
                 "timelapse": bool(SETTINGS["timelapse"]),
                 "timelapse_interval": SETTINGS["timelapse_interval"],
@@ -2648,7 +2726,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(400, {"ok": False, "message": "a chat id is a number"})
                 return
             changes["telegram_chat"] = chat
-        for key, allowed in (("notify_progress", NOTIFY_PROGRESS_STEPS), ("timelapse_interval", TIMELAPSE_INTERVALS)):
+        for key, allowed in (("notify_progress", NOTIFY_PROGRESS_STEPS), ("notify_minutes", NOTIFY_MINUTES),
+                             ("timelapse_interval", TIMELAPSE_INTERVALS)):
             if key in data:
                 try:
                     value = int(data[key])

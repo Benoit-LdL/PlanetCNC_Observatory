@@ -9,10 +9,11 @@ bridge:
     bridge reads them and sends the raw values with every update (5x/s).
   - The server can ask the bridge to call a planetcnc function, but only
     reading functions are allowed.
-  - The one exception is the dashboard's E-stop button: the bridge switches
-    TNG's E-stop ON. It never releases it, so restarting the machine always
-    happens at the machine. Otherwise the bridge never moves, starts, homes or
-    changes the machine, and never loads programs into TNG.
+  - The dashboard's E-stop button: the bridge switches TNG's E-stop ON. It
+    never releases it, so restarting the machine always happens at the machine.
+  - Loading a program: the bridge opens a G-code file in TNG, only while the
+    machine isn't running, and never starts it.
+  Otherwise the bridge never moves, starts, homes or changes the machine.
 
 When this file changes on disk (e.g. after update.sh), the bridge reloads
 itself within a few seconds - no TNG restart needed.
@@ -50,7 +51,7 @@ INTERVAL = 0.2                        # seconds between state updates (5 Hz)
 MAX_PROGRAM_BYTES = 50 * 1024 * 1024  # don't upload programs bigger than this
 # ------------------------------------------------
 
-PROTOCOL = 3          # 3: the E-stop request
+PROTOCOL = 4          # 3: the E-stop request; 4: opening a program
 SLOW_LOOP = 1.0       # an update round taking longer than this (s) is logged
 LOG_KEEP = 300        # log lines kept while the server can't be reached
 
@@ -167,20 +168,58 @@ def engage_estop():
     return True, "E-stop engaged", None
 
 
+# Opening a program. TNG's Python function for it isn't documented anywhere we could check,
+# so the likely names are tried in order; when none exists, the answer lists what TNG has.
+OPEN_FUNCS = ("open_file", "file_open", "program_open", "prog_open", "gcode_open", "load_file")
+GCODE_EXTS = (".nc", ".ngc", ".gcode", ".gc", ".tap", ".cnc", ".txt")
+
+
+def machine_running():
+    try:
+        return bool(float(planetcnc.param_get("_hw_run") or 0))
+    except (TypeError, ValueError):
+        return False
+
+
+def open_program(path):
+    """Load a G-code file in TNG, as File -> Open does. Only when nothing runs: it never
+    starts the program or moves the machine."""
+    path = str(path or "")
+    if not path.lower().endswith(GCODE_EXTS):
+        return False, "not a G-code file: %s" % os.path.basename(path), None
+    if not os.path.isfile(path):
+        return False, "file not found: %s" % path, None
+    if machine_running():
+        return False, "the machine is running - load it when it has stopped", None
+    for name in OPEN_FUNCS:
+        fn = getattr(planetcnc, name, None)
+        if callable(fn):
+            fn(path)
+            log("info", "opened %s from the web dashboard (planetcnc.%s)" % (path, name), show=True)
+            return True, "Loaded in TNG", None
+    have = sorted(n for n in dir(planetcnc)
+                  if not n.startswith("_") and any(w in n.lower() for w in ("open", "load", "file", "prog")))
+    log("warn", "no function to open a file; planetcnc has: %s" % (", ".join(have) or "nothing similar"), show=True)
+    return False, "this TNG has no function to open a file (looked for %s; it has: %s)" % (
+        ", ".join(OPEN_FUNCS), ", ".join(have) or "nothing similar"), None
+
+
 def run_command(cmd):
     """Answer one request from the server. Returns (ok, message, value).
 
-    Only two kinds of request are accepted, whatever the server asks:
+    Only three kinds of request are accepted, whatever the server asks:
       - "call": a reading planetcnc function;
-      - "estop": switch E-stop on (never off).
-    The bridge never moves, starts, homes or otherwise changes the machine, and never
-    loads programs into TNG.
+      - "estop": switch E-stop on (never off);
+      - "open": load a G-code file in TNG while nothing runs (never starts it).
+    The bridge never moves, starts, homes or otherwise changes the machine.
     """
     op = cmd.get("op")
     if op == "estop":
         return engage_estop()
+    if op == "open":
+        return open_program(cmd.get("path"))
     if op != "call":
-        return False, "the bridge only reads (and engages E-stop): '%s' is not allowed" % op, None
+        return False, "the bridge only reads, engages E-stop and opens programs: '%s' is not allowed" % op, None
     fn_name = str(cmd.get("f", ""))
     if not readable(fn_name):
         return False, "the bridge only reads: planetcnc.%s is not allowed" % fn_name, None

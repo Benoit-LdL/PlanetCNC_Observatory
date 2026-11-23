@@ -518,6 +518,7 @@ const ICONS = {
   del: '<svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
   tune: '<svg viewBox="0 0 24 24"><path d="M4 6h9m4 0h3M4 12h3m4 0h9M4 18h11m4 0h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>',
   edit: '<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg>',
+  load: '<svg viewBox="0 0 24 24"><path d="M12 15V3m0 12-4-4m4 4 4-4"/><rect x="3" y="15" width="18" height="6" rx="2"/></svg>',
 };
 let filesPath = '';
 let filesAbs = '';         // the open folder's full path on the Pi
@@ -615,6 +616,7 @@ async function filesLoad(path) {
     }
     const acts = [
       GCODE_RE.test(e.name) ? `<button class="ficon" data-preview="${p}" title="Preview in 3D view">${ICONS.view}</button>` : '',
+      GCODE_RE.test(e.name) ? `<button class="ficon" data-load="${p}" title="Load in TNG (it does not start it)">${ICONS.load}</button>` : '',
       GCODE_RE.test(e.name) ? `<button class="ficon" data-tune="${p}" title="Feeds &amp; steps: change feeds and step height (saved as a new file)">${ICONS.tune}</button>` : '',
       `<a class="ficon" href="/api/files/download?path=${encodeURIComponent(rel)}" download title="Download">${ICONS.down}</a>`,
       `<button class="ficon del" data-delete="${p}" title="Delete">${ICONS.del}</button>`,
@@ -704,6 +706,26 @@ filesPanel.addEventListener('click', async (e) => {
   if (!b) return;
   if (b.dataset.path !== undefined) filesLoad(b.dataset.path);
   else if (b.dataset.open) filesLoad(b.dataset.open);
+  else if (b.dataset.load) {
+    const path = b.dataset.load;
+    const name = path.split('/').pop();
+    filesMessage(`Loading ${name} in TNG…`);
+    b.disabled = true;
+    let res;
+    try {
+      const r = await fetch('/api/tng/open', {
+        method: 'POST', headers: { 'X-CNC-Control': '1', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path }),
+      });
+      res = await r.json().catch(() => ({ ok: false, message: `HTTP ${r.status}` }));
+    } catch {
+      res = { ok: false, message: 'Server unreachable' };
+    }
+    b.disabled = false;
+    filesMessage(res.ok && res.loaded ? `Loaded ${name} in TNG – start it at the machine`
+      : res.ok ? `${res.message}: check TNG` : `Could not load ${name} in TNG: ${res.message || 'failed'}`,
+    res.ok && res.loaded ? 'ok' : 'err');
+  }
   else if (b.dataset.tune) openTune(b.dataset.tune, stoppedLineFor(b.dataset.tune));
   else if (b.dataset.rename) {
     const path = b.dataset.rename;
@@ -1112,6 +1134,7 @@ function renderNotify(d) {
     $('tgTestBtn').disabled = !(t.token_set && t.chat);
   }
   $('tgProgress').value = String(d.notify_progress);
+  $('tgMinutes').value = String(d.notify_minutes || 0);
   $('tgPhotos').checked = !!d.notify_photos;
   $('tgPi').checked = !!d.notify_pi;
   $('tgSystem').checked = d.notify_system !== false;
@@ -1157,6 +1180,7 @@ $('tgTestBtn').addEventListener('click', async () => {
   $('tgTestBtn').disabled = false;
 });
 $('tgProgress').addEventListener('change', (e) => settingsSave({ notify_progress: Number(e.target.value) }));
+$('tgMinutes').addEventListener('change', (e) => settingsSave({ notify_minutes: Number(e.target.value) }));
 $('tgPhotos').addEventListener('change', (e) => settingsSave({ notify_photos: e.target.checked }));
 $('tgPi').addEventListener('change', (e) => settingsSave({ notify_pi: e.target.checked }));
 $('tgSystem').addEventListener('change', (e) => settingsSave({ notify_system: e.target.checked }));
