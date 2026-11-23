@@ -165,10 +165,11 @@ The same in day mode: the button at the top left switches.
 The **Console** tab lists what happened with times, here the demo job
 starting and its earlier runs ending, with how long each took.
 
-![Desktop: the Settings tab](media/screenshots/desktop-settings.png)
+![Desktop: the Settings page](media/screenshots/desktop-settings.png)
 
-The **Settings** tab: machine name, camera, Files folder, how the tool is
-drawn, Telegram, timelapse, the way to the System page, and logs.
+The **Settings** page: one card per subject (machine name, camera, Files
+folder, how the tool is drawn, the Telegram bot and its messages, timelapse,
+logs), in as many columns as the window has room for.
 
 ![Desktop: the Planing page](media/screenshots/desktop-planing.png)
 
@@ -188,13 +189,13 @@ update).
 <td width="25%"><img src="media/screenshots/mobile.png" alt="Phone: camera and position"></td>
 <td width="25%"><img src="media/screenshots/mobile-3d.png" alt="Phone: 3D view and G-code"></td>
 <td width="25%"><img src="media/screenshots/mobile-console.png" alt="Phone: Console tab"></td>
-<td width="25%"><img src="media/screenshots/mobile-settings.png" alt="Phone: Settings tab"></td>
+<td width="25%"><img src="media/screenshots/mobile-settings.png" alt="Phone: Settings page"></td>
 </tr>
 <tr>
 <td>Camera, position and job come first.</td>
 <td>Scroll down for the 3D view (one finger rotates, two zoom and pan) and the G-code.</td>
 <td>The Console tab.</td>
-<td>The Settings tab.</td>
+<td>The Settings page.</td>
 </tr>
 </table>
 
@@ -255,7 +256,7 @@ default the server only accepts a bridge from the Pi itself.
 | `tools/setup-sudo.sh` | Optional: lets the System page upgrade OS packages and reboot the Pi (see [step 7](#7-optional-allow-os-upgrades-and-reboot-from-the-dashboard)). |
 | `tools/screenshots.py` | Retakes the README screenshots from the demo (on a PC, not needed on the Pi). |
 | `media/` | The animation and screenshots in this README. |
-| `web/` | The pages (HTML, CSS, JavaScript). `style.css` holds the look of every page, day and night; `theme-boot.js` sets the day / night mode before a page is drawn; `fonts/` are Roboto and Roboto Mono, `sky.svg` the faint stars behind the cards. `tune.js` reads and rewrites programs for the Feeds & steps window; `system-ui.js` holds the E-stop button and the System page (`system.html`, `system.js`); `topbar-boot.js` draws the top bar and the menu (and runs the day / night button) before each page is shown, and `nav.js` keeps them current; `help.js` the **?** help popups in Settings; `materials.html` and `materials.js` the Materials page; `camera.html` is the camera page on its own; `planing.html`, `planing.js` and `planing-gcode.js` are the Planing page. |
+| `web/` | The pages (HTML, CSS, JavaScript). `style.css` holds the look of every page, day and night; `theme-boot.js` sets the day / night mode before a page is drawn; `fonts/` are Roboto and Roboto Mono, `sky.svg` the faint stars behind the cards. `tune.js` reads and rewrites programs for the Feeds & steps window; `system-ui.js` holds the E-stop button and the System page (`system.html`, `system.js`); `topbar-boot.js` draws the top bar and the menu (and runs the day / night button) before each page is shown, and `nav.js` keeps them current; `help.js` the **?** help popups in Settings; `settings.html` and `settings.js` the Settings page; `materials.html` and `materials.js` the Materials page; `camera.html` is the camera page on its own; `planing.html`, `planing.js` and `planing-gcode.js` are the Planing page. |
 | `settings.json` | Created when you change a setting in the dashboard; it also holds the Telegram bot token, so only its owner may read it. Not part of git. |
 | `timelapses/` | The last 20 job timelapses. Not part of git. |
 | `tuning.json` | The Feeds tab's log of adjusted files. Not part of git. |
@@ -577,7 +578,7 @@ On a phone they are in the dashboard's Raspberry Pi card instead.
 - **Mouse:** left-drag rotates (3D only), right-drag pans, the wheel zooms.
   **Touch:** one finger rotates, two fingers zoom and pan.
 
-### G-code, Console, Files, Feeds and Settings (right)
+### G-code, Console, Files and Feeds (right)
 
 One panel with a tab for each; it uses the full height of the window.
 
@@ -627,7 +628,11 @@ with it ("ran to the end" or "stopped at line …", with how long it took).
 - The log is kept in `tuning.json` next to `server.py` (up to 500 entries).
   Removing an entry leaves the file on the Pi.
 
-**Settings.**
+### Settings page
+
+**http://&lt;pi-address&gt;:8080/settings**: open it with **Settings** (the
+cog) in the menu. One card per subject, side by side when the window is wide
+enough. Everything here is saved on the Pi and applies to everyone.
 
 - **Name:** the machine's name, shown under **Observatory** in the top bar,
   in the browser tab and in Telegram messages, for everyone.
@@ -642,16 +647,15 @@ with it ("ran to the end" or "stopped at line …", with how long it took).
 - **Files:** the folder shown in the Files tab. **Browse…** opens a list of
   the Pi's folders (names only), with shortcuts to your home folder, USB
   drives and the whole disk: open folders to go down, and press **Use this
-  folder**. Or type a path on the Pi and press **Save**, or open a folder in the
-  Files tab and press **Use open folder**. **Default** goes back to `--files-dir`. If the chosen folder is
+  folder**. Or type a path on the Pi and press **Save**. **Default** goes back to `--files-dir`. If the chosen folder is
   gone when the server starts, it uses `--files-dir`.
 - **Tool in the 3D view:** **Show the real tool size and shape** turns the
   real-size tool on or off (off: always the standard marker). **CAM program**
   says whose tool comments to read; only **Fusion 360** for now. The choice
   applies to every open dashboard right away.
-- **Telegram** and **Timelapse:** see
+- **Telegram** (the bot and the chat), **Telegram messages** (which ones, how
+  often, which silently) and **Timelapse:** see
   [Telegram notifications and timelapse](#telegram-notifications-and-timelapse).
-- **Software and system:** opens the [System page](#system-page).
 - **Logs:** see [Logs and debugging](#logs-and-debugging).
 
 The explanations are behind the round **?** next to each title: hover over
@@ -660,8 +664,7 @@ to `server.py`. Updates keep them.
 
 ### System page
 
-**http://&lt;pi-address&gt;:8080/system**: open it with **System** in the menu
-(or **Settings → Software and system**).
+**http://&lt;pi-address&gt;:8080/system**: open it with **System** in the menu.
 
 - **Updates**, one row per part, like an update manager: its name, the
   installed version (in blue, *installed › new*, when there is an update),
@@ -762,6 +765,7 @@ settings in the panel on the right.
 | Length (X), Width (Y) | The stock's size. **X0 Y0 is its front-left corner.** |
 | Thickness (rough) | Measured at the highest point. |
 | Z zero | **Top of the stock**: touch off Z on the highest point; the program cuts from Z0 down. **Spoilboard**: Z0 is the spoilboard; the stock top is at Z = thickness, so the program cuts from there down and the page shows the thickness you end up with. |
+| Start above Z0 | For when you're not sure Z was touched off on the highest point: the passes start this much above Z0 and still end at the same depth, so there are more passes and the first ones only skim the high spots (or cut air) instead of one pass biting too deep there. The simulation draws the stock with its high spots this much above Z0. 0 (the default) starts at the top. |
 | Bit diameter | The planing bit, drawn at this size. |
 | Depth to remove | In total. It must be less than the thickness. |
 | Cut direction | Along X or along Y: usually along the grain. |

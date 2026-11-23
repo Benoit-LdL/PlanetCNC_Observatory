@@ -116,14 +116,13 @@
     </div>
   </section>
 
-  <!-- ===== G-code / Console / Files / Feeds / Settings ===== -->
-  <section class="panel code-panel" id="sidePanel" aria-label="Program, console, files and settings">
+  <!-- ===== G-code / Console / Files / Feeds ===== -->
+  <section class="panel code-panel" id="sidePanel" aria-label="Program, console and files">
     <div class="ptabs" role="tablist">
       <button class="ptab active" data-ptab="code" role="tab">G-code</button>
       <button class="ptab" data-ptab="console" role="tab">Console <i class="badge" id="consoleBadge" hidden></i></button>
       <button class="ptab" data-ptab="files" id="filesTab" role="tab" hidden>Files</button>
       <button class="ptab" data-ptab="feeds" id="feedsTab" role="tab" hidden title="Adjusted feeds and steps, and what worked">Feeds</button>
-      <button class="ptab" data-ptab="settings" role="tab">Settings</button>
     </div>
     <div class="panel-actions">
       <button class="vbtn text" id="resumeBtn" hidden>Follow line</button>
@@ -155,164 +154,9 @@
     <div class="tune-panel" id="tunePanel" hidden>
       <div class="tune-list" id="tuneList"></div>
     </div>
-    <div class="settings" id="settings" hidden>
-      <section class="set-group">
-        <h3>Machine</h3>
-        <form class="set-row" id="nameForm" autocomplete="off">
-          <label for="nameInput">Name</label>
-          <input id="nameInput" maxlength="40" placeholder="PlanetCNC">
-          <button class="vbtn" type="submit">Save</button>
-        </form>
-        <p class="set-help">The name is shown in the top bar and the browser tab, for everyone who opens the dashboard.</p>
-      </section>
-      <section class="set-group">
-        <h3>Camera</h3>
-        <label class="set-check"><input type="checkbox" id="camViewOn"> Show the camera on the dashboard</label>
-        <p class="set-help">The camera panel at the top left, shown or hidden for everyone who opens the
-          dashboard. When it is shown but no picture comes, it says why. Hiding it doesn't turn the camera
-          off: Telegram photos, the timelapse and the camera page still use it. To turn the camera off,
-          choose Off as the device.</p>
-        <div class="set-row">
-          <label for="camSelect">Device</label>
-          <select id="camSelect"></select>
-          <button class="vbtn" id="camRescanBtn" type="button" title="Look for cameras again (after plugging one in)">Rescan</button>
-        </div>
-        <p class="set-hint" id="camHint"></p>
-        <p class="set-help" id="camUrls" hidden></p>
-      </section>
-      <section class="set-group">
-        <h3>Files</h3>
-        <form class="set-row" id="filesDirForm" autocomplete="off">
-          <label for="filesDirInput">Folder</label>
-          <input id="filesDirInput" spellcheck="false" placeholder="/home/pi/gcode">
-          <button class="vbtn" type="submit">Save</button>
-        </form>
-        <div class="set-btns">
-          <button class="vbtn tonal" id="filesDirBrowseBtn" type="button" title="Choose a folder on the Pi"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Browse…</button>
-          <button class="vbtn" id="filesDirOpenBtn" type="button" title="Use the folder that is open in the Files tab">Use open folder</button>
-          <button class="vbtn" id="filesDirResetBtn" type="button" title="Back to the folder given when the server starts (--files-dir)">Default</button>
-        </div>
-        <p class="set-help">The folder shown in the Files tab; the Planing page saves its programs there. <b>Browse…</b> picks a folder on the Pi (a USB stick too); <b>Use open folder</b> takes the folder that is open in the Files tab.</p>
-        <p class="set-help" id="filesDirHint"></p>
-      </section>
-      <section class="set-group">
-        <h3>Tool in the 3D view</h3>
-        <label class="set-check"><input type="checkbox" id="toolShape"> Show the real tool size and shape</label>
-        <div class="set-row">
-          <label for="toolCamSelect">CAM program</label>
-          <select id="toolCamSelect"></select>
-        </div>
-        <p class="set-help">The tool size and shape are read from the tool comments this CAM program writes at the top of the G-code file. When a file has no tool comments, the diameter TNG reports for the loaded tool is used if it has one. Turned off, the standard tool marker is shown.</p>
-      </section>
-      <section class="set-group">
-        <h3>Telegram</h3>
-        <p class="set-help">Messages about jobs on your phone, with camera photos and the timelapse, from your own
-          Telegram bot. It only reports: it can't control the machine.</p>
-        <p class="set-help">Set up: in Telegram, talk to <b>@BotFather</b>, send <code>/newbot</code> and paste the
-          token it gives here. Then send <code>/start</code> to your new bot, press <b>Refresh</b> and choose your chat.</p>
-        <form class="set-row" id="tgTokenForm" autocomplete="off">
-          <label for="tgToken">Token</label>
-          <input id="tgToken" type="password" spellcheck="false" autocomplete="off" placeholder="123456:ABC-…">
-          <button class="vbtn" type="submit">Save</button>
-        </form>
-        <div class="set-btns" id="tgTokenBtns" hidden>
-          <button class="vbtn" id="tgTokenClear" type="button" title="Remove the bot token: no more messages">Remove bot</button>
-        </div>
-        <form class="set-row" id="tgChatForm" autocomplete="off">
-          <label for="tgChat">Chat</label>
-          <input id="tgChat" spellcheck="false" inputmode="numeric" placeholder="chat id">
-          <button class="vbtn" type="submit">Save</button>
-        </form>
-        <ul class="tg-chats" id="tgChats"></ul>
-        <p class="set-hint" id="tgStatus"></p>
-        <div class="set-row">
-          <label for="tgProgress">Progress</label>
-          <select id="tgProgress">
-            <option value="0">Not by percentage</option>
-            <option value="5">Every 5 %</option>
-            <option value="10">Every 10 %</option>
-            <option value="20">Every 20 %</option>
-            <option value="25">Every 25 %</option>
-            <option value="50">At 50 %</option>
-          </select>
-        </div>
-        <div class="set-row">
-          <label for="tgMinutes">Or by time</label>
-          <select id="tgMinutes">
-            <option value="0">Not by time</option>
-            <option value="5">Every 5 minutes</option>
-            <option value="10">Every 10 minutes</option>
-            <option value="15">Every 15 minutes</option>
-            <option value="30">Every 30 minutes</option>
-            <option value="60">Every hour</option>
-          </select>
-        </div>
-        <p class="set-hint">A progress message goes out at whichever comes first; each message restarts the clock. Both off: no progress messages.</p>
-        <label class="set-check"><input type="checkbox" id="tgReplace"> One progress message: each new one replaces the last</label>
-        <label class="set-check"><input type="checkbox" id="tgPhotos"> A camera photo with each message</label>
-        <div class="tg-events" id="tgEvents" role="table" aria-label="Which messages are sent, and which without sound"></div>
-        <p class="set-hint">A silent message arrives without sound or vibration; Telegram still shows it as unread.</p>
-        <div class="set-btns flush">
-          <button class="vbtn" id="tgTestBtn" type="button">Send test message</button>
-          <button class="vbtn" id="tgRefreshBtn" type="button" title="Look again for chats that wrote to the bot">Refresh</button>
-        </div>
-      </section>
-      <section class="set-group" id="tlGroup">
-        <h3>Timelapse</h3>
-        <label class="set-check"><input type="checkbox" id="tlOn"> Make a timelapse of each job with the camera</label>
-        <div class="set-row">
-          <label for="tlInterval">Photo</label>
-          <select id="tlInterval">
-            <option value="5">Every 5 s</option>
-            <option value="10">Every 10 s</option>
-            <option value="20">Every 20 s</option>
-            <option value="30">Every 30 s</option>
-            <option value="60">Every minute</option>
-          </select>
-        </div>
-        <p class="set-help" id="tlHint">The camera keeps running during the job. At the end the photos become a short
-          video (about 20 s), sent to Telegram; the last 20 stay on the Pi. Long jobs take photos less often as they go.</p>
-        <ul class="log-files" id="tlFiles"></ul>
-      </section>
-      <section class="set-group">
-        <h3>Software and system</h3>
-        <p class="set-help">Versions, updates of this app and of Raspberry Pi OS, and rebooting the Pi are on the System page.</p>
-        <div class="set-btns flush"><a class="vbtn linkbtn" href="/system">Open the System page</a></div>
-      </section>
-      <section class="set-group">
-        <h3>Logs</h3>
-        <label class="set-check"><input type="checkbox" id="logDebug"> Detailed logging</label>
-        <p class="set-help">Detailed logging writes much more (every request), for chasing a problem. Turn it off afterwards. The log files are listed below; <b>Show recent</b> shows the last lines here.</p>
-        <p class="set-hint" id="logInfo"></p>
-        <ul class="log-files" id="logFiles"></ul>
-        <div class="set-row">
-          <select id="logFilter" aria-label="Which lines">
-            <option value="">Everything</option>
-            <option value="warn">Warnings and errors</option>
-          </select>
-          <button class="vbtn" id="logShowBtn" type="button">Show recent</button>
-        </div>
-        <pre class="log-view" id="logView" hidden></pre>
-      </section>
-      <div class="set-msg" id="setMsg" aria-live="polite"></div>
-    </div>
   </section>
 </main>
 </div>
-
-<dialog class="m3-dlg" id="folderDlg" aria-labelledby="folderDlgTitle">
-  <header class="m3-dlg-head">
-    <h2 id="folderDlgTitle">Choose the Files folder</h2>
-    <code class="folder-path" id="folderPath"></code>
-    <div class="folder-places" id="folderPlaces"></div>
-  </header>
-  <div class="folder-list" id="folderList" role="listbox" aria-label="Folders"></div>
-  <p class="folder-msg" id="folderMsg"></p>
-  <footer class="m3-dlg-foot">
-    <button class="vbtn text" type="button" id="folderCancel">Cancel</button>
-    <button class="vbtn primary" type="button" id="folderUse">Use this folder</button>
-  </footer>
-</dialog>
 
 <dialog class="tune-dlg" id="tuneDlg" aria-labelledby="tuneHead">
   <header class="tune-head" id="tuneHead">

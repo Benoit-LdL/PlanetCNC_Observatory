@@ -13,7 +13,7 @@ import { navOnState } from './nav.js';
 import { initSystem, systemOnState } from './system-ui.js';
 
 const $ = (id) => document.getElementById(id);
-const FIELDS = ['length', 'width', 'thickness', 'zMode', 'toolD', 'depth', 'direction',
+const FIELDS = ['length', 'width', 'thickness', 'zMode', 'startAbove', 'toolD', 'depth', 'direction',
                 'rpm', 'feed', 'plunge', 'stepdown', 'stepover', 'safe', 'clearance', 'clearTurn', 'dwell'];
 const PRESET_KEYS = ['rpm', 'feed', 'plunge', 'stepdown', 'stepover'];   // what a material stores
 const TEXT_FIELDS = new Set(['zMode', 'direction']);
@@ -191,14 +191,15 @@ $('pathBtn').addEventListener('click', () => {
 });
 
 function showStock(p, info) {
-  const key = [p.length, p.width, info.top, info.bottom, p.depth].join('|');
+  const key = [p.length, p.width, info.top, info.bottom, p.depth, p.startAbove].join('|');
   if (key === stockKey) return;
   stockKey = key;
   if (stock) {
     viewer.scene.remove(stock.mesh);
     stock.dispose();
   }
-  stock = new Stock(p.length, p.width, info.top, info.bottom, Math.min(0.8, p.depth * 0.6));
+  // With "start above Z0", drawn as if Z was set on a low spot: the high spots rise that much above Z0
+  stock = new Stock(p.length, p.width, info.top + p.startAbove, info.bottom, Math.min(0.8, p.depth * 0.6) + p.startAbove);
   viewer.scene.add(stock.mesh);
   viewer.dirty = true;
 }
@@ -358,6 +359,7 @@ function update() {
   $('notes').innerHTML = notes.join('');
   const rows = [
     ['Passes', `${info.passes} × ${fmt(info.passDepth)} mm`],
+    ...(p.startAbove > 0 ? [['First pass from', `Z${fmt(info.startZ)}, ${fmt(p.startAbove)} mm above Z0`]] : []),
     ['Lines per pass', `${info.lines}, ${fmt(info.step)} mm apart at most`],
     ['Last pass at', `Z${fmt(info.finalTop)}`],
     ['Thickness after', `${fmt(p.thickness - p.depth)} mm`],

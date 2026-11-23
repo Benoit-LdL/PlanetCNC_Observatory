@@ -674,6 +674,16 @@ span.ptab::after { display: none; }
 
 /* ---------- the System page ---------- */
 .sys-page { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px; }
+/* The Settings page: one card per subject, in as many columns as fit (filled top to bottom) */
+.set-page { columns: 400px auto; column-gap: 16px; }
+.set-page > .set-card { break-inside: avoid; margin: 0 0 16px; padding: 4px 20px 20px; border-bottom: 0;
+                        border: 1px solid var(--md-outline-variant); }
+.set-page > .set-card[hidden] { display: none; }
+.set-card > h3 { gap: 12px; min-height: 56px; margin: 0 -20px 4px; padding: 0 20px; font-size: 18px; line-height: 24px;
+                 font-weight: 500; color: var(--md-on-surface); border-bottom: 1px solid var(--md-outline-variant); }
+.set-card > h3 > svg { flex: none; width: 22px; height: 22px; padding: 7px; box-sizing: content-box; border-radius: 12px;
+                       color: var(--md-on-primary-container); background: var(--md-primary-container); }
+.set-page ~ .set-msg { position: sticky; bottom: 8px; max-width: 520px; margin: 0 auto; }
 .sys-page > .card { flex: 3 1 520px; min-width: 0; overflow: hidden; }
 .sys-page > .card.pi-card { flex: 2 1 340px; }
 .card-h { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 8px 12px 8px 20px; }

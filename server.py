@@ -3213,6 +3213,8 @@ class Handler(BaseHTTPRequestHandler):
             path = "/materials.html"  # the planing page's materials: see, change, add, import, export
         elif path == "/system":
             path = "/system.html"  # versions, updates, reboot / shut down
+        elif path == "/settings":
+            path = "/settings.html"  # name, camera, Files folder, Telegram, timelapse, logs
         full = os.path.normpath(os.path.join(WEB_DIR, path.lstrip("/")))
         if not full.startswith(WEB_DIR) or not os.path.isfile(full):
             self._send(404, "Not found", "text/plain")

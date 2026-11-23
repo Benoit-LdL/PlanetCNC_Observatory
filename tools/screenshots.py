@@ -43,8 +43,6 @@ with sync_playwright() as p:
 
     def open_tab(page, name, scroll=False):
         page.click(f'.ptab[data-ptab="{name}"]')
-        if name == "settings":
-            page.fill("#filesDirInput", PI_FOLDER)
         page.wait_for_timeout(1500)
         if scroll:  # phone: bring the tab panel into view
             page.evaluate("document.getElementById('sidePanel').scrollIntoView({block: 'start'})")
@@ -56,16 +54,21 @@ with sync_playwright() as p:
     page.evaluate("document.querySelector('.view-panel').scrollIntoView({block: 'start'})")
     page.wait_for_timeout(800)
     shot(page, "mobile-3d")
-    for tab in ("console", "settings"):
-        open_tab(page, tab, scroll=True)
-        shot(page, "mobile-" + tab)
+    open_tab(page, "console", scroll=True)
+    shot(page, "mobile-console")
+
+    def settings_page(**context):
+        page = open_page("/settings", **context)
+        page.fill("#filesDirInput", PI_FOLDER)
+        return page
+    shot(settings_page(**phone), "mobile-settings")
 
     desk = {"viewport": {"width": 1920, "height": 1080}}
     page = open_page(**desk)
     shot(page, "desktop")
-    for tab in ("console", "settings"):
-        open_tab(page, tab)
-        shot(page, "desktop-" + tab)
+    open_tab(page, "console")
+    shot(page, "desktop-console")
+    shot(settings_page(**desk), "desktop-settings")
     shot(open_page("/planing", **desk), "desktop-planing")
     shot(open_page("/system", **desk), "desktop-system")
     shot(open_page(theme="light", **desk), "desktop-day")
