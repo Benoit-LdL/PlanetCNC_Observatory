@@ -1202,6 +1202,50 @@ class OsPackages:
             time.sleep(OS_CHECK_EVERY)
 
 
+SEEN_FILE = os.path.join(APP_DIR, ".git", "pcnc_seen")   # the version and boot seen at the last start
+BOOT_ID = "/proc/sys/kernel/random/boot_id"               # a new one at each boot of the Pi
+STOP_ANNOUNCED = False                                   # a reboot / shut down was already reported
+
+
+def startup_notices():
+    """At start: tell Telegram when the Pi has booted since the server last ran, and when the app
+    runs another version than last time (an update from the dashboard or update.sh, or a roll back)."""
+    if not UPDATER:
+        return
+    try:
+        now = UPDATER._commit("HEAD")
+    except (RuntimeError, OSError, subprocess.SubprocessError):
+        return
+    boot = _read_text(BOOT_ID)
+    try:
+        with open(SEEN_FILE, encoding="utf-8") as f:
+            seen = json.load(f)
+    except (OSError, ValueError):
+        seen = None
+    try:
+        with open(SEEN_FILE, "w", encoding="utf-8") as f:
+            json.dump({"sha": now["sha"], "boot": boot}, f)
+    except OSError as e:
+        log_notify.warning("cannot write %s: %s", SEEN_FILE, e)
+    if not seen:
+        return   # first start: nothing to compare with
+    lines = []
+    if boot and boot != seen.get("boot"):
+        lines.append("\U0001f7e2 <b>Raspberry Pi started</b>: %s is running." % _html(SETTINGS["name"]))
+    if now["sha"] != seen.get("sha"):
+        back = False
+        try:
+            UPDATER._git("merge-base", "--is-ancestor", now["sha"], seen.get("sha", ""))
+            back = True   # the new version is older: a roll back
+        except (RuntimeError, OSError, subprocess.SubprocessError):
+            pass
+        lines.append("%s <b>Observatory %s</b>: %s → %s\n%s" % (
+            "↩️" if back else "✅", "rolled back" if back else "updated", _html(seen.get("sha", "?")),
+            now["sha"], _html(now["subject"])))
+    if lines:
+        NOTIFY.system("\n\n".join(lines))
+
+
 def power_action(action, who):
     """Reboot or shut down the Pi (the caller makes sure no program runs)."""
     cmd = SUDO_POWER.get(action)
@@ -1213,7 +1257,13 @@ def power_action(action, who):
     HUB.log("warn", "%s of the Pi requested (%s)" % (word, who))
 
     def run():
+        global STOP_ANNOUNCED
         time.sleep(1.0)  # let the answer reach the browser first
+        if NOTIFY:
+            NOTIFY.system("%s <b>%s</b> the Raspberry Pi (asked from %s)." % (
+                "\U0001f504" if action == "reboot" else "\U0001f534",
+                "Rebooting" if action == "reboot" else "Shutting down", _html(who)), now=True)
+            STOP_ANNOUNCED = True   # don't report the service stopping as well
         try:
             r = subprocess.run(as_root(cmd), stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=30)
             if r.returncode:
@@ -1608,21 +1658,44 @@ class Notifier:
             raise RuntimeError(reply.get("description") or "Telegram refused the request")
         return reply.get("result")
 
-    def send(self, text, photo=False, quiet=False, chat=None):
+    def send(self, text, photo=False, quiet=False, chat=None, timeout=30):
         """A message, with a camera photo when asked and available. Returns an error text or ""."""
         chat = chat or SETTINGS["telegram_chat"]
         jpeg = camera_snapshot() if photo else None
         try:
             if jpeg:
                 self.api("sendPhoto", {"chat_id": chat, "caption": text[:1024], "parse_mode": "HTML",
-                                       "disable_notification": quiet}, ("photo", "camera.jpg", jpeg, "image/jpeg"))
+                                       "disable_notification": quiet}, ("photo", "camera.jpg", jpeg, "image/jpeg"),
+                         timeout=timeout)
             else:
                 self.api("sendMessage", {"chat_id": chat, "text": text[:4096], "parse_mode": "HTML",
-                                         "disable_notification": quiet, "disable_web_page_preview": True})
+                                         "disable_notification": quiet, "disable_web_page_preview": True},
+                         timeout=timeout)
             return ""
         except RuntimeError as e:
             log_notify.warning("sending to Telegram failed: %s", e)
             return str(e)
+
+    def system(self, text, now=False):
+        """A message about the app or the Pi (started, updated, shutting down), when Settings allow.
+        now: send it before returning, briefly (the Pi is about to go down); otherwise in the
+        background, trying again for a few minutes (just after a boot the network may not be up)."""
+        if not self.configured() or not SETTINGS["notify_system"]:
+            return
+        if now:
+            err = self.send(text, timeout=5)
+            if err:
+                log_notify.warning("not sent before stopping: %s", err)
+            return
+
+        def retry():
+            for attempt in range(18):
+                err = self.send(text)
+                if not err or "cannot reach" not in err:
+                    return
+                time.sleep(10)
+            log_notify.warning("gave up sending: %s", text)
+        threading.Thread(target=retry, name="telegram-system", daemon=True).start()
 
     def _send_file(self, method, field, path, caption):
         if os.path.getsize(path) > TELEGRAM_MAX_UPLOAD:
@@ -1826,7 +1899,7 @@ SETTINGS = {"name": DEFAULT_NAME, "camera": None, "camera_view": True, "log_debu
             "tool_shape": True, "tool_cam": "fusion",
             # Telegram notifications and the job timelapse (see Notifier, Timelapse)
             "telegram_token": "", "telegram_chat": "", "notify_progress": 25, "notify_photos": True,
-            "notify_pi": True, "timelapse": True, "timelapse_interval": 10}
+            "notify_pi": True, "notify_system": True, "timelapse": True, "timelapse_interval": 10}
 NOTIFY_PROGRESS_STEPS = (0, 10, 20, 25, 50)
 TIMELAPSE_INTERVALS = (5, 10, 20, 30, 60)
 SETTINGS_LOCK = threading.Lock()
@@ -2496,7 +2569,8 @@ class Handler(BaseHTTPRequestHandler):
                 "tool_cams": [{"id": k, "label": v} for k, v in TOOL_CAMS.items()],
                 "telegram": NOTIFY.view() if NOTIFY else None,
                 "notify_progress": SETTINGS["notify_progress"], "notify_photos": bool(SETTINGS["notify_photos"]),
-                "notify_pi": bool(SETTINGS["notify_pi"]), "timelapse": bool(SETTINGS["timelapse"]),
+                "notify_pi": bool(SETTINGS["notify_pi"]), "notify_system": bool(SETTINGS["notify_system"]),
+                "timelapse": bool(SETTINGS["timelapse"]),
                 "timelapse_interval": SETTINGS["timelapse_interval"],
                 "timelapses": TIMELAPSE.list() if TIMELAPSE else [], "has_camera": bool(CAMERA)}
 
@@ -2556,7 +2630,7 @@ class Handler(BaseHTTPRequestHandler):
                     self._json(400, {"ok": False, "message": "%s must be one of %s" % (key, allowed)})
                     return
                 changes[key] = value
-        for key in ("camera_view", "notify_photos", "notify_pi", "timelapse"):
+        for key in ("camera_view", "notify_photos", "notify_pi", "notify_system", "timelapse"):
             if key in data:
                 changes[key] = bool(data[key])
         try:
@@ -3384,6 +3458,7 @@ def main():
 
     TIMELAPSE = Timelapse()
     NOTIFY = Notifier()
+    startup_notices()
 
     if args.demo:
         if not SYSTEM:
@@ -3403,8 +3478,15 @@ def main():
               "    from another device on your network:  http://%s:%d\n"
               "    on this computer:                     http://localhost:%d\n"
               "  Press Ctrl+C to stop.\n" % (" (demo)" if args.demo else "", address, args.port, args.port))
-    # systemd stops the service with SIGTERM: turn it into a normal exit so it gets logged.
-    signal.signal(signal.SIGTERM, lambda *a: sys.exit(0))
+    # systemd stops the service with SIGTERM (the Pi shutting down or rebooting, or the service
+    # being stopped): tell Telegram, unless the System page already did, and exit normally so it
+    # gets logged. An update's restart doesn't come this way.
+    def on_term(*_):
+        if NOTIFY and not STOP_ANNOUNCED:
+            NOTIFY.system("\U0001f534 <b>Observatory is stopping</b>: the Raspberry Pi is shutting down or "
+                          "rebooting, or the service was stopped.", now=True)
+        sys.exit(0)
+    signal.signal(signal.SIGTERM, on_term)
     try:
         httpd.serve_forever()
     except (KeyboardInterrupt, SystemExit):

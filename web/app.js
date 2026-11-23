@@ -1114,6 +1114,7 @@ function renderNotify(d) {
   $('tgProgress').value = String(d.notify_progress);
   $('tgPhotos').checked = !!d.notify_photos;
   $('tgPi').checked = !!d.notify_pi;
+  $('tgSystem').checked = d.notify_system !== false;
   $('tlGroup').hidden = !d.has_camera;
   $('tgPhotos').disabled = !d.has_camera;
   $('tlOn').checked = !!d.timelapse;
@@ -1158,6 +1159,7 @@ $('tgTestBtn').addEventListener('click', async () => {
 $('tgProgress').addEventListener('change', (e) => settingsSave({ notify_progress: Number(e.target.value) }));
 $('tgPhotos').addEventListener('change', (e) => settingsSave({ notify_photos: e.target.checked }));
 $('tgPi').addEventListener('change', (e) => settingsSave({ notify_pi: e.target.checked }));
+$('tgSystem').addEventListener('change', (e) => settingsSave({ notify_system: e.target.checked }));
 $('tlOn').addEventListener('change', (e) => settingsSave({ timelapse: e.target.checked }));
 $('tlInterval').addEventListener('change', (e) => settingsSave({ timelapse_interval: Number(e.target.value) }));
 

@@ -910,6 +910,9 @@ All messages:
 | The job ends | **Job finished** with the time it took, or **Job stopped** (by E-stop, or by hand in TNG) at line … of …, with how far it got. | the timelapse, or else a photo |
 | TNG stops answering during a job | No update from TNG for 3 seconds: check the machine. | no |
 | Raspberry Pi warning | Under-voltage, throttling, or the Pi getting hot (75 °C and up), and when it's back to normal. | no |
+| The Pi has started | **Raspberry Pi started**: the server is running again after a boot (sent once the network is up). | no |
+| The app was updated | **Observatory updated** (or **rolled back**): the old and new version and the latest change, after an update from the dashboard or `update.sh`. | no |
+| The Pi reboots or shuts down | From the System page: **Rebooting** / **Shutting down** and who asked. Otherwise (over SSH, a power-off command): **Observatory is stopping**, just before. | no |
 
 ¹ When **A camera photo with each message** is ticked and there is a camera;
 otherwise the text only.
@@ -979,6 +982,7 @@ with the machine's status and a camera photo arrives in Telegram.
 | **Progress** | No progress messages, every 10 %, 20 %, 25 %, or only at 50 %. | every 25 % |
 | **A camera photo with each message** | Messages come as a photo with the text under it. | on |
 | **Raspberry Pi warnings** | Under-voltage, throttling and heat. | on |
+| **Updates, start-up and shut-down of the Pi** | The app updated or rolled back, the Pi started, rebooting or shutting down. | on |
 | **Make a timelapse of each job** | See [Timelapse](#timelapse). | on |
 | **Photo** (timelapse) | How often a timelapse photo is taken. | every 10 s |
 
