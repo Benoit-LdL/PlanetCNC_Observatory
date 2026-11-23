@@ -413,9 +413,9 @@ function bedNotes(info) {
 async function pollState() {
   try {
     const s = await (await fetch('/api/state', { cache: 'no-store' })).json();
-    const name = s.machine_name || 'CNC Monitor';
+    const name = s.machine_name || 'PlanetCNC';
     $('machineName').textContent = name;
-    document.title = name + ' – planing';
+    document.title = 'Planing – ' + name;
     navOnState(s);
     systemOnState(s);   // status and E-stop in the top bar
     const w = s.work || [], m = s.machine || [];

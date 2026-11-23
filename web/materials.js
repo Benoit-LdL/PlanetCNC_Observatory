@@ -44,7 +44,7 @@ function render() {
     <tr data-name="${esc(n)}">
       <td><input class="name" data-k="name" maxlength="40" value="${esc(n)}" aria-label="Name"></td>
       ${KEYS.map((k) => `<td>${numInput(k, presets[n][k])}</td>`).join('')}
-      <td class="acts"><button class="vbtn primary" type="button" data-save disabled>Save</button><button class="vbtn danger" type="button" data-delete>Delete</button></td>
+      <td class="acts"><button class="vbtn primary" type="button" data-save disabled>Save</button><button class="vbtn text danger" type="button" data-delete>Delete</button></td>
     </tr>`).join('')
     : '<tr><td colspan="7" class="mt-empty">No materials yet: add one below, or import a file.</td></tr>';
 }
@@ -174,6 +174,6 @@ $('importFile').addEventListener('change', async (e) => {
 });
 
 initSystem();   // the E-stop button
-followState(systemOnState, 'materials');
+followState(systemOnState, 'Materials');
 
 load();

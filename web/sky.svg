@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="720" viewBox="0 0 720 720" fill="#fff">
+  <!-- The page background's texture: stars and planets in the style of the logo. Drawn white;
+       style.css shows it barely visible (and inverted in day mode). -->
+  <defs>
+    <path id="s" d="M0-10C1-3 3-1 10 0C3 1 1 3 0 10C-1 3-3 1-10 0C-3-1-1-3 0-10z"/>
+  </defs>
+  <use href="#s" transform="translate(84 96) scale(1.1)"/>
+  <use href="#s" transform="translate(262 48) scale(.6)"/>
+  <use href="#s" transform="translate(468 140) scale(.9)"/>
+  <use href="#s" transform="translate(652 64) scale(.5)"/>
+  <use href="#s" transform="translate(40 330) scale(.55)"/>
+  <use href="#s" transform="translate(330 300) scale(.7)"/>
+  <use href="#s" transform="translate(610 380) scale(1.2)"/>
+  <use href="#s" transform="translate(180 520) scale(.8)"/>
+  <use href="#s" transform="translate(420 600) scale(.55)"/>
+  <use href="#s" transform="translate(690 640) scale(.7)"/>
+  <circle cx="150" cy="220" r="2"/>
+  <circle cx="390" cy="40" r="1.5"/>
+  <circle cx="560" cy="250" r="2"/>
+  <circle cx="250" cy="410" r="1.5"/>
+  <circle cx="500" cy="470" r="2.5"/>
+  <circle cx="90" cy="650" r="2"/>
+  <circle cx="610" cy="560" r="1.5"/>
+  <circle cx="330" cy="690" r="2"/>
+  <!-- ringed planet -->
+  <g transform="translate(200 160) rotate(-18)">
+    <circle r="22"/>
+    <ellipse rx="40" ry="9" fill="none" stroke="#fff" stroke-width="4"/>
+  </g>
+  <!-- small planet -->
+  <circle cx="520" cy="330" r="12"/>
+  <!-- crescent -->
+  <path d="M400 520a34 34 0 1 0 30 50a26 26 0 1 1-30-50z"/>
+  <!-- distant ringed planet -->
+  <g transform="translate(660 230) rotate(12)">
+    <circle r="9"/>
+    <ellipse rx="17" ry="4" fill="none" stroke="#fff" stroke-width="2"/>
+  </g>
+</svg>

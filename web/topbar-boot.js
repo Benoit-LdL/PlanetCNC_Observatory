@@ -1,12 +1,13 @@
-// The top bar, drawn before the page is first shown. A plain script placed right after the
-// top bar, so it runs while the page loads: the menu, and the machine name, status, E-stop and
-// update dot as the previous page last showed them (kept in sessionStorage by nav.js). With
-// the page transition in style.css, the top bar stays still when moving between pages; the
-// page's own scripts take over from its first update (about a second at most).
+// The top bar and the page menu, drawn before the page is first shown. A plain script placed right
+// after the menu (<nav id="pagenav">), so it runs while the page loads: the menu, and the machine
+// name, status, E-stop and update dot as the previous page last showed them (kept in
+// sessionStorage by nav.js). With the page transition in style.css the bar and the menu stay
+// still when moving between pages; the page's own scripts take over from its first update.
+// It also runs the day / night button at the top left (the theme itself is set by theme-boot.js).
 (function () {
   var FILLED = { system: true };   // filled icons; the others are drawn as outlines
   var ICON = {
-    dashboard: '<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
+    dashboard: '<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',
     planing: '<path d="M3 17h18"/><path d="M3 21h18"/><path d="M6 13V5h12v8"/><path d="M9 9h6"/>',
     materials: '<path d="M12 3 3 8l9 5 9-5-9-5z"/><path d="m3 13 9 5 9-5"/>',
     // mdiServerOutline (Material Design Icons, Apache 2.0): a filled shape, see .pagelink svg.fill
@@ -16,7 +17,7 @@
     ['dashboard', '/', 'Dashboard', 'The machine, live'],
     ['planing', '/planing', 'Planing', 'Make a program that planes rough stock flat'],
     ['materials', '/materials', 'Materials', 'The cutting values per material used by Planing'],
-    ['system', '/system', 'System', 'Versions, updates, reboot'],
+    ['system', '/system', 'System', 'Versions, updates, the Raspberry Pi'],
   ];
   var nav = document.getElementById('pagenav');
   if (nav) {
@@ -24,9 +25,30 @@
     nav.innerHTML = PAGES.map(function (p) {
       var on = p[0] === cur;
       return '<a class="pagelink' + (on ? ' active' : '') + '" href="' + p[1] + '" data-nav="' + p[0] + '" title="' + p[3] + '"'
-        + (on ? ' aria-current="page"' : '') + '><svg viewBox="0 0 24 24" aria-hidden="true"' + (FILLED[p[0]] ? ' class="fill"' : '') + '>' + ICON[p[0]] + '</svg><span>'
-        + p[2] + '</span>' + (p[0] === 'system' ? '<i class="nav-dot" hidden></i>' : '') + '</a>';
+        + (on ? ' aria-current="page"' : '') + '><span class="ind"><svg viewBox="0 0 24 24" aria-hidden="true"'
+        + (FILLED[p[0]] ? ' class="fill"' : '') + '>' + ICON[p[0]] + '</svg>'
+        + (p[0] === 'system' ? '<i class="nav-dot" hidden></i>' : '') + '</span><span>' + p[2] + '</span></a>';
     }).join('');
+  }
+
+  // Day / night
+  var root = document.documentElement;
+  var btn = document.getElementById('themeBtn');
+  function label() {
+    if (!btn) return;
+    var dark = root.getAttribute('data-theme') !== 'light';
+    btn.title = dark ? 'Switch to day mode' : 'Switch to night mode';
+    btn.setAttribute('aria-label', btn.title);
+  }
+  label();
+  if (btn) {
+    btn.addEventListener('click', function () {
+      var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem('theme', next); } catch (e) { /* not remembered */ }
+      label();
+      document.dispatchEvent(new CustomEvent('themechange', { detail: next }));   // the 3D views recolour
+    });
   }
 
   var c = null;

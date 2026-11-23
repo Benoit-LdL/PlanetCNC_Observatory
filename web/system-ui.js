@@ -110,7 +110,7 @@ function setBadge(id, kind, label, { title = '', disabled = false } = {}) {
 /** The small line under a row's version: what went wrong, or what is happening. */
 function setStatus(id, text, kind = '') {
   $(id).textContent = text;
-  $(id).className = 'urow-msg' + (kind ? ' ' + kind : '') + (id === 'powerMsg' ? ' card-note' : '');
+  $(id).className = 'urow-msg' + (kind ? ' ' + kind : '');
 }
 
 function setVersion(id, html, isNew = false, title = '') {
@@ -373,12 +373,12 @@ async function power(action) {
 function renderStatus() {
   const el = $('status');
   if (!el) return;
-  let st = 'offline', label = 'OFFLINE';
+  let st = 'offline', label = 'Offline';
   if (state.bridge_online) {
-    if (state.estop) [st, label] = ['estop', 'E-STOP'];
-    else if (state.paused) [st, label] = ['paused', 'PAUSED'];
-    else if (state.running) [st, label] = ['running', 'RUNNING'];
-    else [st, label] = ['idle', 'IDLE'];
+    if (state.estop) [st, label] = ['estop', 'E-stop'];
+    else if (state.paused) [st, label] = ['paused', 'Paused'];
+    else if (state.running) [st, label] = ['running', 'Running'];
+    else [st, label] = ['idle', 'Idle'];
   }
   el.dataset.state = st;
   el.textContent = label;

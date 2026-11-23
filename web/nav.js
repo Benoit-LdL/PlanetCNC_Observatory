@@ -38,7 +38,7 @@ export function followState(onState, page) {
     try {
       s = await (await fetch('/api/state', { cache: 'no-store' })).json();
       navOnState(s);
-      if (s.machine_name) document.title = s.machine_name + (page ? ' – ' + page : '');
+      if (s.machine_name) document.title = (page ? page + ' – ' : '') + s.machine_name;
     } catch { /* offline */ }
     onState(s);
     setTimeout(tick, document.hidden ? 5000 : 1000);

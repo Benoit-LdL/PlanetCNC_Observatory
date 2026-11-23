@@ -1798,7 +1798,8 @@ def system_view():
 SETTINGS_FILE = os.path.join(APP_DIR, "settings.json")
 TUNING_FILE = os.path.join(APP_DIR, "tuning.json")   # the feeds log, see TuningLog
 PRESETS_FILE = os.path.join(APP_DIR, "planing_presets.json")   # material presets of the /planing page
-DEFAULT_NAME = "CNC Monitor"
+DEFAULT_NAME = "PlanetCNC"
+OLD_DEFAULT_NAMES = ("CNC Monitor",)   # earlier defaults, saved in settings.json: shown as the new one
 MAX_NAME_LENGTH = 40
 # camera / files_dir None: what --camera / --files-dir say
 # Which CAM program wrote the G-code, for reading the tool sizes from its comments (see gcode.js).
@@ -1825,6 +1826,8 @@ def load_settings():
         return
     if isinstance(saved, dict):
         SETTINGS.update({k: v for k, v in saved.items() if k in SETTINGS})
+    if SETTINGS["name"] in OLD_DEFAULT_NAMES:
+        SETTINGS["name"] = DEFAULT_NAME
 
 
 def save_settings(changes):

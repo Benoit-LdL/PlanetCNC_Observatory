@@ -4,4 +4,4 @@ import { initSystem, systemOnState } from './system-ui.js';
 import { followState } from './nav.js';
 
 initSystem();
-followState(systemOnState, 'system');
+followState(systemOnState, 'System');

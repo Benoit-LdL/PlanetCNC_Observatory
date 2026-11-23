@@ -2,19 +2,26 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 const css = (name) => new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue(name).trim());
+// The 3D view's colours for the day / night theme (style.css: --view-*, --path-*, --rapid, --trace)
+const themeColors = () => ({
+  bg: css('--view-bg'), grid: css('--view-grid'), travel: css('--view-travel'), job: css('--view-job'),
+  top: css('--path-top'), deep: css('--path-deep'), rapid: css('--rapid'), trace: css('--trace'),
+});
+// The tool: a gold (TiN-coated) cutter on a steel shank, in a darker steel holder
+export const TOOL = { cutter: 0xe0b040, shank: 0xb4bcc2, holder: 0x7d868d };
 const MAX_TRACE_POINTS = 200000;
 
 export class Viewer {
   constructor(container) {
     this.container = container;
-    this.colors = { top: css('--path-top'), deep: css('--path-deep'), rapid: css('--rapid'), trace: css('--trace') };
+    this.colors = themeColors();
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     container.appendChild(this.renderer.domElement);
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x11161b);
+    this.scene.background = this.colors.bg.clone();
 
     this.persp = new THREE.PerspectiveCamera(45, 1, 0.1, 100000);
     this.ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, -100000, 100000);
@@ -54,6 +61,7 @@ export class Viewer {
     this.scene.add(this.trace);
 
     this.follow = false;
+    document.addEventListener('themechange', () => this.applyTheme());
     new ResizeObserver(() => this._resize()).observe(container);
     this._resize();
     this.setView('3d');
@@ -67,17 +75,27 @@ export class Viewer {
    *  a small see-through holder above it. */
   _makeTool() {
     const g = new THREE.Group();
-    this.metal = new THREE.MeshStandardMaterial({ color: 0xd8dde3, metalness: 0.6, roughness: 0.35, side: THREE.DoubleSide });
+    // Little metalness: without an environment to reflect, metal renders nearly black
+    this.metal = new THREE.MeshStandardMaterial({ color: TOOL.cutter, metalness: 0.25, roughness: 0.35, side: THREE.DoubleSide });
+    this.steel = new THREE.MeshStandardMaterial({ color: TOOL.shank, metalness: 0.2, roughness: 0.4 });
     this.generic = new THREE.Group();
     const tip = new THREE.Mesh(new THREE.ConeGeometry(1, 2, 24), this.metal);
     tip.rotation.x = -Math.PI / 2;   // point down -Z
     tip.position.z = 1;
-    const shank = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 6, 24), this.metal);
+    const flutes = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 2, 24), this.metal);
+    flutes.rotation.x = Math.PI / 2;
+    flutes.position.z = 3;
+    const shank = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 4, 24), this.steel);
     shank.rotation.x = Math.PI / 2;
-    shank.position.z = 5;
-    this.generic.add(tip, shank);
+    shank.position.z = 6;
+    this.generic.add(tip, flutes, shank);
+    // A real cutter's shank: a unit cylinder from z 0 to 1, sized in _layoutTool
+    this.shank = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 32), this.steel);
+    this.shank.geometry.rotateX(Math.PI / 2);
+    this.shank.geometry.translate(0, 0, 0.5);
+    this.shank.visible = false;
     this.holder = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 4, 24),
-      new THREE.MeshStandardMaterial({ color: 0x3fc1e6, metalness: 0.3, roughness: 0.5 }));
+      new THREE.MeshStandardMaterial({ color: TOOL.holder, metalness: 0.2, roughness: 0.5 }));
     this.holder.geometry.rotateX(Math.PI / 2);
     this.holder.geometry.translate(0, 0, 2);   // bottom face at local z = 0
     this.cutter = null;
@@ -85,7 +103,7 @@ export class Viewer {
     this.cutterRadius = 0;
     this.markerScale = 1;
     this.toolKey = '';
-    g.add(this.generic, this.holder);
+    g.add(this.generic, this.shank, this.holder);
     return g;
   }
 
@@ -94,7 +112,8 @@ export class Viewer {
     this.generic.scale.setScalar(s);
     // With a real tool the holder belongs to it: a collet a bit wider than the cutter. (Sized to
     // the grid it was ~70 mm wide on a big machine, dwarfing a 6 mm bit.)
-    this.holder.scale.setScalar(this.cutter ? Math.max(this.cutterRadius * 1.6, this.cutterRadius + 1.5) / 2.2 : s);
+    const shankR = Math.min(this.cutterRadius, 6);   // big surfacing bits have a 12 mm shank
+    this.holder.scale.setScalar(this.cutter ? Math.max(shankR * 1.6, shankR + 1.5) / 2.2 : s);
     // ...and see-through, so the cutter is what catches the eye.
     const m = this.holder.material;
     m.transparent = !!this.cutter;
@@ -102,7 +121,14 @@ export class Viewer {
     m.depthWrite = !this.cutter;
     m.needsUpdate = true;
     this.generic.visible = !this.cutter;
-    this.holder.position.z = this.cutter ? this.cutterLength : 8 * s;
+    // A real cutter sits on a steel shank, with the holder above it
+    const shankL = this.cutter ? Math.max(shankR * 5, 12) : 0;
+    this.shank.visible = !!this.cutter;
+    if (this.cutter) {
+      this.shank.scale.set(shankR, shankR, shankL);
+      this.shank.position.z = this.cutterLength;
+    }
+    this.holder.position.z = this.cutter ? this.cutterLength + shankL : 8 * s;
     this.dirty = true;
   }
 
@@ -190,13 +216,13 @@ export class Viewer {
     for (const y of lines(y0, y1)) pts.push(x0, y, gz, x1, y, gz);
     const grid = new THREE.LineSegments(
       new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)),
-      new THREE.LineBasicMaterial({ color: 0x2a3540 }));
+      new THREE.LineBasicMaterial({ color: this.colors.grid }));
     this.world.add(grid);
 
     // Machine travel volume
     if (bed) {
       const box = new THREE.Box3(new THREE.Vector3(...bed.min), new THREE.Vector3(...bed.max));
-      this.world.add(new THREE.Box3Helper(box, 0x55626e));
+      this.world.add(new THREE.Box3Helper(box, this.colors.travel));
     }
 
     // Work zero axes (X red, Y green, Z blue) like the PlanetCNC origin marker
@@ -211,7 +237,7 @@ export class Viewer {
     // Box around everything the program moves through
     if (this.hasProgram) {
       const box = new THREE.Box3(new THREE.Vector3(...min), new THREE.Vector3(...max));
-      const helper = new THREE.Box3Helper(box, 0x4a5763);
+      const helper = new THREE.Box3Helper(box, this.colors.job);
       this.world.add(helper);
     }
 
@@ -255,26 +281,11 @@ export class Viewer {
     }
     this.hasProgram = !!path;
     this.programInches = !!path?.inches;   // the scene is in the program's units
+    this.pathData = path?.count ? path : null;
     if (path?.count) {
-      const pos = path.positions;
-      const col = new Float32Array(pos.length);
-      const [zTop, zLow] = path.cutZ;
-      const range = zTop - zLow;
-      const { top, deep, rapid } = this.colors;
-      for (let v = 0; v < pos.length / 3; v++) {
-        const o = v * 3;
-        if (path.rapid[v >> 1]) {
-          col[o] = rapid.r; col[o + 1] = rapid.g; col[o + 2] = rapid.b;
-        } else {
-          const t = range > 1e-9 ? Math.min(1, Math.max(0, (zTop - pos[o + 2]) / range)) : 0;
-          col[o] = top.r + (deep.r - top.r) * t;
-          col[o + 1] = top.g + (deep.g - top.g) * t;
-          col[o + 2] = top.b + (deep.b - top.b) * t;
-        }
-      }
       const geom = new THREE.BufferGeometry();
-      geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-      geom.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      geom.setAttribute('position', new THREE.BufferAttribute(path.positions, 3));
+      geom.setAttribute('color', new THREE.BufferAttribute(this._pathColors(path), 3));
       this.path = new THREE.LineSegments(geom, new THREE.LineBasicMaterial({ vertexColors: true }));
       this.path.frustumCulled = false;
       this.scene.add(this.path);
@@ -283,6 +294,39 @@ export class Viewer {
     this._buildWorld();
     this.clearTrace();
     if (!keepView) this.fit();
+  }
+
+  /** Feed moves shaded by depth (light at the top, dark at the deepest cut), rapids apart. */
+  _pathColors(path) {
+    const pos = path.positions;
+    const col = new Float32Array(pos.length);
+    const [zTop, zLow] = path.cutZ;
+    const range = zTop - zLow;
+    const { top, deep, rapid } = this.colors;
+    for (let v = 0; v < pos.length / 3; v++) {
+      const o = v * 3;
+      if (path.rapid[v >> 1]) {
+        col[o] = rapid.r; col[o + 1] = rapid.g; col[o + 2] = rapid.b;
+      } else {
+        const t = range > 1e-9 ? Math.min(1, Math.max(0, (zTop - pos[o + 2]) / range)) : 0;
+        col[o] = top.r + (deep.r - top.r) * t;
+        col[o + 1] = top.g + (deep.g - top.g) * t;
+        col[o + 2] = top.b + (deep.b - top.b) * t;
+      }
+    }
+    return col;
+  }
+
+  /** Day / night changed (topbar-boot.js): take the new colours, keep the view. */
+  applyTheme() {
+    this.colors = themeColors();
+    this.scene.background = this.colors.bg.clone();
+    this.trace.material.color.copy(this.colors.trace);
+    if (this.path && this.pathData) {
+      this.path.geometry.setAttribute('color', new THREE.BufferAttribute(this._pathColors(this.pathData), 3));
+    }
+    this._buildWorld();
+    this.onTheme?.();   // a page's own additions (the planing stock)
   }
 
   // ---------------- tool + trace ----------------
