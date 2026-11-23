@@ -890,13 +890,20 @@ A job, as it arrives in Telegram (each message with a camera photo):
 ```
 ▶️ Job started: kumiko v6.nc
    Estimated 5:27:27
-⏳ 25 % of kumiko v6.nc
-   Line 28601 of 114404, 4:05:10 left
+⏳ 30 % of kumiko v6.nc                         (silent; replaces the 20 % one)
+   Line 34321 of 114404, 3:49:10 left
 ⏸ Paused: kumiko v6.nc at line 30112
 ▶️ Resumed: kumiko v6.nc                       (silent, no photo)
 ...
 ✅ Job finished: kumiko v6.nc in 5:30:12        (with the timelapse video)
 ```
+
+The progress messages make no sound, and there is only ever one: each new
+one replaces the last (it is sent, then the previous one deleted, so the
+newest is always at the bottom of the chat), and the last one goes when the
+job ends. The start, a pause, an E-stop, TNG dropping out and the end ring as
+usual. Which messages are sent, and which silently, is chosen per message in
+Settings (see **Messages** below).
 
 or, when it goes wrong:
 
@@ -914,9 +921,9 @@ job once the program's line number starts moving up).
 | When | Message | Photo |
 |---|---|---|
 | A job starts | The file, and TNG's estimated time when it has one. | yes ¹ |
-| Every few % or minutes (see **Progress** below) | The percentage, the line and the time left. | yes ¹ |
+| Every few % or minutes (see **Progress** below) | The percentage, the line and the time left. Silent ², and it replaces the previous progress message ³. | yes ¹ |
 | The job pauses | The line it paused at. | yes ¹ |
-| The job resumes | Sent silently (no sound on your phone). | no |
+| The job resumes | Silent ². | no |
 | E-stop | Right away, before anything else, with the line. | yes ¹ |
 | The job ends | **Job finished** with the time it took, or **Job stopped** (by E-stop, or by hand in TNG) at line … of …, with how far it got. | the timelapse, or else a photo |
 | TNG stops answering during a job | No update from TNG for 3 seconds: check the machine. | no |
@@ -927,6 +934,10 @@ job once the program's line number starts moving up).
 
 ¹ When **A camera photo with each message** is ticked and there is a camera;
 otherwise the text only.
+² By default; each message's **Silent** box in Settings → Telegram →
+**Messages** decides. A silent message arrives without sound or vibration
+(Telegram still shows it as unread).
+³ When **One progress message** is ticked.
 
 You can also ask, in the chat:
 
@@ -992,9 +1003,9 @@ with the machine's status and a camera photo arrives in Telegram.
 |---|---|---|
 | **Progress** | A progress message every 5 %, 10 %, 20 %, 25 %, only at 50 %, or not by percentage. | every 10 % |
 | **Or by time** | Also a progress message every 5, 10, 15, 30 or 60 minutes, or not by time. Whichever of the two comes first sends the message. Each message (or a resume) restarts the clock, and a percentage step that comes soon after a timed message is skipped, so they don't come in pairs. Both off: no progress messages. | not by time |
+| **One progress message** | Each progress message replaces the previous one, and the last goes when the job ends, so a job leaves only its start and its end (and any pause or E-stop) in the chat. Off: every progress message stays. | on |
 | **A camera photo with each message** | Messages come as a photo with the text under it. | on |
-| **Raspberry Pi warnings** | Under-voltage, throttling and heat. | on |
-| **Updates, start-up and shut-down of the Pi** | The app updated or rolled back, the Pi started, rebooting or shutting down. | on |
+| **Messages** | A table with, for each kind of message above (job started, progress, paused, resumed, E-stop, job finished or stopped, TNG not reachable, Raspberry Pi warnings, updates / start-up / shut-down of the Pi), a **Send** box (unticked: that message is never sent) and a **Silent** box (no sound or vibration). | all sent; progress and resumed silent |
 | **Make a timelapse of each job** | See [Timelapse](#timelapse). | on |
 | **Photo** (timelapse) | How often a timelapse photo is taken. | every 10 s |
 

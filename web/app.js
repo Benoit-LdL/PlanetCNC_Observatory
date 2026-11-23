@@ -1136,8 +1136,8 @@ function renderNotify(d) {
   $('tgProgress').value = String(d.notify_progress);
   $('tgMinutes').value = String(d.notify_minutes || 0);
   $('tgPhotos').checked = !!d.notify_photos;
-  $('tgPi').checked = !!d.notify_pi;
-  $('tgSystem').checked = d.notify_system !== false;
+  $('tgReplace').checked = d.notify_replace !== false;
+  renderTgEvents(d.notify_events || []);
   $('tlGroup').hidden = !d.has_camera;
   $('tgPhotos').disabled = !d.has_camera;
   $('tlOn').checked = !!d.timelapse;
@@ -1182,8 +1182,23 @@ $('tgTestBtn').addEventListener('click', async () => {
 $('tgProgress').addEventListener('change', (e) => settingsSave({ notify_progress: Number(e.target.value) }));
 $('tgMinutes').addEventListener('change', (e) => settingsSave({ notify_minutes: Number(e.target.value) }));
 $('tgPhotos').addEventListener('change', (e) => settingsSave({ notify_photos: e.target.checked }));
-$('tgPi').addEventListener('change', (e) => settingsSave({ notify_pi: e.target.checked }));
-$('tgSystem').addEventListener('change', (e) => settingsSave({ notify_system: e.target.checked }));
+$('tgReplace').addEventListener('change', (e) => settingsSave({ notify_replace: e.target.checked }));
+
+/** Settings > Telegram > Messages: per kind of message, whether it is sent and whether silently. */
+function renderTgEvents(events) {
+  $('tgEvents').innerHTML = '<div class="tg-ev head" role="row"><span role="columnheader">Messages</span>'
+    + '<span role="columnheader">Send</span><span role="columnheader">Silent</span></div>'
+    + events.map((e) => `<div class="tg-ev" role="row"><span role="cell">${esc(e.label)}</span>`
+      + `<span role="cell"><input type="checkbox" data-kind="${esc(e.kind)}" data-field="send" aria-label="Send: ${esc(e.label)}"${e.send ? ' checked' : ''}></span>`
+      + `<span role="cell"><input type="checkbox" data-kind="${esc(e.kind)}" data-field="silent" aria-label="Silent: ${esc(e.label)}"${e.silent ? ' checked' : ''}${e.send ? '' : ' disabled'}></span></div>`).join('');
+}
+$('tgEvents').addEventListener('change', (e) => {
+  const box = e.target.closest('input[data-kind]');
+  if (!box) return;
+  const { kind, field } = box.dataset;
+  if (field === 'send') $('tgEvents').querySelector(`input[data-kind="${kind}"][data-field="silent"]`).disabled = !box.checked;
+  settingsSave({ notify_events: { [kind]: { [field]: box.checked } } });
+});
 $('tlOn').addEventListener('change', (e) => settingsSave({ timelapse: e.target.checked }));
 $('tlInterval').addEventListener('change', (e) => settingsSave({ timelapse_interval: Number(e.target.value) }));
 

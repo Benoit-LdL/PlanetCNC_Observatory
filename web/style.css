@@ -794,6 +794,14 @@ span.ptab::after { display: none; }
 .pl-foot { flex: none; display: flex; flex-direction: column; gap: 6px; padding: 12px 16px 14px; border-top: 1px solid var(--md-outline-variant); }
 .pl-name { display: flex; gap: 8px; }
 .pl-name input { flex: 1; font: 14px var(--mono); }
+.tg-events { display: flex; flex-direction: column; margin: 4px 0; }
+.tg-ev { display: grid; grid-template-columns: 1fr 52px 52px; align-items: center; min-height: 40px; font-size: 15px;
+         border-bottom: 1px solid var(--md-outline-variant); }
+.tg-ev:last-child { border-bottom: 0; }
+.tg-ev.head { min-height: 32px; font-size: 12px; font-weight: 500; color: var(--md-on-surface-variant); }
+.tg-ev > span + span { justify-self: center; }
+.tg-ev input { width: 18px; height: 18px; accent-color: var(--md-primary); cursor: pointer; }
+.tg-ev input:disabled { cursor: default; opacity: .4; }
 .pl-load { width: 100%; justify-content: center; }
 .pl-msg { font-size: 13px; min-height: 18px; }
 .pl-msg:empty { display: none; }

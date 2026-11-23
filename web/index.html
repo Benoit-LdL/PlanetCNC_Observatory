@@ -248,9 +248,10 @@
           </select>
         </div>
         <p class="set-hint">A progress message goes out at whichever comes first; each message restarts the clock. Both off: no progress messages.</p>
+        <label class="set-check"><input type="checkbox" id="tgReplace"> One progress message: each new one replaces the last</label>
         <label class="set-check"><input type="checkbox" id="tgPhotos"> A camera photo with each message</label>
-        <label class="set-check"><input type="checkbox" id="tgPi"> Raspberry Pi warnings (under-voltage, heat)</label>
-        <label class="set-check"><input type="checkbox" id="tgSystem"> Updates, start-up and shut-down of the Pi</label>
+        <div class="tg-events" id="tgEvents" role="table" aria-label="Which messages are sent, and which without sound"></div>
+        <p class="set-hint">A silent message arrives without sound or vibration; Telegram still shows it as unread.</p>
         <div class="set-btns flush">
           <button class="vbtn" id="tgTestBtn" type="button">Send test message</button>
           <button class="vbtn" id="tgRefreshBtn" type="button" title="Look again for chats that wrote to the bot">Refresh</button>

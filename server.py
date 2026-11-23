@@ -1561,6 +1561,7 @@ class Notifier:
         self.chats = {}           # chats that wrote to the bot lately: id -> {"name", "t"}, for Settings
         self.offset = 0
         self.job = None           # {"file", "started", "bucket", "estop"} while a job runs
+        self.progress_msg = None  # id of the job's latest progress message (worker thread only), to replace it
         self.poll_wake = threading.Event()
         threading.Thread(target=self._work, name="notify", daemon=True).start()
         threading.Thread(target=self._poll, name="telegram-poll", daemon=True).start()
@@ -1630,10 +1631,23 @@ class Notifier:
             except Exception:
                 log_notify.exception("%s notification failed", kind)
 
+    def _drop_progress(self):
+        """Delete the job's last progress message (when Settings say to replace them)."""
+        msg, self.progress_msg = self.progress_msg, None
+        if msg:
+            try:
+                self.api("deleteMessage", {"chat_id": SETTINGS["telegram_chat"], "message_id": msg}, timeout=10)
+            except RuntimeError as e:  # e.g. older than 48 h, or deleted by hand: leave it
+                log_notify.info("could not delete the previous progress message: %s", e)
+
     def _report(self, kind, d, video=None):
         name = _html(_job_name(d.get("file")))
         photo = SETTINGS["notify_photos"]
-        quiet = False
+        if kind in ("job_start", "job_end"):
+            self._drop_progress()  # a leftover from the last job, or this job's last one: the end says it all
+        send, quiet = notify_rule(kind)  # Settings: whether to send it, and whether with sound
+        if not send:
+            return
         if kind == "job_start":
             left = d.get("time_to_end") or -1
             text = "▶️ <b>Job started</b>: %s%s" % (name, "\nEstimated %s" % fmt_duration(left) if left > 0 else "")
@@ -1652,7 +1666,7 @@ class Notifier:
                     " by E-stop" if d.get("estop") else "", name, line, total or "?",
                     " (%d %%)" % (100 * line / total) if total else "", took.replace(" in", " after"))
             if video:
-                self._send_file("sendAnimation", "animation", video, text)
+                self._send_file("sendAnimation", "animation", video, text, quiet)
                 return
             photo = True  # the end always shows the result: the timelapse, or else a photo
         elif kind == "estop":
@@ -1661,15 +1675,21 @@ class Notifier:
         elif kind == "paused":
             text = "⏸ <b>Paused</b>: %s at line %s" % (name, d.get("line"))
         elif kind == "resumed":
-            text, photo, quiet = "▶️ Resumed: %s" % name, False, True
+            text, photo = "▶️ Resumed: %s" % name, False
         elif kind == "bridge_lost":
             text, photo = "⚠️ <b>TNG not reachable</b> during the job (no update for %d s). Check the machine." % (
                 BRIDGE_TIMEOUT), False
         elif kind == "pi":
-            if not SETTINGS["notify_pi"]:
-                return
             text, photo = "⚠️ <b>Raspberry Pi</b>: %s" % _html(d.get("text")), False
         else:
+            return
+        if kind == "progress" and SETTINGS["notify_replace"]:
+            # One progress message at a time: the new one, then the previous one goes (as the
+            # Moonraker Telegram bot's progress_update_message does), so the chat isn't flooded.
+            err, msg = self._send(text, photo=photo, quiet=quiet)
+            if not err:
+                self._drop_progress()
+                self.progress_msg = msg
             return
         self.send(text, photo=photo, quiet=quiet)
 
@@ -1714,52 +1734,58 @@ class Notifier:
 
     def send(self, text, photo=False, quiet=False, chat=None, timeout=30):
         """A message, with a camera photo when asked and available. Returns an error text or ""."""
+        return self._send(text, photo, quiet, chat, timeout)[0]
+
+    def _send(self, text, photo=False, quiet=False, chat=None, timeout=30):
+        """As send(), returning (error text or "", the message's id or None)."""
         chat = chat or SETTINGS["telegram_chat"]
         jpeg = camera_snapshot() if photo else None
         try:
             if jpeg:
-                self.api("sendPhoto", {"chat_id": chat, "caption": text[:1024], "parse_mode": "HTML",
-                                       "disable_notification": quiet}, ("photo", "camera.jpg", jpeg, "image/jpeg"),
-                         timeout=timeout)
+                sent = self.api("sendPhoto", {"chat_id": chat, "caption": text[:1024], "parse_mode": "HTML",
+                                              "disable_notification": quiet},
+                                ("photo", "camera.jpg", jpeg, "image/jpeg"), timeout=timeout)
             else:
-                self.api("sendMessage", {"chat_id": chat, "text": text[:4096], "parse_mode": "HTML",
-                                         "disable_notification": quiet, "disable_web_page_preview": True},
-                         timeout=timeout)
-            return ""
+                sent = self.api("sendMessage", {"chat_id": chat, "text": text[:4096], "parse_mode": "HTML",
+                                                "disable_notification": quiet, "disable_web_page_preview": True},
+                                timeout=timeout)
+            return "", (sent or {}).get("message_id")
         except RuntimeError as e:
             log_notify.warning("sending to Telegram failed: %s", e)
-            return str(e)
+            return str(e), None
 
     def system(self, text, now=False):
         """A message about the app or the Pi (started, updated, shutting down), when Settings allow.
         now: send it before returning, briefly (the Pi is about to go down); otherwise in the
         background, trying again for a few minutes (just after a boot the network may not be up)."""
-        if not self.configured() or not SETTINGS["notify_system"]:
+        send, quiet = notify_rule("system")
+        if not self.configured() or not send:
             return
         if now:
-            err = self.send(text, timeout=5)
+            err = self.send(text, quiet=quiet, timeout=5)
             if err:
                 log_notify.warning("not sent before stopping: %s", err)
             return
 
         def retry():
             for attempt in range(18):
-                err = self.send(text)
+                err = self.send(text, quiet=quiet)
                 if not err or "cannot reach" not in err:
                     return
                 time.sleep(10)
             log_notify.warning("gave up sending: %s", text)
         threading.Thread(target=retry, name="telegram-system", daemon=True).start()
 
-    def _send_file(self, method, field, path, caption):
+    def _send_file(self, method, field, path, caption, quiet=False):
         if os.path.getsize(path) > TELEGRAM_MAX_UPLOAD:
-            self.send(caption + "\n(The timelapse is too big for Telegram; download it from the dashboard.)")
+            self.send(caption + "\n(The timelapse is too big for Telegram; download it from the dashboard.)", quiet=quiet)
             return
         with open(path, "rb") as f:
             data = f.read()
         ctype = "image/gif" if path.endswith(".gif") else "video/mp4"
         try:
-            self.api(method, {"chat_id": SETTINGS["telegram_chat"], "caption": caption[:1024], "parse_mode": "HTML"},
+            self.api(method, {"chat_id": SETTINGS["telegram_chat"], "caption": caption[:1024], "parse_mode": "HTML",
+                              "disable_notification": quiet},
                      (field, os.path.basename(path), data, ctype), timeout=300)
         except RuntimeError as e:
             log_notify.warning("sending the timelapse failed: %s", e)
@@ -1953,12 +1979,33 @@ SETTINGS = {"name": DEFAULT_NAME, "camera": None, "camera_view": True, "log_debu
             "tool_shape": True, "tool_cam": "fusion",
             # Telegram notifications and the job timelapse (see Notifier, Timelapse)
             "telegram_token": "", "telegram_chat": "", "notify_progress": 10, "notify_minutes": 0,
-            "notify_photos": True,
-            "notify_pi": True, "notify_system": True, "timelapse": True, "timelapse_interval": 10}
+            "notify_photos": True, "notify_replace": True,
+            "notify_events": {},   # per message kind: {"send": bool, "silent": bool}, where it differs from NOTIFY_EVENTS
+            "timelapse": True, "timelapse_interval": 10}
 NOTIFY_PROGRESS_STEPS = (0, 5, 10, 20, 25, 50)
 NOTIFY_MINUTES = (0, 5, 10, 15, 30, 60)   # progress message at least this often (0 = only by percentage)
 TIMELAPSE_INTERVALS = (5, 10, 20, 30, 60)
 SETTINGS_LOCK = threading.Lock()
+# The Telegram messages, in the order Settings shows them: (kind, label, silent by default).
+# All are sent by default. A silent message arrives without sound or vibration.
+NOTIFY_EVENTS = (
+    ("job_start", "Job started", False),
+    ("progress", "Progress", True),
+    ("paused", "Paused", False),
+    ("resumed", "Resumed", True),
+    ("estop", "E-stop", False),
+    ("job_end", "Job finished or stopped", False),
+    ("bridge_lost", "TNG not reachable during a job", False),
+    ("pi", "Raspberry Pi warnings (under-voltage, heat)", False),
+    ("system", "Updates, start-up and shut-down of the Pi", False),
+)
+
+
+def notify_rule(kind):
+    """(send, silent) for a kind of Telegram message, from Settings."""
+    default = next((silent for k, _, silent in NOTIFY_EVENTS if k == kind), False)
+    rule = (SETTINGS["notify_events"] or {}).get(kind) or {}
+    return bool(rule.get("send", True)), bool(rule.get("silent", default))
 
 
 def load_settings():
@@ -1972,6 +2019,11 @@ def load_settings():
         return
     if isinstance(saved, dict):
         SETTINGS.update({k: v for k, v in saved.items() if k in SETTINGS})
+        if "notify_events" not in saved:  # from before the per-message settings: keep what was chosen
+            SETTINGS["notify_events"] = {kind: {"send": False} for kind, old in (("pi", "notify_pi"), ("system", "notify_system"))
+                                         if saved.get(old) is False}
+    if not isinstance(SETTINGS["notify_events"], dict):
+        SETTINGS["notify_events"] = {}
     if SETTINGS["name"] in OLD_DEFAULT_NAMES:
         SETTINGS["name"] = DEFAULT_NAME
 
@@ -2675,7 +2727,9 @@ class Handler(BaseHTTPRequestHandler):
                 "telegram": NOTIFY.view() if NOTIFY else None,
                 "notify_progress": SETTINGS["notify_progress"], "notify_minutes": SETTINGS["notify_minutes"],
                 "notify_photos": bool(SETTINGS["notify_photos"]),
-                "notify_pi": bool(SETTINGS["notify_pi"]), "notify_system": bool(SETTINGS["notify_system"]),
+                "notify_replace": bool(SETTINGS["notify_replace"]),
+                "notify_events": [dict(zip(("kind", "label", "send", "silent"), (kind, label) + notify_rule(kind)))
+                                  for kind, label, _ in NOTIFY_EVENTS],
                 "timelapse": bool(SETTINGS["timelapse"]),
                 "timelapse_interval": SETTINGS["timelapse_interval"],
                 "timelapses": TIMELAPSE.list() if TIMELAPSE else [], "has_camera": bool(CAMERA)}
@@ -2737,9 +2791,19 @@ class Handler(BaseHTTPRequestHandler):
                     self._json(400, {"ok": False, "message": "%s must be one of %s" % (key, allowed)})
                     return
                 changes[key] = value
-        for key in ("camera_view", "notify_photos", "notify_pi", "notify_system", "timelapse"):
+        for key in ("camera_view", "notify_photos", "notify_replace", "timelapse"):
             if key in data:
                 changes[key] = bool(data[key])
+        if "notify_events" in data:  # {kind: {"send": bool, "silent": bool}}, only the kinds that changed
+            asked = data["notify_events"]
+            kinds = {kind for kind, _, _ in NOTIFY_EVENTS}
+            if not isinstance(asked, dict) or any(k not in kinds or not isinstance(v, dict) for k, v in asked.items()):
+                self._json(400, {"ok": False, "message": "notify_events: unknown message kind"})
+                return
+            events = {k: dict(v) for k, v in (SETTINGS["notify_events"] or {}).items()}
+            for kind, rule in asked.items():
+                events.setdefault(kind, {}).update({f: bool(rule[f]) for f in ("send", "silent") if f in rule})
+            changes["notify_events"] = events
         try:
             save_settings(changes)
         except OSError as e:
