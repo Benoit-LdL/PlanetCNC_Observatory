@@ -1,3 +1,5 @@
+<p align="center"><img src="media/icon.webp" alt="Logo: an observatory dome with a telescope, stars and a ringed planet" width="160"></p>
+
 # PlanetCNC Web Monitor
 
 A web dashboard for a CNC machine run by PlanetCNC TNG. Open it from any
