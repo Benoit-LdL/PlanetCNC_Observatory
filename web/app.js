@@ -92,7 +92,7 @@ function renderInfo() {
   $('elapsedInfo').textContent = started ? fmtDuration((s.server_time ?? Date.now() / 1000) - started) : '–';
 
   updateToolShape();
-  $('updateInfo').textContent = online
+  $('updateInfo').textContent = s.bridge_online
     ? new Date((s.server_time ?? Date.now() / 1000) * 1000).toLocaleTimeString()
     : 'bridge offline';
 }
@@ -325,8 +325,9 @@ $('traceBtn').addEventListener('click', (e) => {
 const camPanel = $('camPanel');
 const camImg = $('camImg');
 const camToggle = $('camToggleBtn');
-let camEnabled = false;   // server has a camera
-let camWanted = true;     // user hasn't hidden it
+let camEnabled = false;   // server has a camera to stream
+let camViewOn = false;    // Settings: show the camera on the dashboard (from the first update)
+let camWanted = true;     // this browser hasn't folded it away (Hide)
 let camOpened = 0;        // when the current stream was opened
 let camRetry = null;
 let liveDownSince = null; // the live updates stopped; the camera waits so its connection is free
@@ -347,42 +348,52 @@ function camStop() {
 }
 
 function camShouldStream() {
-  return camEnabled && camWanted && document.visibilityState === 'visible' && !liveDownSince;
+  return camViewOn && camEnabled && camWanted && document.visibilityState === 'visible' && !liveDownSince;
 }
 
 function camSync() {
-  camPanel.hidden = !camEnabled;
+  // Shown whenever Settings says so, also without a camera: then it says why there's no picture.
+  camPanel.hidden = !camViewOn;
   camPanel.classList.toggle('collapsed', !camWanted);
   camToggle.textContent = camWanted ? 'Hide' : 'Show';
   camToggle.classList.toggle('active', camWanted);
-  $('camFullBtn').hidden = !camWanted;
+  $('camFullBtn').hidden = !camWanted || !camEnabled;
   const streaming = camImg.hasAttribute('src');
   if (camShouldStream() && !streaming) camStart();
   else if (!camShouldStream() && streaming) camStop();
 }
 
-function camUpdate(cam) {
-  const enabled = !!cam;
-  if (enabled !== camEnabled) { camEnabled = enabled; camSync(); }
-  if (!enabled || !camWanted) { camPanel.dataset.state = 'off'; return; }
+const CAM_BROKEN = "Camera connection doesn't work";
+
+function camMessage(state, title, detail = '') {
+  camPanel.dataset.state = state;
+  $('camMsgTitle').textContent = title;
+  $('camMsgDetail').textContent = detail;
+}
+
+function camUpdate(s) {
+  const view = s.camera_view !== false;
+  const enabled = !!s.camera;
+  if (view !== camViewOn || enabled !== camEnabled) {
+    camViewOn = view;
+    camEnabled = enabled;
+    camSync();
+  }
+  if (!view || !camWanted) { camPanel.dataset.state = 'off'; return; }
   // The server streams a placeholder frame while there's no picture; it reports
   // whether the camera really delivers images in every state update.
-  if (cam.live) {
-    camPanel.dataset.state = 'live';
-  } else if (Date.now() - camOpened > 4000) {
-    camPanel.dataset.state = 'nosignal';
-    $('camMsg').textContent = 'No camera signal';
-  } else {
-    camPanel.dataset.state = 'connecting';
-    $('camMsg').textContent = 'Connecting…';
-  }
+  if (!enabled) camMessage('nosignal', CAM_BROKEN, s.camera_problem || 'The server has no camera.');
+  else if (camImg.hidden) camMessage('nosignal', CAM_BROKEN, 'The picture broke off. Trying again…');
+  else if (s.camera.live) camPanel.dataset.state = 'live';
+  else if (Date.now() - camOpened > 4000) {
+    camMessage('nosignal', CAM_BROKEN, 'No picture from the camera. Check its cable; the dashboard keeps trying.');
+  } else camMessage('connecting', 'Connecting to the camera…');
 }
 
 camImg.addEventListener('error', () => {
   if (!camShouldStream()) return;
   camImg.hidden = true;
-  camPanel.dataset.state = 'nosignal';
-  $('camMsg').textContent = 'Camera stream lost – retrying…';
+  camMessage('nosignal', CAM_BROKEN, 'The picture broke off. Trying again…');
   log.warn(`camera stream failed after ${Math.round((Date.now() - camOpened) / 1000)} s, retrying in 3 s`);
   camRetry = setTimeout(camStart, 3000);
 });
@@ -395,7 +406,7 @@ $('camFullBtn').addEventListener('click', () => {
   if (document.fullscreenElement) document.exitFullscreen();
   else camPanel.requestFullscreen?.().catch(() => {});
 });
-$('camView').addEventListener('dblclick', () => $('camFullBtn').click());
+$('camView').addEventListener('dblclick', () => { if (camEnabled) $('camFullBtn').click(); });
 // Don't keep a video stream running from the Pi for a background tab.
 document.addEventListener('visibilitychange', camSync);
 
@@ -457,7 +468,7 @@ function onState(s) {
   consoleUpdate(s.console_seq);
   systemOnState(s);
   navOnState(s);
-  camUpdate(s.camera);
+  camUpdate(s);
 }
 
 // ---------------------------------------------------------------- file preview
@@ -907,6 +918,7 @@ function renderSettings(d) {
   if (!opts.some(([v]) => v === d.camera)) opts.splice(opts.length - 1, 0, [d.camera, d.camera + ' (not connected)']);
   sel.innerHTML = opts.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('');
   sel.value = d.camera;
+  $('camViewOn').checked = d.camera_view !== false;
   const fixed = d.camera_cmd || !!d.camera_note;
   sel.disabled = $('camRescanBtn').disabled = fixed;
   $('camHint').textContent = d.camera_note ? `Camera choice unavailable: ${d.camera_note}.`
@@ -965,6 +977,7 @@ $('camSelect').addEventListener('change', async (e) => {
   if (res.ok && camShouldStream()) camStart();  // reopen the stream on the new camera
 });
 $('camRescanBtn').addEventListener('click', () => settingsLoad());
+$('camViewOn').addEventListener('change', (e) => settingsSave({ camera_view: e.target.checked }));
 $('toolShape').addEventListener('change', (e) => settingsSave({ tool_shape: e.target.checked }));
 $('toolCamSelect').addEventListener('change', (e) => settingsSave({ tool_cam: e.target.value }));
 

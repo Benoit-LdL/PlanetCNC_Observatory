@@ -127,9 +127,10 @@ the right.*
 ## Screenshots
 
 These were taken with the built-in demo (`python3 server.py --demo`), which
-simulates a job. The demo has no camera and doesn't run on a Pi, so the camera
-and Raspberry Pi panels are missing; on the real machine they sit at the top
-and bottom of the left column (see the animation above).
+simulates a job. The demo has no camera and doesn't run on a Pi, so these
+screenshots show no camera picture and no Raspberry Pi panel; on the real
+machine they sit at the top and bottom of the left column (see the animation
+above).
 
 ### Desktop
 
@@ -475,8 +476,12 @@ command in TNG. TNG stops the machine at once.
 
 - **Camera** at the top:
   - The green dot means the camera is live; red means no picture.
+  - When there is no picture, the panel says **Camera connection doesn't
+    work** and why: no camera found on the Pi, the camera set to **Off**,
+    ffmpeg not installed, or no picture coming from the camera.
   - **Full**, or a double-click, shows it fullscreen. **Hide** folds it away;
-    each browser remembers this.
+    each browser remembers this. To remove the panel for everyone, turn off
+    **Show the camera on the dashboard** in Settings.
   - The Pi only runs the camera while someone has the dashboard open. A
     browser tab in the background doesn't keep it running.
   - The camera can also be opened on its own, without the dashboard: see
@@ -581,6 +586,9 @@ with it ("ran to the end" or "stopped at line …", with how long it took).
   everyone.
 - **Camera:** **Automatic** (the first camera found), a specific camera, or
   **Off**. The change applies right away.
+  - **Show the camera on the dashboard** shows or hides the camera panel, for
+    everyone (on at first). Hiding it doesn't turn the camera off: Telegram
+    photos, the timelapse and the camera page still use it.
   - USB cameras are listed by their stable name, so the choice still works
     when the camera is plugged into another port.
   - **Rescan** looks again after you plug a camera in.

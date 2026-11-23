@@ -490,7 +490,8 @@ class Hub:
             s["server_time"] = time.time()
             s["job_started"] = self.job_started
             seq = self.state_seq
-        s["camera"] = {"live": CAMERA.live()} if CAMERA and CAMERA.enabled() else None
+        s["camera"], s["camera_problem"] = camera_state()
+        s["camera_view"] = bool(SETTINGS["camera_view"])
         s["machine_name"] = SETTINGS["name"]
         s["tool_view"] = {"enabled": bool(SETTINGS["tool_shape"]), "cam": SETTINGS["tool_cam"]}
         s["log_debug"] = LOGS.debug_enabled()
@@ -559,6 +560,18 @@ def list_cameras():
     return cams
 
 
+def camera_state():
+    """(camera, problem) for the dashboard: {"live"} when there is a camera to stream, else
+    None and why not, so the camera panel can say why it shows no picture."""
+    if not CAMERA:
+        return None, "The camera can't run: %s." % (CONFIG.camera_note or "it is turned off on the server")
+    if CAMERA.enabled():
+        return {"live": CAMERA.live()}, ""
+    if CAMERA.choice == "none":
+        return None, "The camera is set to Off in Settings → Camera."
+    return None, "No camera found on the Pi. Check its USB cable, then press Rescan in Settings → Camera."
+
+
 class Camera:
     """Runs ffmpeg while at least one viewer is connected and keeps the latest JPEG frame.
 
@@ -599,8 +612,8 @@ class Camera:
         return dev
 
     def enabled(self):
-        """Whether the dashboard shows the camera panel. A chosen camera that is unplugged
-        still shows (as 'no signal'); 'auto' without any camera doesn't."""
+        """Whether there is a camera to stream. A chosen camera that is unplugged counts
+        (it shows as 'no signal'); 'auto' without any camera doesn't."""
         return bool(self.command) or self.device() is not None
 
     def set_choice(self, choice):
@@ -1767,7 +1780,7 @@ MAX_NAME_LENGTH = 40
 # Which CAM program wrote the G-code, for reading the tool sizes from its comments (see gcode.js).
 TOOL_CAMS = {"fusion": "Fusion 360"}
 
-SETTINGS = {"name": DEFAULT_NAME, "camera": None, "log_debug": False, "files_dir": None,
+SETTINGS = {"name": DEFAULT_NAME, "camera": None, "camera_view": True, "log_debug": False, "files_dir": None,
             "tool_shape": True, "tool_cam": "fusion",
             # Telegram notifications and the job timelapse (see Notifier, Timelapse)
             "telegram_token": "", "telegram_chat": "", "notify_progress": 25, "notify_photos": True,
@@ -2425,6 +2438,7 @@ class Handler(BaseHTTPRequestHandler):
     def _settings_view(self):
         return {"ok": True, "name": SETTINGS["name"],
                 "camera": CAMERA.choice if CAMERA else "none", "camera_cmd": bool(CAMERA and CAMERA.command),
+                "camera_view": bool(SETTINGS["camera_view"]),
                 "camera_note": CONFIG.camera_note, "cameras": list_cameras() if CAMERA else [],
                 "files_dir": CONFIG.files_dir, "files_dir_set": bool(SETTINGS["files_dir"]),
                 "files_default": CONFIG.files_default,
@@ -2492,7 +2506,7 @@ class Handler(BaseHTTPRequestHandler):
                     self._json(400, {"ok": False, "message": "%s must be one of %s" % (key, allowed)})
                     return
                 changes[key] = value
-        for key in ("notify_photos", "notify_pi", "timelapse"):
+        for key in ("camera_view", "notify_photos", "notify_pi", "timelapse"):
             if key in data:
                 changes[key] = bool(data[key])
         try:
@@ -2510,6 +2524,8 @@ class Handler(BaseHTTPRequestHandler):
         if "camera" in changes and changes["camera"] != CAMERA.choice:
             CAMERA.set_choice(changes["camera"])
             HUB.log("info", "Camera: %s" % changes["camera"])
+        if "camera_view" in changes:
+            HUB.log("info", "Camera on the dashboard: %s" % ("shown" if changes["camera_view"] else "hidden"))
         if "name" in changes:
             HUB.log("info", "Machine name: %s" % changes["name"])
         if "tool_shape" in changes or "tool_cam" in changes:

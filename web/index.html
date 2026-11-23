@@ -35,8 +35,12 @@
         </span>
       </div>
       <div class="cam-view" id="camView">
-        <div class="cam-msg" id="camMsg">Connecting…</div>
-        <img id="camImg" alt="Machine camera">
+        <div class="cam-msg" id="camMsg">
+          <svg class="cam-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 6 9 4h6l1.5 2H20a1 1 0 0 1 1 1v11M17 19H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h1"/><path d="M14.5 15.3A3.5 3.5 0 0 1 9.7 10.5"/><path d="m3 3 18 18"/></svg>
+          <b id="camMsgTitle">Connecting to the camera…</b>
+          <span id="camMsgDetail"></span>
+        </div>
+        <img id="camImg" alt="Machine camera" hidden>
       </div>
     </section>
 
@@ -149,6 +153,11 @@
       </section>
       <section class="set-group">
         <h3>Camera</h3>
+        <label class="set-check"><input type="checkbox" id="camViewOn"> Show the camera on the dashboard</label>
+        <p class="set-help">The camera panel at the top left, shown or hidden for everyone who opens the
+          dashboard. When it is shown but no picture comes, it says why. Hiding it doesn't turn the camera
+          off: Telegram photos, the timelapse and the camera page still use it. To turn the camera off,
+          choose Off as the device.</p>
         <div class="set-row">
           <label for="camSelect">Device</label>
           <select id="camSelect"></select>
