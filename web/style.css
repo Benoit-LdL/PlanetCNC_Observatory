@@ -18,52 +18,54 @@
   --check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
+/* Night: deep space, a dark navy */
 :root, :root[data-theme="dark"] {
   color-scheme: dark;
   --md-primary: #4fd8eb; --md-on-primary: #00363d;
-  --md-primary-container: #004f58; --md-on-primary-container: #97f0ff;
-  --md-secondary-container: #334b4f; --md-on-secondary-container: #cde7ec;
+  --md-primary-container: #0b4a60; --md-on-primary-container: #b4f1ff;
+  --md-secondary-container: #26375a; --md-on-secondary-container: #d8e3ff;
   --md-tertiary: #bac6ea; --md-tertiary-container: #3b4664; --md-on-tertiary-container: #dae2ff;
   --md-error: #ffb4ab; --md-on-error: #690005; --md-error-container: #93000a; --md-on-error-container: #ffdad6;
   /* Contrast pushed above Material's defaults: brighter text, cards and lines that stand out */
-  --md-surface: #0a0f10;
-  --md-surface-container-lowest: #060a0b; --md-surface-container-low: #182022; --md-surface-container: #1f282a;
-  --md-surface-container-high: #283133; --md-surface-container-highest: #333d3f;
-  --md-on-surface: #f0f4f5; --md-on-surface-variant: #c8d1d3;
-  --md-outline: #9aa4a6; --md-outline-variant: #465254;
-  --md-success: #7ddc8e; --md-success-container: #00531f; --md-on-success-container: #9df5a8;
+  --md-surface: #060b19;
+  --md-surface-container-lowest: #03060f; --md-surface-container-low: #101a30; --md-surface-container: #16223b;
+  --md-surface-container-high: #1e2b47; --md-surface-container-highest: #293754;
+  --md-on-surface: #eef2fb; --md-on-surface-variant: #c4cce0;
+  --md-outline: #8c97b3; --md-outline-variant: #364262;
+  --md-success: #7ddc8e; --md-success-container: #0b4d2a; --md-on-success-container: #9df5a8;
   --md-warning: #f6be48; --md-warning-container: #5b4300; --md-on-warning-container: #ffdf9e;
-  --md-scrim: rgba(0, 0, 0, .6);
+  --md-scrim: rgba(0, 2, 10, .65);
   --estop: #d32f2f; --on-estop: #ffffff;
-  --sky-opacity: .035; --sky-filter: none;
+  --sky-opacity: .045; --sky-filter: none;
   /* 3D views (viewer.js, planing.js read these) */
-  --view-bg: #0b1213; --view-grid: #243033; --view-travel: #4a5c5f; --view-job: #3a4a4d;
-  --path-top: #b5f0ff; --path-deep: #3a6cf0; --rapid: #b05b67; --trace: #f5e663;
+  --view-bg: #040815; --view-grid: #1c2846; --view-travel: #43547a; --view-job: #33426a;
+  --path-top: #b5f0ff; --path-deep: #3a6cf0; --rapid: #c0606f; --trace: #f5e663;
   /* G-code colours */
-  --tk-g: #8fd18f; --tk-m: #e58fe5; --tk-xyz: #e8ecee; --tk-f: #f2b33d; --tk-s: #ef7f7f; --tk-t: #f5e663;
-  --tk-n: #6f7a7c; --tk-c: #7fa77f;
+  --tk-g: #8fd18f; --tk-m: #e58fe5; --tk-xyz: #eef2fb; --tk-f: #f2b33d; --tk-s: #ef7f7f; --tk-t: #f5e663;
+  --tk-n: #6b7896; --tk-c: #7fa77f;
 }
+/* Day: moonlight, a warm white-yellow */
 :root[data-theme="light"] {
   color-scheme: light;
   --md-primary: #006874; --md-on-primary: #ffffff;
-  --md-primary-container: #97f0ff; --md-on-primary-container: #001f24;
-  --md-secondary-container: #cde7ec; --md-on-secondary-container: #051f23;
+  --md-primary-container: #a6eef6; --md-on-primary-container: #001f24;
+  --md-secondary-container: #eadfb8; --md-on-secondary-container: #221b05;
   --md-tertiary: #525e7d; --md-tertiary-container: #dae2ff; --md-on-tertiary-container: #0e1b37;
   --md-error: #ba1a1a; --md-on-error: #ffffff; --md-error-container: #ffdad6; --md-on-error-container: #410002;
-  --md-surface: #e8eef0;
-  --md-surface-container-lowest: #ffffff; --md-surface-container-low: #ffffff; --md-surface-container: #eef3f4;
-  --md-surface-container-high: #e4eaeb; --md-surface-container-highest: #d9e0e2;
-  --md-on-surface: #0d1213; --md-on-surface-variant: #343d3f;
-  --md-outline: #5c6668; --md-outline-variant: #b3bdbf;
-  --md-success: #006e2c; --md-success-container: #9df5a8; --md-on-success-container: #00210a;
+  --md-surface: #eee7d1;
+  --md-surface-container-lowest: #fffdf6; --md-surface-container-low: #fffcf1; --md-surface-container: #f7f0dc;
+  --md-surface-container-high: #efe7cf; --md-surface-container-highest: #e5dcc1;
+  --md-on-surface: #1c1a12; --md-on-surface-variant: #4a4535;
+  --md-outline: #736d5a; --md-outline-variant: #d0c7ab;
+  --md-success: #006e2c; --md-success-container: #b4efb8; --md-on-success-container: #00210a;
   --md-warning: #795900; --md-warning-container: #ffdf9e; --md-on-warning-container: #261a00;
-  --md-scrim: rgba(0, 0, 0, .32);
+  --md-scrim: rgba(28, 26, 18, .35);
   --estop: #c62828; --on-estop: #ffffff;
-  --sky-opacity: .06; --sky-filter: invert(1);
-  --view-bg: #e6eced; --view-grid: #c4ccce; --view-travel: #8f9a9c; --view-job: #a9b4b6;
+  --sky-opacity: .07; --sky-filter: invert(1) sepia(.6);
+  --view-bg: #f1ebd8; --view-grid: #d6cdb2; --view-travel: #9a917a; --view-job: #b5ad95;
   --path-top: #5cc6d6; --path-deep: #00454e; --rapid: #c25b67; --trace: #b77f00;
-  --tk-g: #1f7a35; --tk-m: #9c2f9c; --tk-xyz: #1d2426; --tk-f: #8a5a00; --tk-s: #b3261e; --tk-t: #7a6500;
-  --tk-n: #8a9496; --tk-c: #4f7a4f;
+  --tk-g: #1f7a35; --tk-m: #9c2f9c; --tk-xyz: #1c1a12; --tk-f: #8a5a00; --tk-s: #b3261e; --tk-t: #7a6500;
+  --tk-n: #9a9480; --tk-c: #4f7a4f;
 }
 :root {
   /* The short names, following the theme */
@@ -308,7 +310,7 @@ input.bad { border-color: var(--md-error) !important; box-shadow: inset 0 0 0 1p
 .cam-panel[data-state="nosignal"] .cam-dot { background: var(--md-error-container); color: var(--md-on-error-container); box-shadow: none; }
 .cam-panel[data-state="nosignal"] .cam-dot::before { background: var(--md-error); }
 .cam-panel[data-state="nosignal"] .cam-dot::after { content: "No picture"; }
-.cam-view { position: relative; aspect-ratio: 16 / 9; margin: 0 8px 8px; border-radius: 12px; overflow: hidden; background: #11181a; }
+.cam-view { position: relative; aspect-ratio: 16 / 9; margin: 0 8px 8px; border-radius: 12px; overflow: hidden; background: #0a1122; }
 .cam-view img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
 .cam-msg { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
            gap: 4px; padding: 12px; text-align: center; color: #bfc8ca; font-size: 12px; line-height: 16px; z-index: 1; pointer-events: none; }
@@ -319,7 +321,7 @@ input.bad { border-color: var(--md-error) !important; box-shadow: inset 0 0 0 1p
            stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .cam-panel[data-state="nosignal"] .cam-off { display: block; }
 .cam-panel[data-state="live"] .cam-msg { display: none; }
-.cam-panel[data-state="nosignal"] .cam-msg { background: rgba(17, 24, 26, .75); }
+.cam-panel[data-state="nosignal"] .cam-msg { background: rgba(10, 17, 34, .75); }
 .cam-panel.collapsed .cam-view { display: none; }
 .cam-panel:fullscreen { border-radius: 0; display: flex; flex-direction: column; }
 .cam-panel:fullscreen .cam-view { flex: 1; aspect-ratio: auto; margin: 0; border-radius: 0; }
@@ -614,6 +616,25 @@ span.ptab::after { display: none; }
 .tune-status .vbtn { height: 30px; padding: 0 12px; }
 .tune-status .vbtn.active.bad { background: var(--md-error-container); color: var(--md-on-error-container); }
 .tune-note-in { height: 36px; padding: 0 10px; font-size: 13px; }
+
+/* A Material 3 dialog: the folder picker */
+.m3-dlg { width: min(560px, calc(100vw - 32px)); max-height: min(640px, calc(100vh - 32px)); padding: 0; border: 0;
+          border-radius: 28px; color: var(--md-on-surface); background: var(--md-surface-container-high);
+          box-shadow: 0 8px 28px rgba(0, 0, 0, .35); flex-direction: column; }
+.m3-dlg[open] { display: flex; }
+.m3-dlg::backdrop { background: var(--md-scrim); }
+.m3-dlg-head { display: flex; flex-direction: column; gap: 10px; padding: 24px 24px 12px; }
+.m3-dlg-head h2 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 400; }
+.m3-dlg-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 24px 20px; }
+.folder-path { font: 13px/18px var(--mono); color: var(--md-on-surface-variant); overflow-wrap: anywhere; }
+.folder-places { display: flex; flex-wrap: wrap; gap: 8px; }
+.folder-list { flex: 1; min-height: 160px; overflow-y: auto; margin: 0 12px; padding: 4px; border-radius: 12px;
+               background: var(--md-surface-container); scrollbar-width: thin; }
+.folder-list .frow { width: 100%; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; gap: 12px; }
+.folder-list .frow svg { width: 20px; height: 20px; flex: none; fill: none; stroke: var(--md-primary); stroke-width: 2;
+                         stroke-linecap: round; stroke-linejoin: round; }
+.folder-msg { margin: 6px 24px 0; font-size: 13px; color: var(--md-error); }
+.folder-msg:empty { display: none; }
 
 /* ---------- card pages (Materials, System) ---------- */
 .page-wrap { max-width: var(--page-w); display: flex; flex-direction: column; gap: 16px; }

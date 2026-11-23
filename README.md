@@ -77,7 +77,7 @@ the right.*
   they took), E-stop, tool changes, program changes, updates, the bridge
   connecting or getting lost.
 - A Files tab for a folder on the Pi: browse, preview G-code in the 3D view,
-  download, upload (also by drag and drop) and delete.
+  download, upload (also by drag and drop), make folders, move and delete.
 
 **Feeds and step height**
 
@@ -102,8 +102,8 @@ the right.*
 
 **Look**
 
-- Material 3 design, in day and night mode: the button at the top left
-  switches, and each browser remembers its choice (the computer's own setting
+- Material 3 design, in night mode (a deep-space navy) and day mode (a warm
+  moonlight white): the button at the top left switches, and each browser remembers its choice (the computer's own setting
   at first). The 3D views follow.
 - The same top bar and menu on every page; on a phone the menu moves to the
   bottom of the screen.
@@ -504,7 +504,8 @@ command in TNG. TNG stops the machine at once.
   - When there is no picture, the panel says **Camera connection doesn't
     work** and why: no camera found on the Pi, the camera set to **Off**,
     ffmpeg not installed, or no picture coming from the camera.
-  - **Full**, or a double-click, shows it fullscreen. **Hide** folds it away;
+  - **Full**, or a double-click, shows it fullscreen; **Exit full screen**, a
+    double-click or Esc go back. **Hide** folds it away;
     each browser remembers this. To remove the panel for everyone, turn off
     **Show the camera on the dashboard** in Settings.
   - The Pi only runs the camera while someone has the dashboard open. A
@@ -585,6 +586,7 @@ Settings. The tab only appears when there is a folder.
 - Per file: the eye previews G-code in the 3D view, the sliders open the
   [Feeds & steps](#feeds--steps) window, the arrow downloads the file, and the
   bin deletes it (after asking).
+- **New folder** makes a folder in the folder shown.
 - **Drag files onto the panel** (on any tab), or press **Upload**, to put them
   in the folder shown. An existing file is only replaced after you confirm.
 - **Move a file** by dragging its row onto a folder in the list, or onto a
@@ -617,9 +619,11 @@ with it ("ran to the end" or "stopped at line …", with how long it took).
   - USB cameras are listed by their stable name, so the choice still works
     when the camera is plugged into another port.
   - **Rescan** looks again after you plug a camera in.
-- **Files:** the folder shown in the Files tab. Type a path on the Pi and
-  press **Save**, or open a folder in the Files tab and press **Use open
-  folder**. **Default** goes back to `--files-dir`. If the chosen folder is
+- **Files:** the folder shown in the Files tab. **Browse…** opens a list of
+  the Pi's folders (names only), with shortcuts to your home folder, USB
+  drives and the whole disk: open folders to go down, and press **Use this
+  folder**. Or type a path on the Pi and press **Save**, or open a folder in the
+  Files tab and press **Use open folder**. **Default** goes back to `--files-dir`. If the chosen folder is
   gone when the server starts, it uses `--files-dir`.
 - **Tool in the 3D view:** **Show the real tool size and shape** turns the
   real-size tool on or off (off: always the standard marker). **CAM program**
