@@ -14,7 +14,6 @@
   --bar-h: 64px;      /* top bar */
   --rail-w: 88px;     /* page menu on the left */
   --side-w: 400px;    /* side panel: the dashboard's tabs, the planing settings */
-  --page-w: 1180px;   /* card pages (Materials, System) */
   --check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
@@ -667,11 +666,11 @@ span.ptab::after { display: none; }
 .folder-msg:empty { display: none; }
 
 /* ---------- card pages (Materials, System) ---------- */
-.page-wrap { max-width: var(--page-w); display: flex; flex-direction: column; gap: 16px; }
+.page-wrap { display: flex; flex-direction: column; gap: 16px; }
 .page-body { padding: 0 20px 20px; }
 
 /* ---------- the System page ---------- */
-.sys-page { max-width: var(--page-w); display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px; }
+.sys-page { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px; }
 .sys-page > .card { flex: 3 1 520px; min-width: 0; overflow: hidden; }
 .sys-page > .card.pi-card { flex: 2 1 340px; }
 .card-h { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 8px 12px 8px 20px; }
