@@ -243,6 +243,9 @@ function renderOs(o, running) {
   $('osSudo').hidden = !!(o.can_upgrade && o.can_update);
   const out = $('osOut');
   out.hidden = !job;
+  // An upgrade that starts (here or in another browser) opens the details once, to show its output
+  if (o.busy && !osWasBusy) showMore('osMore');
+  osWasBusy = !!o.busy;
   if (job) {
     const atEnd = out.scrollHeight - out.scrollTop - out.clientHeight < 30;
     const end = job.running ? '' : job.exit === 0 ? '\n— finished —' : `\n— FAILED (exit code ${job.exit}) —`;
@@ -332,6 +335,7 @@ async function appRun(path, question) {
   const res = await post(path);
   $('updOut').hidden = false;
   $('updOut').textContent = res.output || res.message || '';
+  showMore('appMore');
   if (res.restarting) {
     restarting = true;
     waitForServer('updStatus', 'Restarting the server with the new version…', 2500, 60);
@@ -344,6 +348,13 @@ async function appRun(path, question) {
     log.warn(`${path} failed: ${res.message}`);
   }
 }
+
+/** Open a row's details (as its arrow does). */
+function showMore(id) {
+  $(id).hidden = false;
+  document.querySelector(`[data-more="${id}"]`)?.setAttribute('aria-expanded', 'true');
+}
+let osWasBusy = false;
 
 async function osUpgrade() {
   const n = sys?.os?.packages?.length || 0;

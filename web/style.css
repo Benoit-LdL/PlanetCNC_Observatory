@@ -704,7 +704,7 @@ span.ptab::after { display: none; }
 .urow-act { display: flex; align-items: center; gap: 4px; }
 .urow-more { grid-column: 2 / -1; display: flex; flex-direction: column; gap: 6px; margin: 8px 0 4px; }
 .urow-more .upd-commits li { background: var(--md-surface-container-high); }
-.urow > .upd-out { grid-column: 1 / -1; margin-top: 8px; }
+.urow-more .upd-out { margin-top: 4px; }
 .upd-btns { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .upd-btns .sep { flex: 1; }
 .upd-commits { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
