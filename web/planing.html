@@ -92,6 +92,13 @@
             <option value="y">Along Y</option>
           </select></div>
         <p class="pl-hint">Usually along the grain.</p>
+        <div class="pl-row"><label for="cutWay">Cut</label>
+          <select id="cutWay">
+            <option value="both">Both ways</option>
+            <option value="plus">+X only</option>
+            <option value="minus">−X only</option>
+          </select></div>
+        <p class="pl-hint" id="cutWayHint">Both ways (zigzag) is fastest. One way: every line is cut in the same direction; between lines the bit lifts and goes back in a rapid. Useful to find out whether a tramming problem or tool marks depend on the direction of travel.</p>
 
         <h3>Material <span class="pl-changed" id="matChanged" hidden>Changed</span></h3>
         <div class="pl-mat">

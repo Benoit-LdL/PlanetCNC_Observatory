@@ -14,12 +14,17 @@
 // each pass starts with the bit fully beside the stock, so the plunges happen in the air.
 // With clearTurn, the lines run on until the whole bit is c clear of the stock (centre r + c
 // past the edge), so the steps to the next line happen in the air too.
+//
+// With cutWay 'plus' or 'minus' every line is cut the same way (towards + or - along the cut):
+// at the end of a line the bit lifts to the safe height, goes back beside the stock in a rapid,
+// comes down there in the air and starts the next line - slower, but each line cuts the same
+// way, which shows whether a tramming or tool-mark problem depends on the direction of travel.
 
 export const RAPID_ESTIMATE = 5000;   // mm/min, only for the run-time estimate
 
 export const DEFAULTS = {
   length: 600, width: 200, thickness: 30, zMode: 'top', startAbove: 0,
-  toolD: 50, depth: 3, stepdown: 1, stepover: 40, direction: 'x',
+  toolD: 50, depth: 3, stepdown: 1, stepover: 40, direction: 'x', cutWay: 'both',
   rpm: 18000, feed: 3000, plunge: 900,
   safe: 5, clearance: 5, clearTurn: false, dwell: 3,
   material: '',
@@ -66,6 +71,7 @@ export function planPlaning(input, { date = new Date() } = {}) {
   need('startAbove', 'Start above Z0', (v) => v >= 0, 'enter 0 or more');
   if (!['top', 'bed'].includes(p.zMode)) errors.push('Z zero: choose the top of the stock or the spoilboard');
   if (!['x', 'y'].includes(p.direction)) errors.push('Direction: choose along X or along Y');
+  if (!['both', 'plus', 'minus'].includes(p.cutWay)) errors.push('Cut: choose both ways, only towards + or only towards -');
   if (!errors.length && p.depth >= p.thickness) errors.push('Depth to remove: must be less than the stock thickness');
   if (!errors.length && p.clearance >= p.toolD / 2) errors.push(`Run past the edges: must be less than the bit radius (${fmt(p.toolD / 2)} mm), or the edges are not cut`);
   if (errors.length) return { errors, warnings };
@@ -91,6 +97,9 @@ export function planPlaning(input, { date = new Date() } = {}) {
   const ends = [-turn, cutLen + turn];                // where the lines turn round
   const offAt = Math.max(r + 2, turn);                // bit clear of the stock: plunges
   const air = [-offAt, cutLen + offAt];
+  const oneWay = p.cutWay !== 'both';
+  const from = p.cutWay === 'minus' ? 1 : 0;          // the end each line starts from
+  const axis = alongX ? 'X' : 'Y';
   if (p.stepover > 80) warnings.push('A stepover above 80 % can leave ridges between the lines.');
   if (passDepth > 0.25 * p.toolD) warnings.push(`Each pass cuts ${fmt(passDepth)} mm, more than a quarter of the bit diameter.`);
   if (p.plunge > p.feed) warnings.push('The plunge feed is faster than the feed.');
@@ -98,7 +107,7 @@ export function planPlaning(input, { date = new Date() } = {}) {
   // Moves, in machine order. pt(a, c): a = along the cut, c = across it.
   const pt = (a, c) => (alongX ? [a, c] : [c, a]);
   const moves = [];
-  let cur = [...pt(air[0], lines[0]), safeZ];
+  let cur = [...pt(air[from], lines[0]), safeZ];
   const start = [...cur];
   const go = (xy, z, rapid, feed, pass) => {
     const to = [xy ? xy[0] : cur[0], xy ? xy[1] : cur[1], z ?? cur[2]];
@@ -118,7 +127,8 @@ export function planPlaning(input, { date = new Date() } = {}) {
     : `(Z zero: spoilboard - stock top at Z${fmt(top)}, ${fmt(p.thickness - p.depth)} mm thick when done)`);
   G('(X0 Y0: front-left corner of the stock)');
   if (p.startAbove > 0) G(`(Starts ${fmt(p.startAbove)} mm above the stock top, at Z${fmt(startZ)}, in case Z was not set on its highest point)`);
-  G(`(Removes ${fmt(p.depth)} mm in ${passes} pass${passes > 1 ? 'es' : ''} of ${fmt(passDepth)} mm${p.startAbove > 0 ? ` from Z${fmt(startZ)}` : ''}, cutting along ${alongX ? 'X' : 'Y'})`);
+  G(`(Removes ${fmt(p.depth)} mm in ${passes} pass${passes > 1 ? 'es' : ''} of ${fmt(passDepth)} mm${p.startAbove > 0 ? ` from Z${fmt(startZ)}` : ''}, cutting along ${axis})`);
+  if (oneWay) G(`(Every line cut towards ${from ? '-' : '+'}${axis} only: lift and rapid back between lines)`);
   G(`(T1 D=${fmt(p.toolD)} CR=0 - ZMIN=${fmt(finalTop)} - FLAT END MILL)`);
   G(`(Stepover ${fmt(step)} mm = ${fmt(p.stepover)} %, ${lines.length} line${lines.length > 1 ? 's' : ''} per pass)`);
   G(`(Lines run ${fmt(p.clearance)} mm past the edges${p.clearTurn ? ', turning round with the bit clear of the stock' : ''})`);
@@ -135,7 +145,32 @@ export function planPlaning(input, { date = new Date() } = {}) {
   go(null, startZ + 1, true, 0, 0);
 
   let side = 0;     // which end of the cut the bit is at
-  for (let k = 0; k < passes; k++) {
+  for (let k = 0; k < passes && oneWay; k++) {
+    const z = startZ - passDepth * (k + 1);
+    const order = k % 2 ? [...lines].reverse() : lines;
+    G(`(Pass ${k + 1} of ${passes}: Z${fmt(z)})`);
+    for (const c of order) {
+      const q0 = pt(air[from], c);
+      if (cur[2] < startZ + 1) {                    // lift off the line just cut
+        G(`G0 Z${fmt(safeZ)}`);
+        go(null, safeZ, true, 0, k + 1);
+      }
+      if (cur[0] !== q0[0] || cur[1] !== q0[1]) {   // back beside the stock
+        G(`G0 ${xy(q0)}`);
+        go(q0, null, true, 0, k + 1);
+      }
+      if (cur[2] > z + 1) {
+        G(`G0 Z${fmt(z + 1)}`);
+        go(null, z + 1, true, 0, k + 1);
+      }
+      G(`G1 Z${fmt(z)} F${fmt(p.plunge)}`);
+      go(null, z, false, p.plunge, k + 1);
+      const q1 = pt(ends[1 - from], c);
+      G(`G1 ${xy(q1)} F${fmt(p.feed)}`);
+      go(q1, null, false, p.feed, k + 1);
+    }
+  }
+  for (let k = 0; k < passes && !oneWay; k++) {
     const z = startZ - passDepth * (k + 1);
     // Odd passes run the lines back, starting where the last pass ended: no trip back.
     const order = k % 2 ? [...lines].reverse() : lines;
@@ -161,7 +196,7 @@ export function planPlaning(input, { date = new Date() } = {}) {
       first = false;
     }
   }
-  G(`G0 Z${fmt(safeZ)}`);
+  if (cur[2] !== safeZ) G(`G0 Z${fmt(safeZ)}`);
   go(null, safeZ, true, 0, passes);
   G('M5');
   G('G0 X0 Y0');

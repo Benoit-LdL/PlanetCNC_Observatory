@@ -13,10 +13,10 @@ import { navOnState } from './nav.js';
 import { initSystem, systemOnState } from './system-ui.js';
 
 const $ = (id) => document.getElementById(id);
-const FIELDS = ['length', 'width', 'thickness', 'zMode', 'startAbove', 'toolD', 'depth', 'direction',
+const FIELDS = ['length', 'width', 'thickness', 'zMode', 'startAbove', 'toolD', 'depth', 'direction', 'cutWay',
                 'rpm', 'feed', 'plunge', 'stepdown', 'stepover', 'safe', 'clearance', 'clearTurn', 'dwell'];
 const PRESET_KEYS = ['rpm', 'feed', 'plunge', 'stepdown', 'stepover'];   // what a material stores
-const TEXT_FIELDS = new Set(['zMode', 'direction']);
+const TEXT_FIELDS = new Set(['zMode', 'direction', 'cutWay']);
 const CHECK_FIELDS = new Set(['clearTurn']);
 const STORE_KEY = 'planing.form';
 const writeHeaders = { 'X-CNC-Control': '1', 'Content-Type': 'application/json' };
@@ -345,6 +345,9 @@ function update() {
   $('zHint').textContent = p.zMode === 'top'
     ? 'Touch off Z on the highest point of the stock.'
     : 'Z0 on the spoilboard: the stock top is at Z = thickness, so measure the thickness at the highest point.';
+  const ax = p.direction === 'y' ? 'Y' : 'X';
+  $('cutWay').options[1].textContent = `+${ax} only`;
+  $('cutWay').options[2].textContent = `−${ax} only`;
   showMaterialChanged(p);
 
   const notes = result.errors.map((e) => `<li class="err">${esc(e)}</li>`);
@@ -360,7 +363,7 @@ function update() {
   const rows = [
     ['Passes', `${info.passes} × ${fmt(info.passDepth)} mm`],
     ...(p.startAbove > 0 ? [['First pass from', `Z${fmt(info.startZ)}, ${fmt(p.startAbove)} mm above Z0`]] : []),
-    ['Lines per pass', `${info.lines}, ${fmt(info.step)} mm apart at most`],
+    ['Lines per pass', `${info.lines}, ${fmt(info.step)} mm apart at most${p.cutWay === 'both' ? '' : `, all cut towards ${p.cutWay === 'plus' ? '+' : '−'}${p.direction === 'y' ? 'Y' : 'X'}`}`],
     ['Last pass at', `Z${fmt(info.finalTop)}`],
     ['Thickness after', `${fmt(p.thickness - p.depth)} mm`],
     ['Bit centre travels', `X ${fmt(info.bounds.min[0])} … ${fmt(info.bounds.max[0])}, Y ${fmt(info.bounds.min[1])} … ${fmt(info.bounds.max[1])}`],

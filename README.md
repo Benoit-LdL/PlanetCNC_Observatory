@@ -769,6 +769,7 @@ settings in the panel on the right.
 | Bit diameter | The planing bit, drawn at this size. |
 | Depth to remove | In total. It must be less than the thickness. |
 | Cut direction | Along X or along Y: usually along the grain. |
+| Cut | **Both ways** (zigzag, the default and fastest), or **+X only** / **−X only** (+Y / −Y when cutting along Y): every line is cut in the same direction, and between lines the bit lifts to the safe height, goes back beside the stock in a rapid and comes down there. Slower, but it shows whether a tramming problem or tool marks depend on the direction of travel. |
 | Material | A saved set of the values below (see below). |
 | Spindle speed, Feed, Plunge feed | Plunge feed is for going down to each pass, which always happens beside the stock. |
 | Step-down | Depth per pass at most. The depth is split into equal passes. |
@@ -785,7 +786,9 @@ the whole bit has left the stock by that amount, so the step happens in the
 air instead (longer lines, a bit slower). Each level starts with the bit fully
 beside the stock, so the plunges happen in the air, never in the wood. Each
 pass runs the lines back from
-where the last one ended. It starts with `M3` and a `G4` pause for the spindle
+where the last one ended. With **Cut** set to one direction only, the bit
+instead lifts at the end of every line and comes back in a rapid, so each
+line is cut the same way. It starts with `M3` and a `G4` pause for the spindle
 to spin up, and ends with `M5` and the bit above X0 Y0 at the safe height.
 There is no tool change: the bit must already be in the spindle and Z touched
 off. The file starts with comments listing the values, and a Fusion-style tool
