@@ -69,7 +69,8 @@
   <section class="panel pl-side" aria-label="Planing settings">
     <div class="pl-form">
       <form id="form" autocomplete="off" novalidate>
-        <h3>Stock</h3>
+        <section class="pl-group" aria-label="Stock">
+        <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9l9-4 9 4-9 4z"/><path d="M3 9v6l9 4 9-4V9"/><path d="M12 13v6"/></svg><span>Stock</span></h3>
         <div class="pl-row"><label for="length">Length (X)<span class="unit">mm</span></label><input id="length" type="number" step="any" min="0" inputmode="decimal"></div>
         <div class="pl-row"><label for="width">Width (Y)<span class="unit">mm</span></label><input id="width" type="number" step="any" min="0" inputmode="decimal"></div>
         <div class="pl-row"><label for="thickness">Thickness (rough)<span class="unit">mm</span></label><input id="thickness" type="number" step="any" min="0" inputmode="decimal"></div>
@@ -78,12 +79,14 @@
             <option value="top">Top of the stock</option>
             <option value="bed">Spoilboard</option>
           </select></div>
-        <p class="pl-hint" id="zHint"></p>
+        <p class="set-help" data-help-for="zMode" id="zHint"></p>
         <div class="pl-row"><label for="startAbove">Start above Z0<span class="unit">mm</span></label><input id="startAbove" type="number" step="any" min="0" inputmode="decimal"></div>
-        <p class="pl-hint">Not sure Z was set on the highest point? The passes start this much higher (same final depth, more passes), so the first ones don't bite too deep into a high spot. 0 = start at the top.</p>
+        <p class="set-help" data-help-for="startAbove">Not sure Z was set on the highest point? The passes start this much higher (same final depth, more passes), so the first ones don't bite too deep into a high spot. 0 = start at the top.</p>
         <p class="pl-hint">X0 Y0 is the front-left corner of the stock.</p>
+        </section>
 
-        <h3>Bit and cut</h3>
+        <section class="pl-group" aria-label="Bit and cut">
+        <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6v6H9z"/><path d="M10 9v7l2 5 2-5V9"/><path d="M10 12l4 2"/></svg><span>Bit and cut</span></h3>
         <div class="pl-row"><label for="toolD">Bit diameter<span class="unit">mm</span></label><input id="toolD" type="number" step="any" min="0" inputmode="decimal"></div>
         <div class="pl-row"><label for="depth">Depth to remove<span class="unit">mm</span></label><input id="depth" type="number" step="any" min="0" inputmode="decimal"></div>
         <div class="pl-row"><label for="direction">Cut direction</label>
@@ -98,9 +101,11 @@
             <option value="plus">+X only</option>
             <option value="minus">−X only</option>
           </select></div>
-        <p class="pl-hint" id="cutWayHint">Both ways (zigzag) is fastest. One way: every line is cut in the same direction; between lines the bit lifts and goes back in a rapid. Useful to find out whether a tramming problem or tool marks depend on the direction of travel.</p>
+        <p class="set-help" data-help-for="cutWay">Both ways (zigzag) is fastest. One way: every line is cut in the same direction; between lines the bit lifts and goes back in a rapid. Useful to find out whether a tramming problem or tool marks depend on the direction of travel.</p>
+        </section>
 
-        <h3>Material <span class="pl-changed" id="matChanged" hidden>Changed</span></h3>
+        <section class="pl-group" aria-label="Material and cutting values">
+        <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4l9 5-9 5-9-5z"/><path d="M3 14l9 5 9-5"/></svg><span>Material</span> <span class="pl-changed" id="matChanged" hidden>Changed</span></h3>
         <div class="pl-mat">
           <select id="material" aria-label="Material"></select>
           <button class="vbtn text" type="button" id="matSave" title="Save these cutting values for a material">Save as…</button>
@@ -112,21 +117,25 @@
         <div class="pl-row"><label for="stepdown">Step-down<span class="unit">mm/pass</span></label><input id="stepdown" type="number" step="any" min="0" inputmode="decimal"></div>
         <div class="pl-row"><label for="stepover">Stepover<span class="unit" id="stepoverMm">% of Ø</span></label><input id="stepover" type="number" step="any" min="0" inputmode="decimal"></div>
         <p class="pl-hint pl-mat-io"><a href="/materials">All materials: change, import, export →</a></p>
+        </section>
 
-        <details>
-          <summary>More settings</summary>
+        <details class="pl-group">
+          <summary><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg><span>More settings</span></summary>
         <div class="pl-row"><label for="safe">Safe height above stock<span class="unit">mm</span></label><input id="safe" type="number" step="any" min="0" inputmode="decimal"></div>
         <div class="pl-row"><label for="clearance">Run past the edges by<span class="unit">mm</span></label><input id="clearance" type="number" step="any" min="0" inputmode="decimal"></div>
-          <label class="pl-check"><input id="clearTurn" type="checkbox"> Turn round clear of the stock</label>
+          <label class="pl-check" for="clearTurn"><input id="clearTurn" type="checkbox"><span class="help-at">Turn round clear of the stock</span></label>
         <div class="pl-row"><label for="dwell">Spindle spin-up<span class="unit">s</span></label><input id="dwell" type="number" step="any" min="0" inputmode="decimal"></div>
-          <p class="pl-hint">How far the bit's centre goes past every edge of the stock, at the ends of the lines and on the first and last line. Less than the bit radius. Plunges always happen beside the stock.</p>
-          <p class="pl-hint">Turn round clear of the stock: the lines run on until the whole bit has left the stock by this much, so the step to the next line happens in the air (longer lines, a bit slower).</p>
+          <p class="set-help" data-help-for="clearance">How far the bit's centre goes past every edge of the stock, at the ends of the lines and on the first and last line. Less than the bit radius. Plunges always happen beside the stock.</p>
+          <p class="set-help" data-help-for="clearTurn">The lines run on until the whole bit has left the stock by the "run past the edges" amount, so the step to the next line happens in the air (longer lines, a bit slower).</p>
+          <p class="set-help" data-help-for="dwell">How long the program waits after starting the spindle (<code>M3</code>, then <code>G4</code>), so the bit is at full speed before it moves to the stock. 0 = no wait.</p>
         </details>
       </form>
 
-      <h3>Program</h3>
-      <dl class="pl-sum" id="summary"></dl>
-      <ul class="pl-notes" id="notes"></ul>
+      <section class="pl-group" aria-label="Program">
+        <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h7M9 8h3"/></svg><span>Program</span></h3>
+        <dl class="pl-sum" id="summary"></dl>
+        <ul class="pl-notes" id="notes"></ul>
+      </section>
     </div>
     <div class="pl-foot">
       <div class="pl-name">

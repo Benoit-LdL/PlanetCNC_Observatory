@@ -1,5 +1,6 @@
 // Help popups: in each .set-group, the .set-help paragraphs move into a popup behind a round "?"
-// next to the group's title. It opens on hover or keyboard focus, and stays open when clicked
+// next to the group's title. A .set-help with data-help-for="<input id>" goes behind a "?" next to
+// that field's label instead (or next to the element with that id, e.g. a page title). It opens on hover or keyboard focus, and stays open when clicked
 // (for touch screens) until clicked again, Escape, or a click elsewhere. The paragraphs keep their
 // ids, so text filled in by other code (folder defaults, camera addresses) still lands in them.
 
@@ -41,43 +42,61 @@ const hideSoon = () => {
   if (open && !open.pinned) hideTimer = setTimeout(hide, 180);   // time to move onto the popup
 };
 
+let n = 0;
+
 export function initHelp(root = document) {
-  let n = 0;
   for (const group of root.querySelectorAll('.set-group')) {
     const title = group.querySelector(':scope > h3');
-    const items = [...group.querySelectorAll(':scope > .set-help')];
-    if (!title || !items.length) continue;
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'help-btn';
-    btn.textContent = '?';
-    btn.setAttribute('aria-label', `About ${title.textContent.trim()}`);
-    btn.setAttribute('aria-expanded', 'false');
-    const pop = document.createElement('div');
-    pop.className = 'help-pop';
-    pop.id = `help-${++n}`;
-    pop.setAttribute('role', 'tooltip');
-    pop.hidden = true;
-    items.forEach((el) => pop.appendChild(el));
-    btn.setAttribute('aria-describedby', pop.id);
-    title.appendChild(btn);
-    document.body.appendChild(pop);
-
-    btn.addEventListener('mouseenter', () => show(btn, pop));
-    btn.addEventListener('mouseleave', hideSoon);
-    btn.addEventListener('focus', () => show(btn, pop));
-    btn.addEventListener('blur', () => { if (!pop.contains(document.activeElement)) hideSoon(); });
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (open?.pop === pop && open.pinned) hide();
-      else { show(btn, pop, true); if (open) open.pinned = true; }
-    });
-    pop.addEventListener('mouseenter', () => clearTimeout(hideTimer));
-    pop.addEventListener('mouseleave', hideSoon);
+    const items = [...group.querySelectorAll(':scope > .set-help:not([data-help-for])')];
+    if (title && items.length) attach(title, items);
+  }
+  const byField = new Map();
+  for (const el of root.querySelectorAll('.set-help[data-help-for]')) {
+    const id = el.dataset.helpFor;
+    byField.set(id, [...(byField.get(id) || []), el]);
+  }
+  for (const [id, items] of byField) {
+    const label = root.querySelector(`label[for="${id}"]`) || root.querySelector(`#${CSS.escape(id)}`);
+    // In the label, or in its .help-at part (a checkbox label: next to the text, not the box)
+    const host = label?.querySelector('.help-at') || label;
+    if (host) attach(host, items, host.querySelector(':scope > .unit'));
   }
   document.addEventListener('click', (e) => { if (open && !open.pop.contains(e.target)) hide(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && open) { open.btn.focus(); hide(); } });
   // The settings scroll: a popup left behind would point at nothing
   document.addEventListener('scroll', (e) => { if (open && !open.pop.contains(e.target)) hide(); }, true);
   window.addEventListener('resize', hide);
+}
+
+/** A "?" in `title` (before `before`, else at the end) showing `items` in a popup. */
+function attach(title, items, before = null) {
+  const name = [...title.childNodes].filter((c) => c.nodeType === Node.TEXT_NODE).map((c) => c.textContent).join('').trim();
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'help-btn';
+  btn.textContent = '?';
+  btn.setAttribute('aria-label', `About ${name || title.textContent.trim()}`);
+  btn.setAttribute('aria-expanded', 'false');
+  const pop = document.createElement('div');
+  pop.className = 'help-pop';
+  pop.id = `help-${++n}`;
+  pop.setAttribute('role', 'tooltip');
+  pop.hidden = true;
+  items.forEach((el) => pop.appendChild(el));
+  btn.setAttribute('aria-describedby', pop.id);
+  title.insertBefore(btn, before);
+  document.body.appendChild(pop);
+
+  btn.addEventListener('mouseenter', () => show(btn, pop));
+  btn.addEventListener('mouseleave', hideSoon);
+  btn.addEventListener('focus', () => show(btn, pop));
+  btn.addEventListener('blur', () => { if (!pop.contains(document.activeElement)) hideSoon(); });
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    e.preventDefault();      // inside a <label>: don't also open the field
+    if (open?.pop === pop && open.pinned) hide();
+    else { show(btn, pop, true); if (open) open.pinned = true; }
+  });
+  pop.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+  pop.addEventListener('mouseleave', hideSoon);
 }

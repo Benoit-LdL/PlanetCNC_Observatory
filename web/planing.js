@@ -9,6 +9,7 @@ import { Viewer } from './viewer.js';
 import { buildToolpath } from './gcode.js';
 import { planPlaning, DEFAULTS, fmt } from './planing-gcode.js';
 import { log } from './log.js';
+import { initHelp } from './help.js';
 import { navOnState } from './nav.js';
 import { initSystem, systemOnState } from './system-ui.js';
 
@@ -36,9 +37,9 @@ function duration(sec) {
 // ---------------------------------------------------------------- the stock, as a height map
 
 /** The stock's top as a grid of heights that the bit lowers as it passes, with walls down to the
- *  bottom. The rough top is drawn slightly uneven (up to `rough` mm below the highest point). */
+ *  bottom. The rough top is drawn flat, at `top`. */
 class Stock {
-  constructor(length, width, top, bottom, rough) {
+  constructor(length, width, top, bottom) {
     const dx0 = Math.max(Math.sqrt(length * width / 80000), 0.25);   // about 80 000 points at most
     const nx = this.nx = Math.max(2, Math.round(length / dx0));
     const ny = this.ny = Math.max(2, Math.round(width / dx0));
@@ -48,19 +49,7 @@ class Stock {
     const n = this.n = (nx + 1) * (ny + 1);
     const idx = (i, j) => j * (nx + 1) + i;
 
-    // Rough surface: a few long waves, scaled so the highest point is exactly the top
-    this.h0 = new Float32Array(n);
-    let lo = Infinity, hi = -Infinity;
-    for (let j = 0; j <= ny; j++) {
-      for (let i = 0; i <= nx; i++) {
-        const x = i * this.dx, y = j * this.dy;
-        const v = Math.sin(x * 0.019 + 1.3) * Math.cos(y * 0.031) + 0.6 * Math.sin((x + 2 * y) * 0.011)
-                + 0.25 * Math.sin(x * 0.09) * Math.sin(y * 0.07);
-        this.h0[idx(i, j)] = v;
-        lo = Math.min(lo, v); hi = Math.max(hi, v);
-      }
-    }
-    for (let k = 0; k < n; k++) this.h0[k] = top - rough * (1 - (this.h0[k] - lo) / (hi - lo || 1));
+    this.h0 = new Float32Array(n).fill(top);
     this.h = new Float32Array(this.h0);
 
     // Perimeter, counter-clockwise from above; each top point gets a bottom point below it
@@ -191,15 +180,14 @@ $('pathBtn').addEventListener('click', () => {
 });
 
 function showStock(p, info) {
-  const key = [p.length, p.width, info.top, info.bottom, p.depth, p.startAbove].join('|');
+  const key = [p.length, p.width, info.top, info.bottom].join('|');
   if (key === stockKey) return;
   stockKey = key;
   if (stock) {
     viewer.scene.remove(stock.mesh);
     stock.dispose();
   }
-  // With "start above Z0", drawn as if Z was set on a low spot: the high spots rise that much above Z0
-  stock = new Stock(p.length, p.width, info.top + p.startAbove, info.bottom, Math.min(0.8, p.depth * 0.6) + p.startAbove);
+  stock = new Stock(p.length, p.width, info.top, info.bottom);
   viewer.scene.add(stock.mesh);
   viewer.dirty = true;
 }
@@ -654,6 +642,7 @@ $('loadBtn').addEventListener('click', () => withButtons(async () => {
 (async () => {
   const saved = recall();
   initSystem();   // the E-stop button
+  initHelp($('form'));
   fillForm({ ...DEFAULTS, ...(saved || {}) });
   await loadPresets(saved?.material || '');
   schedule();

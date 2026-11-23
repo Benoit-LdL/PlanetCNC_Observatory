@@ -765,7 +765,7 @@ settings in the panel on the right.
 | Length (X), Width (Y) | The stock's size. **X0 Y0 is its front-left corner.** |
 | Thickness (rough) | Measured at the highest point. |
 | Z zero | **Top of the stock**: touch off Z on the highest point; the program cuts from Z0 down. **Spoilboard**: Z0 is the spoilboard; the stock top is at Z = thickness, so the program cuts from there down and the page shows the thickness you end up with. |
-| Start above Z0 | For when you're not sure Z was touched off on the highest point: the passes start this much above Z0 and still end at the same depth, so there are more passes and the first ones only skim the high spots (or cut air) instead of one pass biting too deep there. The simulation draws the stock with its high spots this much above Z0. 0 (the default) starts at the top. |
+| Start above Z0 | For when you're not sure Z was touched off on the highest point: the passes start this much above Z0 and still end at the same depth, so there are more passes and the first ones only skim the high spots (or cut air) instead of one pass biting too deep there. 0 (the default) starts at the top. |
 | Bit diameter | The planing bit, drawn at this size. |
 | Depth to remove | In total. It must be less than the thickness. |
 | Cut direction | Along X or along Y: usually along the grain. |
@@ -795,7 +795,7 @@ off. The file starts with comments listing the values, and a Fusion-style tool
 comment so the dashboard draws the bit when the program is loaded.
 
 **The 3D view** shows the machine's travel (from TNG, when the bridge is
-connected), the stock with a slightly uneven rough top, the toolpath and the
+connected), the stock (drawn with a flat top), the toolpath and the
 bit. The page warns when the bit's path leaves the machine's travel: that is
 checked from the *current* work zero, so set X0 Y0 (and Z) on the stock first
 for the check to mean something. Below the view, **Play** runs the simulation

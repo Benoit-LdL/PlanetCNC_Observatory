@@ -5,6 +5,7 @@
 import { ask } from './dialog.js';
 import { followState } from './nav.js';
 import { initSystem, systemOnState } from './system-ui.js';
+import { initHelp } from './help.js';
 
 const $ = (id) => document.getElementById(id);
 const KEYS = ['rpm', 'feed', 'plunge', 'stepdown', 'stepover'];
@@ -177,6 +178,7 @@ $('importFile').addEventListener('change', async (e) => {
 });
 
 initSystem();   // the E-stop button
+initHelp();
 followState(systemOnState, 'Materials');
 
 load();

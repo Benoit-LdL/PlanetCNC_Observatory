@@ -42,6 +42,47 @@ async function post(path, body = {}) {
 // ---------------------------------------------------------------- E-stop
 
 let estopBusy = false;
+let estopSentAt = 0;        // when the dashboard's E-stop was accepted: the popup stays while TNG catches up
+const ESTOP_GRACE = 4000;   // ms
+
+// The E-stop popup: shown while the E-stop is on (from this button, another screen or the
+// machine itself), on every page, with a red and white hazard-stripe border. It closes by itself
+// when the E-stop is released at the machine. "Hide" (or Esc) puts it away until the next E-stop.
+let estopDlg = null;
+let estopHidden = false;
+
+function estopPopup() {
+  const engaged = !!state.bridge_online && !!state.estop;
+  const show = engaged || estopBusy || (estopSentAt && Date.now() - estopSentAt < ESTOP_GRACE);
+  if (engaged) estopSentAt = 0;
+  if (!show) {
+    estopHidden = false;
+    if (estopDlg) { const d = estopDlg; estopDlg = null; d.close(); d.remove(); }
+    return;
+  }
+  if (estopHidden) return;
+  if (!estopDlg) {
+    const d = estopDlg = document.createElement('dialog');
+    d.className = 'm3-dlg estop-dlg';
+    d.setAttribute('aria-labelledby', 'estopDlgTitle');
+    d.innerHTML = `
+      <div class="estop-dlg-in">
+        <div class="estop-dlg-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.2 2h7.6L22 8.2v7.6L15.8 22H8.2L2 15.8V8.2z"/><path d="M12 7.5v5.5M12 16.5v.01"/></svg></div>
+        <h2 id="estopDlgTitle"></h2>
+        <p class="estop-dlg-text">The machine is stopped. Release the E-stop on the machine's touchscreen, in PlanetCNC TNG: this message then closes by itself.</p>
+        <p class="estop-dlg-wait" aria-live="polite"><span class="estop-dlg-dot"></span><span class="estop-dlg-state"></span></p>
+        <div class="m3-dlg-foot"><button type="button" class="vbtn text">Hide</button></div>
+      </div>`;
+    const hide = () => { estopHidden = true; estopDlg = null; d.close(); d.remove(); };
+    d.querySelector('button').addEventListener('click', hide);
+    d.addEventListener('cancel', (e) => { e.preventDefault(); hide(); });   // Esc
+    document.body.append(d);
+    d.showModal();
+  }
+  estopDlg.querySelector('h2').textContent = engaged ? 'E-stop engaged' : 'E-stop sent';
+  estopDlg.querySelector('.estop-dlg-state').textContent = engaged
+    ? 'Waiting for the release at the machine…' : 'Waiting for TNG to confirm…';
+}
 
 function renderEstop() {
   const online = !!state.bridge_online;
@@ -59,6 +100,7 @@ function renderEstop() {
     b.classList.toggle('on', online && !!state.estop);
   }
   if (!estopBusy) saveTopbar({ estop: { label, title, disabled, on: online && !!state.estop } });
+  estopPopup();
 }
 
 async function estop() {
@@ -67,6 +109,10 @@ async function estop() {
   renderEstop();
   const res = await post('/api/estop');
   estopBusy = false;
+  if (res.ok) {
+    estopSentAt = Date.now();
+    setTimeout(renderEstop, ESTOP_GRACE + 50);   // TNG never confirmed: close the popup
+  }
   renderEstop();
   if (!res.ok) {
     log.error(`E-stop failed: ${res.message}`);

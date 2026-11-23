@@ -32,7 +32,7 @@
         + (p[0] === 'system' ? '<i class="nav-dot" hidden></i>' : '') + '</span><span>' + p[2] + '</span></a>';
     }).join('')
       // The Raspberry Pi's health at the bottom of the menu, on every page (filled by nav.js)
-      + '<a class="pi-gauges" href="/system" hidden></a>';
+      + '<div class="pi-gauges" hidden></div>';
   }
 
   // Ring gauges for the Pi's health, in every .pi-gauges box (the menu; the dashboard's Pi card
