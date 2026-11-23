@@ -41,10 +41,12 @@ import signal
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.error
 import urllib.request
+import zipfile
 from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, urlencode, urlparse
@@ -2148,6 +2150,8 @@ class Handler(BaseHTTPRequestHandler):
             self._files_list()
         elif path == "/api/folders":
             self._folders()
+        elif path == "/api/files/zip":
+            self._files_zip()
         elif path == "/api/files/download":
             self._files_download()
         elif path == "/api/tuning":
@@ -2182,10 +2186,12 @@ class Handler(BaseHTTPRequestHandler):
             if self._require_writer():
                 self._system_action(path.rsplit("/", 1)[1])
             return
-        if path in ("/api/files/upload", "/api/files/delete", "/api/files/move", "/api/files/mkdir"):
+        if path in ("/api/files/upload", "/api/files/delete", "/api/files/move", "/api/files/mkdir",
+                    "/api/files/rename"):
             if self._require_writer():
                 {"upload": self._files_upload, "delete": self._files_delete,
-                 "move": self._files_move, "mkdir": self._files_mkdir}[path.rsplit("/", 1)[1]]()
+                 "move": self._files_move, "mkdir": self._files_mkdir,
+                 "rename": self._files_rename}[path.rsplit("/", 1)[1]]()
             return
         if path == "/api/settings":
             if self._require_writer():
@@ -2642,6 +2648,47 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, f.read(), "application/octet-stream",
                        {"Content-Disposition": "%s; filename*=UTF-8''%s" % (disposition, quote(name))})
 
+    def _files_zip(self):
+        """A folder of the files folder, with everything in it, as one zip (built in a temporary
+        file and streamed, so a big folder doesn't have to fit in memory). Hidden files are left out."""
+        full = self._files_path(self._query("path"))
+        if not full or not os.path.isdir(full):
+            self._send(404, "Not found", "text/plain")
+            return
+        name = (os.path.basename(full) or "files") + ".zip"
+        count = 0
+        with tempfile.TemporaryFile() as tmp:
+            try:
+                with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as z:
+                    for folder, dirs, files in os.walk(full):
+                        dirs[:] = sorted(d for d in dirs if not d.startswith("."))
+                        rel_dir = os.path.relpath(folder, full)
+                        if not files and not dirs and rel_dir != ".":
+                            z.writestr(rel_dir.replace(os.sep, "/") + "/", "")   # keep empty folders
+                        for f in sorted(files):
+                            if f.startswith("."):
+                                continue
+                            try:
+                                z.write(os.path.join(folder, f), os.path.normpath(os.path.join(rel_dir, f)))
+                                count += 1
+                            except OSError as e:
+                                log_files.warning("zip of %s: skipped %s: %s", full, f, e)
+            except OSError as e:
+                log_files.error("zip of %s failed: %s", full, e)
+                self._send(500, "could not make the zip: %s" % e, "text/plain")
+                return
+            size = tmp.tell()
+            tmp.seek(0)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/zip")
+            self.send_header("Content-Length", str(size))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Disposition", "attachment; filename*=UTF-8''%s" % quote(name))
+            self.end_headers()
+            if self.command != "HEAD":
+                shutil.copyfileobj(tmp, self.wfile, 1 << 20)
+        log_files.info("zip of %s: %d files, %d bytes (to %s)", full, count, size, self.client_address[0])
+
     def _files_upload(self):
         folder = self._files_path(self._query("path"))
         name = os.path.basename(self._query("name").replace("\\", "/")).strip()
@@ -2728,6 +2775,45 @@ class Handler(BaseHTTPRequestHandler):
             return
         log_files.info("made folder %s (from %s)", target, self.client_address[0])
         self._json(200, {"ok": True, "message": "made folder %s" % name})
+
+    def _files_rename(self):
+        """Rename a folder of the files folder (the pencil in the Files tab). Not one holding the
+        file loaded in TNG: TNG would lose it."""
+        try:
+            data = json.loads(self._read_body() or b"{}")
+            rel, name = str(data.get("path", "")), str(data.get("name", "")).strip()
+        except (ValueError, AttributeError):
+            self._json(400, {"ok": False, "message": "invalid json"})
+            return
+        full = self._files_path(rel)
+        if not full or full == os.path.realpath(CONFIG.files_dir) or not os.path.isdir(full):
+            self._json(404, {"ok": False, "message": "folder not found"})
+            return
+        if (not name or name in (".", "..") or name.startswith(".") or len(name) > 100
+                or any(c in name for c in '/\\<>:"|?*\0')):
+            self._json(400, {"ok": False, "message": "invalid folder name"})
+            return
+        old = os.path.basename(full)
+        if name == old:
+            self._json(200, {"ok": True, "message": "%s keeps its name" % old})
+            return
+        loaded = HUB.snapshot()[1].get("file")
+        if loaded and norm_path(loaded).startswith(norm_path(full) + os.sep):
+            self._json(409, {"ok": False, "message": "%s holds the file loaded in TNG: it cannot be renamed" % old})
+            return
+        target = os.path.join(os.path.dirname(full), name)
+        # A case-only change on Windows is the same folder: allowed
+        if os.path.exists(target) and os.path.normcase(target) != os.path.normcase(full):
+            self._json(409, {"ok": False, "message": "%s already exists" % name})
+            return
+        try:
+            os.rename(full, target)
+        except OSError as e:
+            log_files.error("renaming %s to %s failed: %s", full, name, e)
+            self._json(500, {"ok": False, "message": "could not rename: %s" % (e.strerror or e)})
+            return
+        log_files.info("renamed folder %s to %s (from %s)", full, name, self.client_address[0])
+        self._json(200, {"ok": True, "message": "renamed %s to %s" % (old, name)})
 
     def _files_move(self):
         """Move a file into another folder of the files folder (drag and drop in the Files tab).

@@ -473,8 +473,8 @@ the page simply loads).
 The menu sits on the left (at the bottom on a phone): **Dashboard**,
 **Planing** (the [Planing page](#planing-rough-stock)), **Materials** (the
 [Materials page](#materials)) and **System** (the [System page](#system-page)).
-The page you are on is highlighted. A red dot on **System** means an update of
-the app or of the OS is available.
+The page you are on is highlighted. A green dot on **System** means an update
+of the app or of the OS is available.
 
 ### E-stop
 
@@ -583,6 +583,9 @@ Settings. The tab only appears when there is a folder.
 
 - Click a folder to open it, and the path at the top to go back. The list
   refreshes by itself every 15 seconds.
+- Per folder: the pencil renames it (not the folder holding the file loaded
+  in TNG), and the arrow downloads it, with everything in it, as a zip.
+  **Download all** does the same for the folder shown.
 - Per file: the eye previews G-code in the 3D view, the sliders open the
   [Feeds & steps](#feeds--steps) window, the arrow downloads the file, and the
   bin deletes it (after asking).

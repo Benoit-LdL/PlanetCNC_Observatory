@@ -517,6 +517,7 @@ const ICONS = {
   down: '<svg viewBox="0 0 24 24"><path d="M12 4v12m0 0-5-5m5 5 5-5M5 20h14"/></svg>',
   del: '<svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
   tune: '<svg viewBox="0 0 24 24"><path d="M4 6h9m4 0h3M4 12h3m4 0h9M4 18h11m4 0h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>',
+  edit: '<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg>',
 };
 let filesPath = '';
 let filesAbs = '';         // the open folder's full path on the Pi
@@ -592,6 +593,7 @@ async function filesLoad(path) {
   }
   filesPath = d.path;
   filesRoot = d.root;
+  $('filesZipBtn').href = '/api/files/zip?path=' + encodeURIComponent(d.path);
   filesAbs = d.abs || '';
   $('filesDirOpenBtn').disabled = !filesAbs || filesAbs === filesDir;
 
@@ -607,7 +609,9 @@ async function filesLoad(path) {
     const rel = joinPath(d.path, e.name);
     const p = esc(rel);
     if (e.dir) {
-      return `<div class="frow" data-folder="${p}"><span class="fname"><button data-open="${p}">📁 ${esc(e.name)}</button></span></div>`;
+      return `<div class="frow" data-folder="${p}"><span class="fname"><button data-open="${p}">📁 ${esc(e.name)}</button></span>`
+        + `<span class="facts"><button class="ficon" data-rename="${p}" title="Rename">${ICONS.edit}</button>`
+        + `<a class="ficon" href="/api/files/zip?path=${encodeURIComponent(rel)}" download title="Download as a zip">${ICONS.down}</a></span></div>`;
     }
     const acts = [
       GCODE_RE.test(e.name) ? `<button class="ficon" data-preview="${p}" title="Preview in 3D view">${ICONS.view}</button>` : '',
@@ -701,6 +705,24 @@ filesPanel.addEventListener('click', async (e) => {
   if (b.dataset.path !== undefined) filesLoad(b.dataset.path);
   else if (b.dataset.open) filesLoad(b.dataset.open);
   else if (b.dataset.tune) openTune(b.dataset.tune, stoppedLineFor(b.dataset.tune));
+  else if (b.dataset.rename) {
+    const path = b.dataset.rename;
+    const old = path.split('/').pop();
+    const name = (prompt(`New name for the folder "${old}":`, old) || '').trim();
+    if (!name || name === old) return;
+    let res;
+    try {
+      const r = await fetch('/api/files/rename', {
+        method: 'POST', headers: { 'X-CNC-Control': '1', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path, name }),
+      });
+      res = await r.json().catch(() => ({ ok: false, message: `HTTP ${r.status}` }));
+    } catch {
+      res = { ok: false, message: 'Server unreachable' };
+    }
+    filesMessage(res.message || (res.ok ? 'Renamed' : 'Rename failed'), res.ok ? 'ok' : 'err');
+    await filesLoad(filesPath);
+  }
   else if (b.dataset.preview) {
     const path = b.dataset.preview;
     try {
@@ -857,6 +879,7 @@ function setTab(tab) {
   $('consoleClearBtn').hidden = tab !== 'console';
   $('filesUploadBtn').hidden = tab !== 'files';
   $('filesMkdirBtn').hidden = tab !== 'files';
+  $('filesZipBtn').hidden = tab !== 'files';
   if (tab === 'console') {
     $('consoleBadge').hidden = true;
     const log = $('consoleLog');
