@@ -114,11 +114,12 @@ export class Viewer {
     // the grid it was ~70 mm wide on a big machine, dwarfing a 6 mm bit.)
     const shankR = Math.min(this.cutterRadius, 6);   // big surfacing bits have a 12 mm shank
     this.holder.scale.setScalar(this.cutter ? Math.max(shankR * 1.6, shankR + 1.5) / 2.2 : s);
-    // ...and see-through, so the cutter is what catches the eye.
+    // ...and see-through, always (the dashboard's generic bit as the planing page's real one),
+    // so the cutter is what catches the eye.
     const m = this.holder.material;
-    m.transparent = !!this.cutter;
-    m.opacity = this.cutter ? 0.25 : 1;
-    m.depthWrite = !this.cutter;
+    m.transparent = true;
+    m.opacity = 0.25;
+    m.depthWrite = false;
     m.needsUpdate = true;
     this.generic.visible = !this.cutter;
     // A real cutter sits on a steel shank, with the holder above it
