@@ -626,6 +626,16 @@ span.ptab::after { display: none; }
 .m3-dlg-head { display: flex; flex-direction: column; gap: 10px; padding: 24px 24px 12px; }
 .m3-dlg-head h2 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 400; }
 .m3-dlg-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 24px 20px; }
+/* Questions and messages (dialog.js) */
+.ask-dlg { width: min(460px, calc(100vw - 32px)); padding: 24px 24px 0; }
+.ask-dlg h2 { margin: 0 0 16px; font-size: 24px; line-height: 32px; font-weight: 400; }
+.ask-dlg.danger h2 { color: var(--md-error); }
+.ask-body { display: flex; flex-direction: column; gap: 12px; color: var(--md-on-surface-variant); font-size: 14px; line-height: 20px; overflow-wrap: anywhere; }
+.ask-body p { margin: 0; }
+.ask-field { margin-top: 12px; }
+.ask-field label { background: var(--md-surface-container-high); }
+.ask-dlg .m3-dlg-foot { padding: 24px 0 20px; }
+.vbtn.danger-fill { background: var(--md-error); color: var(--md-on-error); border-color: transparent; }
 .folder-path { font: 13px/18px var(--mono); color: var(--md-on-surface-variant); overflow-wrap: anywhere; }
 .folder-places { display: flex; flex-wrap: wrap; gap: 8px; }
 .folder-list { flex: 1; min-height: 160px; overflow-y: auto; margin: 0 12px; padding: 4px; border-radius: 12px;

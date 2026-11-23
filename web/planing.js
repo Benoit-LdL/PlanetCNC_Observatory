@@ -4,6 +4,7 @@
 // saved; loading and running it happens at the machine.
 
 import * as THREE from 'three';
+import { ask, askText } from './dialog.js';
 import { Viewer } from './viewer.js';
 import { buildToolpath } from './gcode.js';
 import { planPlaning, DEFAULTS, fmt } from './planing-gcode.js';
@@ -491,10 +492,12 @@ $('matSave').addEventListener('click', async () => {
     message('Fill in spindle speed, feeds, step-down and stepover first.', 'err');
     return;
   }
-  const name = (prompt('Save these cutting values for which material? (e.g. Oak)', $('material').value) || '').trim();
+  const name = await askText({ title: 'Save as a material', text: 'The spindle speed, feeds, step-down and stepover, under the name of a material (e.g. Oak).',
+    label: 'Material', value: $('material').value, ok: 'Save' });
   if (!name) return;
   const existing = Object.keys(presets).find((n) => n.toLowerCase() === name.toLowerCase());
-  if (existing && existing !== $('material').value && !confirm(`Replace the values saved for ${existing}?`)) return;
+  if (existing && existing !== $('material').value
+      && !await ask({ title: 'Replace the material?', text: `${existing} already has cutting values saved.`, ok: 'Replace', danger: true })) return;
   try {
     const res = await presetCall({ action: 'save', name, values });
     renderPresets(res.name);
@@ -508,7 +511,8 @@ $('matSave').addEventListener('click', async () => {
 
 $('matDelete').addEventListener('click', async () => {
   const name = $('material').value;
-  if (!name || !confirm(`Delete the material ${name}? The values in the form stay.`)) return;
+  if (!name || !await ask({ title: 'Delete the material?', text: `${name} is deleted, for every device. The values in the form stay.`,
+    ok: 'Delete', danger: true })) return;
   try {
     await presetCall({ action: 'delete', name });
     renderPresets('');
@@ -575,7 +579,10 @@ $('saveBtn').addEventListener('click', async () => {
   try {
     let res = await upload(name, text, false);
     if (!res.ok && res.exists) {
-      if (!confirm(`${name} already exists in the Files folder. Replace it?`)) { message(''); return; }
+      if (!await ask({ title: 'Replace the file?', text: `${name} already exists in the Files folder.`, ok: 'Replace', danger: true })) {
+        message('');
+        return;   // finally: the button comes back
+      }
       res = await upload(name, text, true);
     }
     if (!res.ok) throw new Error(res.message || 'failed');

@@ -1,4 +1,5 @@
 import { Viewer } from './viewer.js';
+import { ask, askText } from './dialog.js';
 import { buildToolpath, parseTools } from './gcode.js';
 import { log } from './log.js';
 import { initTune, openTune, tuneLogLoad } from './tune-ui.js';
@@ -658,7 +659,7 @@ async function filesUpload(fileList) {
     let res = await uploadOne(url(false), f, progress);
     if (res.exists) {
       dropState('');
-      if (!confirm(`"${f.name}" already exists on the Pi. Replace it?`)) continue;
+      if (!await ask({ title: 'Replace the file?', text: `"${f.name}" already exists on the Pi.`, ok: 'Replace', danger: true })) continue;
       progress(0);
       res = await uploadOne(url(true), f, progress);
     }
@@ -679,7 +680,7 @@ async function filesUpload(fileList) {
 
 $('filesUploadBtn').addEventListener('click', () => $('filesUploadInput').click());
 $('filesMkdirBtn').addEventListener('click', async () => {
-  const name = (prompt(`New folder in ${filesPath || filesRoot}:`) || '').trim();
+  const name = await askText({ title: 'New folder', text: `In ${filesPath || filesRoot}.`, label: 'Name', ok: 'Make' });
   if (!name) return;
   let res;
   try {
@@ -708,7 +709,7 @@ filesPanel.addEventListener('click', async (e) => {
   else if (b.dataset.rename) {
     const path = b.dataset.rename;
     const old = path.split('/').pop();
-    const name = (prompt(`New name for the folder "${old}":`, old) || '').trim();
+    const name = await askText({ title: 'Rename the folder', label: 'New name', value: old, ok: 'Rename' });
     if (!name || name === old) return;
     let res;
     try {
@@ -735,7 +736,8 @@ filesPanel.addEventListener('click', async (e) => {
     }
   } else if (b.dataset.delete) {
     const path = b.dataset.delete;
-    if (!confirm(`Delete "${path.split('/').pop()}" from the Pi?\n\nThis cannot be undone.`)) return;
+    if (!await ask({ title: 'Delete the file?', text: `"${path.split('/').pop()}" is deleted from the Pi. This cannot be undone.`,
+      ok: 'Delete', danger: true })) return;
     let res;
     try {
       const r = await fetch('/api/files/delete', {
@@ -811,7 +813,7 @@ filesPanel.addEventListener('drop', async (e) => {
   };
   let res = await send(false);
   if (res.exists) {
-    if (!confirm(`"${name}" already exists in ${to || filesRoot}. Replace it?`)) return;
+    if (!await ask({ title: 'Replace the file?', text: `"${name}" already exists in ${to || filesRoot}.`, ok: 'Replace', danger: true })) return;
     res = await send(true);
   }
   await filesLoad(filesPath);
@@ -1128,8 +1130,10 @@ $('tgTokenForm').addEventListener('submit', (e) => {
   const token = $('tgToken').value.trim();
   if (token) settingsSave({ telegram_token: token });
 });
-$('tgTokenClear').addEventListener('click', () => {
-  if (confirm('Remove the bot token? No more Telegram messages are sent.')) settingsSave({ telegram_token: '', telegram_chat: '' });
+$('tgTokenClear').addEventListener('click', async () => {
+  if (await ask({ title: 'Remove the bot?', text: 'The bot token is removed: no more Telegram messages are sent.', ok: 'Remove', danger: true })) {
+    settingsSave({ telegram_token: '', telegram_chat: '' });
+  }
 });
 $('tgChatForm').addEventListener('submit', (e) => {
   e.preventDefault();

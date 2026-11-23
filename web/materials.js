@@ -2,6 +2,7 @@
 // to change, add, delete, import and export. Stored by the server in planing_presets.json
 // (/api/planing/presets); renaming is saving under the new name and deleting the old one.
 
+import { ask } from './dialog.js';
 import { followState } from './nav.js';
 import { initSystem, systemOnState } from './system-ui.js';
 
@@ -82,7 +83,8 @@ $('rows').addEventListener('click', async (e) => {
   if (!tr) return;
   const old = tr.dataset.name;
   if (b.dataset.delete !== undefined) {
-    if (!confirm(`Delete the material ${old}?`)) return;
+    if (!await ask({ title: 'Delete the material?', text: `${old} and its cutting values are deleted, for every device.`,
+      ok: 'Delete', danger: true })) return;
     try {
       await call({ action: 'delete', name: old });
       message(`Deleted ${old}.`, 'ok');
@@ -94,7 +96,7 @@ $('rows').addEventListener('click', async (e) => {
     const { name, values, ok } = readRow(tr);
     if (!ok) return;
     const clash = Object.keys(presets).find((n) => n !== old && same(n, name));
-    if (clash && !confirm(`There is already a material called ${clash}. Replace it?`)) return;
+    if (clash && !await ask({ title: 'Replace the material?', text: `There is already a material called ${clash}.`, ok: 'Replace', danger: true })) return;
     try {
       await call({ action: 'save', name, values });
       // Renamed: drop the old name (unless only its case changed: saving already replaced it)
@@ -112,7 +114,7 @@ $('addBtn').addEventListener('click', async () => {
   const { name, values, ok } = readRow(tr);
   if (!ok) { message('Fill in a name and all the values (above 0) first.', 'err'); return; }
   const clash = Object.keys(presets).find((n) => same(n, name));
-  if (clash && !confirm(`There is already a material called ${clash}. Replace it?`)) return;
+  if (clash && !await ask({ title: 'Replace the material?', text: `There is already a material called ${clash}.`, ok: 'Replace', danger: true })) return;
   try {
     await call({ action: 'save', name, values });
     tr.querySelectorAll('input').forEach((el) => { el.value = ''; });
@@ -158,8 +160,9 @@ $('importFile').addEventListener('change', async (e) => {
     return;
   }
   const clashes = list.filter(([n]) => Object.keys(presets).some((p) => same(p, n.trim()))).map(([n]) => n);
-  const replace = !clashes.length || confirm(`These materials already exist: ${clashes.join(', ')}.\n\n`
-    + 'OK replaces them with the imported values, Cancel keeps the ones you have.');
+  const replace = !clashes.length || await ask({ title: 'Some materials already exist',
+    text: `${clashes.join(', ')}.\n\nReplace them with the imported values, or keep the ones you have?`,
+    ok: 'Replace them', cancel: 'Keep mine' });
   let added = 0, failed = 0;
   for (const [name, v] of list) {
     if (!replace && clashes.includes(name)) continue;

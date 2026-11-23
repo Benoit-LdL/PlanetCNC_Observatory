@@ -2,6 +2,7 @@
 // the Pi, saved as a new file) and the Feeds tab (what was changed, and what worked).
 // Nothing here talks to TNG: the new file is loaded in TNG at the machine.
 import { analyze, apply, fmtNum, splitPlan, defaultTop, summarize } from './tune.js';
+import { ask } from './dialog.js';
 import { log } from './log.js';
 
 const $ = (id) => document.getElementById(id);
@@ -236,7 +237,7 @@ async function save() {
   if (cur.edits.every((e) => e.skip)) { message('Every operation is left out: include at least one.', 'err'); return; }
   const sum = summarize(cur.a, cur.edits);
   const changes = sum.some((s) => s.skipped || s.values.some((v) => !sameVal(v.before, v.now)));
-  if (!changes && !confirm('Nothing was changed. Save a copy anyway?')) return;
+  if (!changes && !await ask({ title: 'Nothing was changed', text: 'Save a copy anyway?', ok: 'Save a copy' })) return;
   let result;
   try {
     result = build();
@@ -372,7 +373,8 @@ async function onLogClick(ev) {
   if (!b) return;
   const card = b.closest('.tune-card');
   if (b.dataset.del) {
-    if (!confirm('Remove this entry from the Feeds log? The file itself stays on the Pi.')) return;
+    if (!await ask({ title: 'Remove the entry?', text: 'It is removed from the Feeds log. The file itself stays on the Pi.',
+      ok: 'Remove', danger: true })) return;
     await post({ action: 'delete', id: b.dataset.del });
   } else if (b.dataset.status !== undefined && card) {
     await post({ action: 'update', id: card.dataset.id, status: b.dataset.status });

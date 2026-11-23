@@ -4,6 +4,7 @@
 // The E-stop is the only thing the dashboard can make the machine do. It only switches
 // E-stop ON; releasing it and starting again always happen at the machine.
 import { log } from './log.js';
+import { ask, tell } from './dialog.js';
 import { saveTopbar } from './nav.js';
 
 const $ = (id) => document.getElementById(id);
@@ -69,7 +70,7 @@ async function estop() {
   renderEstop();
   if (!res.ok) {
     log.error(`E-stop failed: ${res.message}`);
-    alert(`E-STOP FAILED: ${res.message || 'no answer'}\n\nUse the E-stop at the machine!`);
+    tell({ title: 'E-stop failed', text: `${res.message || 'No answer'}.\n\nUse the E-stop at the machine!`, danger: true });
   }
 }
 
@@ -323,7 +324,7 @@ async function waitForServer(statusId, message, first, tries) {
 }
 
 async function appRun(path, question) {
-  if (!confirm(question)) return;
+  if (!await ask(question)) return;
   const back = path.endsWith('rollback');
   appBusy = back ? 'Rolling back' : 'Updating';
   setStatus('updStatus', back ? 'Going back to the previous version…' : 'Installing the update…');
@@ -346,9 +347,9 @@ async function appRun(path, question) {
 
 async function osUpgrade() {
   const n = sys?.os?.packages?.length || 0;
-  if (!confirm(`Upgrade ${n} Raspberry Pi OS package${n === 1 ? '' : 's'}?\n\n`
-    + 'This can take several minutes. TNG keeps running, but nothing should run on the machine meanwhile. '
-    + 'Afterwards, restart TNG (or reboot the Pi) so it uses the new libraries.')) return;
+  if (!await ask({ title: `Upgrade ${plural(n, 'package')}?`,
+    text: 'This can take several minutes. TNG keeps running, but nothing should run on the machine meanwhile.\n\n'
+      + 'Afterwards, restart TNG (or reboot the Pi) so it uses the new libraries.', ok: 'Upgrade' })) return;
   setBadge('osAct', 'busy', 'Upgrading');
   const res = await post('/api/system/os/upgrade');
   if (!res.ok) setStatus('osStatus', res.message || 'Failed', 'err');
@@ -357,12 +358,14 @@ async function osUpgrade() {
 
 async function power(action) {
   const q = action === 'reboot'
-    ? 'Reboot the Raspberry Pi?\n\nTNG closes, so the machine can do nothing until TNG is running again. '
-      + 'The dashboard is back once the Pi has started (a minute or two).'
-    : 'Shut down the Raspberry Pi?\n\nTNG closes. To start it again you must switch the Pi off and on at the machine.';
-  if (!confirm(q)) return;
+    ? { title: 'Reboot the Raspberry Pi?', ok: 'Reboot', danger: true,
+        text: 'TNG closes, so the machine can do nothing until TNG is running again.\n\n'
+          + 'The dashboard is back once the Pi has started (a minute or two).' }
+    : { title: 'Shut down the Raspberry Pi?', ok: 'Shut down', danger: true,
+        text: 'TNG closes. To start it again you must switch the Pi off and on at the machine.' };
+  if (!await ask(q)) return;
   const res = await post('/api/system/power', { action });
-  if (!res.ok) { alert(res.message || 'Failed'); return; }
+  if (!res.ok) { tell({ title: action === 'reboot' ? 'Could not reboot' : 'Could not shut down', text: res.message || 'Failed' }); return; }
   $('rebootBtn').disabled = $('poweroffBtn').disabled = true;
   if (action === 'reboot') waitForServer('powerMsg', 'The Pi is rebooting… this page reloads when it is back.', 20000, 240);
   else setStatus('powerMsg', 'The Pi is shutting down. Switch it off and on at the machine to start it again.');
@@ -402,10 +405,12 @@ export function initSystem() {
   document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
   load().then(autoCheck);
   $('updCheckBtn').addEventListener('click', () => checkAll());
-  $('appAct').addEventListener('click', () => appRun('/api/update/apply',
-    `Install ${plural(sys?.app?.commits?.length || 0, 'change')} from GitHub?\n\nThe dashboard restarts and reloads itself; TNG and the machine are not interrupted.`));
-  $('updRollbackBtn').addEventListener('click', () => appRun('/api/update/rollback',
-    'Go back to the version that was installed before the last update?'));
+  $('appAct').addEventListener('click', () => appRun('/api/update/apply', {
+    title: `Install ${plural(sys?.app?.commits?.length || 0, 'change')}?`, ok: 'Install',
+    text: 'The update comes from GitHub. The dashboard restarts and reloads itself; TNG and the machine are not interrupted.' }));
+  $('updRollbackBtn').addEventListener('click', () => appRun('/api/update/rollback', {
+    title: 'Roll back?', ok: 'Roll back',
+    text: 'Go back to the version that was installed before the last update.' }));
   $('osAct').addEventListener('click', osUpgrade);
   for (const btn of document.querySelectorAll('[data-more]')) {
     btn.addEventListener('click', () => {
