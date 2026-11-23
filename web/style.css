@@ -364,17 +364,30 @@ input.bad { border-color: var(--md-error) !important; box-shadow: inset 0 0 0 1p
 .sys-power::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--md-success); }
 .sys-power[data-level="warn"]::before { background: var(--md-warning); }
 .sys-power[data-level="err"]::before { background: var(--md-error); }
-.sys-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 20px; }
-.sys-row { display: grid; grid-template-columns: auto 1fr; gap: 6px 6px; align-items: baseline; font-size: 12px; line-height: 16px; min-width: 0; }
-.sys-row .lbl { font-weight: 500; color: var(--md-on-surface-variant); }
-.sys-row .v { font: 500 12px var(--mono); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
-.sys-row .meter { grid-column: 1 / -1; }
-.meter { height: 4px; border-radius: 2px; background: var(--md-surface-container-highest); overflow: hidden; }
-.meter i { display: block; height: 100%; width: 0; border-radius: 2px; background: var(--md-primary); transition: width .4s; }
-.sys-row[data-level="warn"] .meter i { background: var(--md-warning); }
-.sys-row[data-level="err"] .meter i { background: var(--md-error); }
-.sys-row[data-level="warn"] .v { color: var(--md-warning); }
-.sys-row[data-level="err"] .v { color: var(--md-error); }
+/* The dashboard's Pi card: on a phone only (on a larger screen the rings are in the menu) */
+@media (min-width: 701px) { #sys { display: none !important; } }
+
+/* The Raspberry Pi's health as rings (topbar-boot.js draws them, nav.js fills them in) */
+.pi-gauges { display: flex; flex-direction: column; align-items: center; gap: 10px; text-decoration: none; color: inherit; }
+.rail .pi-gauges { margin-top: auto; padding: 10px 0 4px; border-radius: 16px; width: 72px; }
+.rail .pi-gauges:hover { background: color-mix(in srgb, var(--md-on-surface) 6%, transparent); }
+.pi-gauges.row { flex-direction: row; justify-content: space-around; }
+.gauge { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.gauge svg { width: 44px; height: 44px; transform: rotate(-90deg); fill: none; stroke-width: 4; }
+.gauge .g-track { stroke: var(--md-surface-container-highest); }
+.gauge .g-val { stroke: var(--md-primary); stroke-linecap: round; transition: stroke-dasharray .4s; }
+.gauge[data-level="warn"] .g-val { stroke: var(--md-warning); }
+.gauge[data-level="err"] .g-val { stroke: var(--md-error); }
+.gauge b { position: absolute; top: 0; left: 0; width: 44px; height: 44px; display: flex; align-items: center;
+           justify-content: center; font: 600 13px/1 var(--mono); font-variant-numeric: tabular-nums; }
+.gauge b small { align-self: flex-start; margin-top: 14px; font: 500 8px/1 var(--font); color: var(--md-on-surface-variant); }
+.gauge[data-level="warn"] b { color: var(--md-warning); }
+.gauge[data-level="err"] b { color: var(--md-error); }
+.gauge > span { font-size: 11px; line-height: 14px; font-weight: 500; letter-spacing: .3px; color: var(--md-on-surface-variant); }
+.pi-power { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%;
+            background: var(--md-warning-container); color: var(--md-on-warning-container); }
+.pi-power[data-level="err"] { background: var(--md-error-container); color: var(--md-on-error-container); animation: blink 1s steps(2) infinite; }
+.pi-power svg { width: 16px; height: 16px; fill: currentColor; }
 
 /* ---------- 3D view ---------- */
 .view-panel { position: relative; }
@@ -825,6 +838,8 @@ table.mt { border-collapse: separate; border-spacing: 0 4px; width: 100%; min-wi
           flex-direction: row; justify-content: space-around; gap: 0; background: var(--md-surface-container); }
   .pagelink { flex: 1; width: auto; justify-content: center; }
   .pagelink .ind { width: 64px; }
+  .rail .pi-gauges { display: none !important; }
+  .sys { gap: 8px; }
   .page { padding: 4px 12px 16px; overflow: visible; }
   .layout, .pl-layout { display: flex; flex-direction: column; padding: 4px 12px 16px; }
   .pl-view { height: 66vh; min-height: 340px; flex: none; }

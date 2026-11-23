@@ -28,8 +28,44 @@
         + (on ? ' aria-current="page"' : '') + '><span class="ind"><svg viewBox="0 0 24 24" aria-hidden="true"'
         + (FILLED[p[0]] ? ' class="fill"' : '') + '>' + ICON[p[0]] + '</svg>'
         + (p[0] === 'system' ? '<i class="nav-dot" hidden></i>' : '') + '</span><span>' + p[2] + '</span></a>';
-    }).join('');
+    }).join('')
+      // The Raspberry Pi's health at the bottom of the menu, on every page (filled by nav.js)
+      + '<a class="pi-gauges" href="/system" hidden></a>';
   }
+
+  // Ring gauges for the Pi's health, in every .pi-gauges box (the menu; the dashboard's Pi card
+  // on a phone). pi = {gauges: [{key, label, value, unit, frac, level, tip}], power: {level, text}}
+  // as nav.js makes it, or null to hide them. Shared with nav.js through window.
+  function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  window.piGauges = function (pi) {
+    var boxes = document.querySelectorAll('.pi-gauges');
+    for (var i = 0; i < boxes.length; i++) {
+      var box = boxes[i];
+      box.hidden = !pi || !pi.gauges.length;
+      if (box.hidden) continue;
+      var keys = pi.gauges.map(function (g) { return g.key; }).join(',');
+      if (box.getAttribute('data-keys') !== keys) {
+        box.setAttribute('data-keys', keys);
+        box.innerHTML = pi.gauges.map(function (g) {
+          return '<span class="gauge" data-g="' + g.key + '"><svg viewBox="0 0 40 40" aria-hidden="true">'
+            + '<circle class="g-track" cx="20" cy="20" r="16"/><circle class="g-val" cx="20" cy="20" r="16" pathLength="100"/></svg>'
+            + '<b></b><span>' + esc(g.label) + '</span></span>';
+        }).join('') + '<span class="pi-power" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></span>';
+      }
+      for (var k = 0; k < pi.gauges.length; k++) {
+        var g = pi.gauges[k], el = box.querySelector('[data-g="' + g.key + '"]');
+        el.setAttribute('data-level', g.level);
+        el.title = g.tip;
+        el.querySelector('.g-val').setAttribute('stroke-dasharray', Math.round(Math.max(0, Math.min(1, g.frac)) * 100) + ' 100');
+        el.querySelector('b').innerHTML = esc(g.value) + '<small>' + esc(g.unit) + '</small>';
+      }
+      var pw = box.querySelector('.pi-power');
+      pw.hidden = !pi.power || !pi.power.level;
+      if (pi.power) { pw.setAttribute('data-level', pi.power.level); pw.title = pi.power.text; }
+      box.title = 'Raspberry Pi' + (pi.up ? ' · ' + pi.up : '') + (pi.power && pi.power.level ? ' · ' + pi.power.text : '')
+        + (box.tagName === 'A' ? ' – open the System page' : '');
+    }
+  };
 
   // Day / night
   var root = document.documentElement;
@@ -60,6 +96,7 @@
   if (st && c.status) { st.setAttribute('data-state', c.status[0]); st.textContent = c.status[1]; }
   var dot = nav && nav.querySelector('.nav-dot');
   if (dot) dot.hidden = !c.dot;
+  if (c.pi) window.piGauges(c.pi);
   if (c.estop) {
     // As last shown. Pressing it before this page's first update just asks the server, which
     // refuses when TNG isn't connected - the E-stop only ever switches TNG's E-stop on.

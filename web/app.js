@@ -473,7 +473,6 @@ function onState(s) {
   renderInfo();
   filesUpdate(s);
   tuneSync(s);
-  renderSystem(s.system);
   consoleUpdate(s.console_seq);
   systemOnState(s);
   navOnState(s);
@@ -1212,58 +1211,6 @@ $('logDebug').addEventListener('change', async (e) => {
   }
   logsLoad();
 });
-
-// ---------------------------------------------------------------- Raspberry Pi health
-
-const GB = 1024 ** 3;
-const fmtGB = (used, total) => `${(used / GB).toFixed(1)}/${(total / GB).toFixed(1)} GB`;
-
-/** Fill one meter row. The word next to the value repeats the warning, so it never relies on color alone. */
-function sysRow(id, frac, text, warnAt, errAt, warnWord, errWord) {
-  const row = $(id);
-  row.hidden = frac == null;
-  if (frac == null) return;
-  const level = frac >= errAt ? 'err' : frac >= warnAt ? 'warn' : '';
-  row.dataset.level = level;
-  row.querySelector('.meter i').style.width = Math.max(0, Math.min(1, frac)) * 100 + '%';
-  const v = row.querySelector('.v');
-  v.textContent = v.title = text + (level === 'err' ? ' ' + errWord : level === 'warn' ? ' ' + warnWord : '');
-}
-
-function renderSystem(sys) {
-  $('sys').hidden = !sys;
-  if (!sys) return;
-  sysRow('sysCpuRow', sys.cpu == null ? null : sys.cpu / 100,
-    sys.cpu == null ? '' : Math.round(sys.cpu) + ' %', 0.8, 0.95, 'busy', 'busy');
-  sysRow('sysMemRow', sys.mem_total ? sys.mem_used / sys.mem_total : null,
-    sys.mem_total ? fmtGB(sys.mem_used, sys.mem_total) : '', 0.85, 0.95, 'high', 'full');
-  // Temperature bar spans 20–90 °C; the Pi slows itself down from about 80 °C.
-  sysRow('sysTempRow', sys.temp == null ? null : (sys.temp - 20) / 70,
-    sys.temp == null ? '' : Math.round(sys.temp) + ' °C', (70 - 20) / 70, (80 - 20) / 70, 'warm', 'hot');
-  sysRow('sysDiskRow', sys.disk_total ? sys.disk_used / sys.disk_total : null,
-    sys.disk_total ? fmtGB(sys.disk_used, sys.disk_total) : '', 0.85, 0.95, 'high', 'full');
-
-  // vcgencmd get_throttled bits: 0 under-voltage, 1 frequency capped, 2 throttled, 3 soft temp limit;
-  // bits 16-19 = the same "has happened since boot".
-  const t = sys.throttled;
-  const power = $('sysPower');
-  power.hidden = t == null;
-  if (t != null) {
-    const [level, text] = t & 0x1 ? ['err', 'Under-voltage!']
-      : t & 0x6 ? ['warn', 'Throttled']
-      : t & 0x8 ? ['warn', 'Temperature limit']
-      : t & 0x10000 ? ['warn', 'Under-voltage since boot']
-      : t & 0xE0000 ? ['warn', 'Throttled since boot']
-      : ['', 'Power OK'];
-    power.dataset.level = level;
-    power.textContent = text;
-    power.title = 'vcgencmd get_throttled = 0x' + t.toString(16);
-  }
-  if (sys.uptime != null) {
-    const d = Math.floor(sys.uptime / 86400), h = Math.floor((sys.uptime % 86400) / 3600), m = Math.floor((sys.uptime % 3600) / 60);
-    $('sysUptime').textContent = 'Up ' + (d ? `${d} d ${h} h` : h ? `${h} h ${m} min` : `${m} min`);
-  }
-}
 
 // ---------------------------------------------------------------- connection to the server
 

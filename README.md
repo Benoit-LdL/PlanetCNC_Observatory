@@ -35,7 +35,8 @@ the right.*
 - Live position of every axis (X, Y, Z, plus A, B, C when used), in work or
   machine coordinates, updated 5 times a second.
 - Feed rate, spindle speed, tool number and coordinate system.
-- Status at a glance: running, paused, E-stop, idle or offline.
+- Status at a glance: running, paused, E-stop, idle or offline; the Pi's
+  CPU, memory, temperature and disk as rings in the menu, on every page.
 - A software **E-stop** button, always in view. It is the only thing the
   dashboard can make the machine do; it only switches E-stop on, and releasing
   it happens at the machine.
@@ -138,8 +139,8 @@ the right.*
 
 These were taken with the built-in demo (`python3 server.py --demo`), which
 simulates a job. The demo has no camera and doesn't run on a Pi, so the camera
-card says why it has no picture and the Raspberry Pi card is missing; on the
-real machine the Pi card sits under the job (see the animation above).
+card says why it has no picture, and the Raspberry Pi's health rings show
+made-up values.
 
 ### Desktop
 
@@ -518,14 +519,24 @@ command in TNG. TNG stops the machine at once.
 - **Job:** the loaded file, the progress (percentage and bar), the **line**, **start time, elapsed time** (since the job started, pauses
   included), **time remaining** (TNG's own estimate when it has one) and the
   time of the last update. The console also says how long a job took when it ends.
-- **Raspberry Pi** (on the Pi only): CPU, memory, temperature and disk use, refreshed every 2
-  seconds, plus uptime.
-  - A bar and its value turn amber or red, with a word (busy, high, warm, hot, full), when a
-    value gets high. The Pi slows itself down from about 80 °C.
-  - Next to the title is the power status from the Pi's firmware:
-    **Under-voltage!** means the power supply is too weak right now, and
-    "since boot" means it happened earlier. A weak supply is a common cause of
-    random Pi problems.
+- On a phone, the **Raspberry Pi** card: the Pi's health rings (see below),
+  its uptime and its power status.
+
+### Raspberry Pi health
+
+At the bottom of the menu, on every page, four rings show the Pi's **CPU**,
+**memory** (RAM), **temperature** and **disk** use, refreshed every 2 seconds.
+On a phone they are in the dashboard's Raspberry Pi card instead.
+
+- A ring and its value turn amber or red when a value gets high; hover over a
+  ring for the details and the word (busy, high, warm, hot, full). The
+  temperature ring spans 20 to 90 °C: the Pi slows itself down from about
+  80 °C.
+- A lightning mark under the rings is the power status from the Pi's
+  firmware: amber when the Pi was short of power or throttled earlier, red and
+  blinking for **Under-voltage!** right now. A weak supply is a common cause of
+  random Pi problems.
+- A click on the rings opens the [System page](#system-page).
 
 ### 3D view (middle)
 

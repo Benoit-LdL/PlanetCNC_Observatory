@@ -912,6 +912,21 @@ UPDATE_CHECK_EVERY = 6 * 3600
 UPDATES_OFF_REASON = "updates are not available"
 
 
+
+class DemoStats:
+    """--demo on a computer that isn't a Pi: made-up Pi health, so the rings have something to show."""
+
+    def __init__(self):
+        self.started = time.time() - 2 * 86400 - 7 * 3600
+
+    @property
+    def latest(self):
+        t = time.time()
+        gb = 1024 ** 3
+        return {"cpu": 18 + 8 * math.sin(t / 7), "mem_total": 8 * gb, "mem_used": int((1.9 + 0.1 * math.sin(t / 30)) * gb),
+                "temp": 52 + 3 * math.sin(t / 20), "disk_total": 58 * gb, "disk_used": 11 * gb,
+                "uptime": t - self.started, "throttled": 0}
+
 class Updater:
     def __init__(self):
         self.lock = threading.Lock()
@@ -3371,6 +3386,8 @@ def main():
     NOTIFY = Notifier()
 
     if args.demo:
+        if not SYSTEM:
+            SYSTEM = DemoStats()
         threading.Thread(target=run_demo, daemon=True).start()
         threading.Thread(target=demo_commands, daemon=True).start()
 
