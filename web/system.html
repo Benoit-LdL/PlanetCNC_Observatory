@@ -18,7 +18,7 @@
   <a class="brand" href="/" title="Observatory: the dashboard"><img src="icon-192.png" alt="" width="40" height="40"><span class="brand-text"><b>Observatory</b><span id="machineName">PlanetCNC</span></span></a>
   <span class="topbar-gap"></span>
   <div class="status" id="status" data-state="offline">Offline</div>
-  <button class="estop-btn" data-estop id="estopBtn" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.2 2h7.6L22 8.2v7.6L15.8 22H8.2L2 15.8V8.2z"/><path d="M12 7.5v5.5M12 16.5v.01"/></svg><span class="estop-label">E-STOP</span></button>
+  <button class="estop-btn" data-estop disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.2 2h7.6L22 8.2v7.6L15.8 22H8.2L2 15.8V8.2z"/><path d="M12 7.5v5.5M12 16.5v.01"/></svg><span class="estop-label">E-STOP</span></button>
 </header>
 <div class="shell">
 <nav class="rail" id="pagenav" data-page="system" aria-label="Pages"></nav>
@@ -87,7 +87,7 @@
             <ul class="pkg-list" id="osPkgList" hidden></ul>
             <p class="set-hint" id="osHeld" hidden></p>
             <p class="sys-note" id="osSudo" hidden>To refresh the lists and upgrade from here, run
-              <code>~/PlanetCNC_webapp/tools/setup-sudo.sh</code> on the Pi once (see README).</p>
+              <code>~/PlanetCNC_Observatory/tools/setup-sudo.sh</code> on the Pi once (see README).</p>
           </div>
           <pre class="upd-out" id="osOut" hidden></pre>
         </div>
@@ -110,7 +110,7 @@
           <span class="card-sub">Not while a program runs</span>
         </div>
         <p>TNG closes with the Pi, so the machine can do nothing until TNG runs again.</p>
-        <p class="sys-note" id="powerSudo" hidden>Needs <code>~/PlanetCNC_webapp/tools/setup-sudo.sh</code> on the Pi once (see README).</p>
+        <p class="sys-note" id="powerSudo" hidden>Needs <code>~/PlanetCNC_Observatory/tools/setup-sudo.sh</code> on the Pi once (see README).</p>
         <div class="upd-btns">
           <button class="vbtn" id="rebootBtn" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 2.64-6.36L3 8"/><path d="M3 3v5h5"/></svg>Reboot</button>
           <button class="vbtn danger" id="poweroffBtn" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></svg>Shut down</button>

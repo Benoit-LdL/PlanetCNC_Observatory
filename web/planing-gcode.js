@@ -106,7 +106,7 @@ export function planPlaning(input, { date = new Date() } = {}) {
 
   const L = fmt(p.length), W = fmt(p.width), T = fmt(p.thickness);
   G(`(Planing${p.material ? ': ' + p.material : ''} - stock ${L} x ${W} x ${T} mm)`);
-  G(`(Made with the PlanetCNC web monitor, ${date.toISOString().slice(0, 16).replace('T', ' ')} UTC)`);
+  G(`(Made with PlanetCNC Observatory, ${date.toISOString().slice(0, 16).replace('T', ' ')} UTC)`);
   G(p.zMode === 'top'
     ? '(Z zero: highest point of the stock top)'
     : `(Z zero: spoilboard - stock top at Z${fmt(top)}, ${fmt(p.thickness - p.depth)} mm thick when done)`);

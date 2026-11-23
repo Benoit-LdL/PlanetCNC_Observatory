@@ -8,7 +8,7 @@ const themeColors = () => ({
   top: css('--path-top'), deep: css('--path-deep'), rapid: css('--rapid'), trace: css('--trace'),
 });
 // The tool: a gold (TiN-coated) cutter on a steel shank, in a darker steel holder
-export const TOOL = { cutter: 0xe0b040, shank: 0xb4bcc2, holder: 0x7d868d };
+export const TOOL = { cutter: 0xe0b040, shank: 0xb4bcc2, holder: 0x8c959c };
 const MAX_TRACE_POINTS = 200000;
 
 export class Viewer {

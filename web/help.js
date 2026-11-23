@@ -44,7 +44,7 @@ const hideSoon = () => {
 export function initHelp(root = document) {
   let n = 0;
   for (const group of root.querySelectorAll('.set-group')) {
-    const title = group.querySelector(':scope > h3, :scope > .sys-h > h3');
+    const title = group.querySelector(':scope > h3');
     const items = [...group.querySelectorAll(':scope > .set-help')];
     if (!title || !items.length) continue;
     const btn = document.createElement('button');

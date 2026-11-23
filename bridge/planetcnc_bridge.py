@@ -1,4 +1,4 @@
-"""PlanetCNC web monitor - bridge.
+"""PlanetCNC Observatory - bridge.
 
 Runs INSIDE PlanetCNC TNG's Python interpreter (it needs the `planetcnc` module)
 and connects TNG to server.py.

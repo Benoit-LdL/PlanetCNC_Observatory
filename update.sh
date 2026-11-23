@@ -1,5 +1,5 @@
 #!/bin/sh
-# Update the web monitor from GitHub and install the bridge into TNG.
+# Update Observatory from GitHub and install the bridge into TNG.
 #
 #   ./update.sh            get the latest version
 #   ./update.sh rollback   go back to the version before the last update

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PlanetCNC web monitor - server.
+"""PlanetCNC Observatory - server.
 
 Receives machine state and the loaded G-code program from the bridge script
 running inside PlanetCNC TNG (bridge/planetcnc_bridge.py) and serves a live
@@ -2910,7 +2910,7 @@ class Handler(BaseHTTPRequestHandler):
 # ---------------------------------------------------------------------------
 
 def demo_program():
-    lines = ["(PlanetCNC web monitor - demo program)", "G21 G90 G17", "G54", "T1 M6", "S12000 M3",
+    lines = ["(PlanetCNC Observatory - demo program)", "G21 G90 G17", "G54", "T1 M6", "S12000 M3",
              "G0 Z5", "G0 X0 Y0"]
     # Facing / pocket raster in two depth passes
     for depth in (-1.0, -2.0):
@@ -3144,7 +3144,7 @@ def lan_address():
 
 
 def main():
-    ap = argparse.ArgumentParser(description="PlanetCNC web monitor server")
+    ap = argparse.ArgumentParser(description="PlanetCNC Observatory server")
     ap.add_argument("--host", default="0.0.0.0")
     ap.add_argument("--port", type=int, default=8080)
     ap.add_argument("--token", default=os.environ.get("PCNC_TOKEN", ""),
@@ -3237,7 +3237,7 @@ def main():
         LOG.critical("cannot listen on %s:%d: %s (is another copy already running?)", args.host, args.port, e)
         sys.exit(1)
     address = lan_address() if args.host == "0.0.0.0" else args.host
-    LOG.info("PlanetCNC web monitor on http://%s:%d%s", address, args.port, "  (demo mode)" if args.demo else "")
+    LOG.info("Observatory on http://%s:%d%s", address, args.port, "  (demo mode)" if args.demo else "")
     if sys.stdout.isatty():  # started by hand: say plainly which address to open
         print("\n  Open the dashboard%s:\n"
               "    from another device on your network:  http://%s:%d\n"

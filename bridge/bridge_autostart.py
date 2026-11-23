@@ -1,4 +1,4 @@
-"""Start the web monitor bridge in the background when TNG starts.
+"""Start the Observatory bridge in the background when TNG starts.
 
 Called from TNG's #OnInit event (Profiles/Default/Expr/Expr_WebMonitor.txt):
 

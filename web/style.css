@@ -209,7 +209,6 @@ code { font-family: var(--mono); }
 .panel { min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .card-head { display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 4px 8px 4px 16px; }
 .card-head h2, .sys-head h2 { flex: 1; min-width: 0; margin: 0; font-size: 16px; line-height: 24px; font-weight: 500; letter-spacing: .15px; }
-.card-title { flex: 1; margin: 0; font-size: 22px; line-height: 28px; font-weight: 400; }
 
 /* ---------- buttons ---------- */
 .vbtn {
@@ -618,8 +617,6 @@ span.ptab::after { display: none; }
 
 /* ---------- card pages (Materials, System) ---------- */
 .page-wrap { max-width: var(--page-w); display: flex; flex-direction: column; gap: 16px; }
-.page-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px 16px 8px 20px; }
-.page-head svg { color: var(--md-on-surface-variant); }
 .page-body { padding: 0 20px 20px; }
 
 /* ---------- the System page ---------- */
@@ -643,7 +640,6 @@ span.ptab::after { display: none; }
 .urow-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .urow-name { font-size: 16px; line-height: 24px; font-weight: 500; }
 .urow-ver { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; overflow: hidden; font-size: 13px; color: var(--md-on-surface-variant); }
-.urow-ver.wrap { white-space: normal; }
 .urow-ver code { font: 500 13px var(--mono); }
 .urow-ver .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .urow-ver .dim { color: var(--md-on-surface-variant); font-weight: 400; }
@@ -787,6 +783,8 @@ table.mt { border-collapse: separate; border-spacing: 0 4px; width: 100%; min-wi
   .brand img { width: 34px; height: 34px; border-radius: 9px; }
   .brand-text span { display: none; }
   .brand-text b { font-size: 18px; }
+  .brand { min-width: 0; flex: 0 1 auto; overflow: hidden; }
+  .brand-text b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .topbar .status { height: 28px; padding: 0 8px; gap: 6px; font-size: 12px; }
   .topbar .status::before { width: 8px; height: 8px; }
   .estop-btn { height: 44px; padding: 0 14px 0 10px; font-size: 14px; gap: 8px; border-radius: 14px; }
@@ -811,6 +809,9 @@ table.mt { border-collapse: separate; border-spacing: 0 4px; width: 100%; min-wi
   .urow { grid-template-columns: minmax(0, 1fr) auto; }
   .urow-ic { display: none; }
   .urow-more { grid-column: 1 / -1; }
+}
+@media (max-width: 480px) {
+  .brand-text { display: none; }   /* the logo alone: the status and the E-stop need the room */
 }
 @media (max-width: 380px) {
   .estop-btn .estop-label { letter-spacing: 0; }

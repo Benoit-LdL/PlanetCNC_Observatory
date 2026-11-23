@@ -1,9 +1,9 @@
 #!/bin/sh
-# Let the dashboard's System window upgrade Raspberry Pi OS packages and reboot or
+# Let the dashboard's System page upgrade Raspberry Pi OS packages and reboot or
 # shut down the Pi. Run once on the Pi, as the user that runs server.py:
 #
-#   ~/PlanetCNC_webapp/tools/setup-sudo.sh           allow it
-#   ~/PlanetCNC_webapp/tools/setup-sudo.sh remove    take it away again
+#   ~/PlanetCNC_Observatory/tools/setup-sudo.sh           allow it
+#   ~/PlanetCNC_Observatory/tools/setup-sudo.sh remove    take it away again
 #
 # It writes /etc/sudoers.d/planetcnc-web, which allows exactly these commands as
 # root without a password, and nothing else:
@@ -24,8 +24,8 @@ TMP=$(mktemp)
 trap 'rm -f "$TMP"' EXIT
 # In sudoers, ':' and '=' in arguments must be escaped with a backslash.
 cat > "$TMP" <<'EOF'
-# Written by PlanetCNC_webapp/tools/setup-sudo.sh: what the web dashboard's System window may run as root.
-# Remove with: PlanetCNC_webapp/tools/setup-sudo.sh remove
+# Written by PlanetCNC_Observatory/tools/setup-sudo.sh: what Observatory's System page may run as root.
+# Remove with: PlanetCNC_Observatory/tools/setup-sudo.sh remove
 __USER__ ALL=(root) NOPASSWD: /usr/bin/apt-get update, \
     /usr/bin/apt-get -y -o Dpkg\:\:Options\:\:\=--force-confdef -o Dpkg\:\:Options\:\:\=--force-confold upgrade, \
     /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff
@@ -36,7 +36,7 @@ sudo visudo -cf "$TMP" >/dev/null
 sudo install -m 0440 -o root -g root "$TMP" "$TARGET"
 echo "Installed $TARGET for user $USER_NAME."
 if sudo -u "$USER_NAME" sudo -n -l /usr/bin/systemctl reboot >/dev/null 2>&1; then
-    echo "Check OK. Open the System window in the dashboard and press Check for updates."
+    echo "Check OK. Open the System page in the dashboard."
 else
     echo "Warning: the check failed - is $USER_NAME the user that runs server.py?"
 fi
