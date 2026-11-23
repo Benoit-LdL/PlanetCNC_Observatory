@@ -1,10 +1,10 @@
 <p align="center"><img src="media/icon.webp" alt="Logo: an observatory dome with a telescope, stars and a ringed planet" width="160"></p>
 
-# PlanetCNC Web Monitor
+# PlanetCNC Observatory
 
-A web dashboard for a CNC machine run by PlanetCNC TNG. Open it from any
-computer, tablet or phone on the home network to watch the machine and the job
-it is running.
+**Observatory** is a web dashboard for a CNC machine run by PlanetCNC TNG. Open
+it from any computer, tablet or phone on the home network to watch the machine
+and the job it is running, in day or night mode.
 
 ![The dashboard on the real machine while a job runs, with the live camera at the top left](media/webapp.gif)
 
@@ -100,15 +100,23 @@ the right.*
   on a Materials page where you can change, add, delete, import and export them.
 - The program is saved in the Files folder; you load and run it in TNG.
 
+**Look**
+
+- Material 3 design, in day and night mode: the button at the top left
+  switches, and each browser remembers its choice (the computer's own setting
+  at first). The 3D views follow.
+- The same top bar and menu on every page; on a phone the menu moves to the
+  bottom of the screen.
+
 **The Raspberry Pi and the app**
 
 - Pi health: CPU, memory, temperature, disk use, uptime, and under-voltage or
   throttling warnings from the Pi's firmware.
 - Settings in the page: machine name, camera, Files folder, tool display.
-- A **System** window: the Pi's model, OS, kernel and uptime; one-click
-  updates of the app from GitHub, with rollback (the bridge inside TNG reloads
-  itself, so TNG keeps running); Raspberry Pi OS package upgrades; reboot and
-  shut down the Pi.
+- A **System** page: one-click updates of the app from GitHub, with rollback
+  (the bridge inside TNG reloads itself, so TNG keeps running); Raspberry Pi OS
+  package upgrades; the Pi's model, OS, kernel and uptime, with reboot and shut
+  down.
 - A log with automatic cleanup, readable and downloadable from the dashboard.
 - Works on phones and tablets; several people can watch at the same time.
 - Nothing to install with pip: only Python's standard library on the Pi.
@@ -129,47 +137,56 @@ the right.*
 ## Screenshots
 
 These were taken with the built-in demo (`python3 server.py --demo`), which
-simulates a job. The demo has no camera and doesn't run on a Pi, so these
-screenshots show no camera picture and no Raspberry Pi panel; on the real
-machine they sit at the top and bottom of the left column (see the animation
-above).
+simulates a job. The demo has no camera and doesn't run on a Pi, so the camera
+card says why it has no picture and the Raspberry Pi card is missing; on the
+real machine the Pi card sits under the job (see the animation above).
 
 ### Desktop
 
-![Desktop: position and job on the left, 3D view in the middle, G-code on the right](media/screenshots/desktop.png)
+![Desktop, night mode: camera, position and job on the left, 3D view in the middle, G-code on the right](media/screenshots/desktop.png)
 
-The full layout on a 1920×1080 screen. Left: position, feed, spindle, tool and
-the job's progress and times. Middle: the 3D view with the bed, the toolpath
-(light blue cuts, red rapids), the yellow trace of where the tool has been and
-the tool itself. Right: the G-code, with the line being run highlighted.
+The dashboard on a 1920×1080 screen, in night mode. Left: the camera, the
+position, feed, spindle, tool, and the job's progress and times. Middle: the
+3D view with the machine's travel, the toolpath (light blue cuts, red rapids),
+the yellow trace of where the tool has been, and the tool. Right: the G-code,
+with the line being run highlighted.
+
+![Desktop, day mode: the same dashboard](media/screenshots/desktop-day.png)
+
+The same in day mode: the button at the top left switches.
 
 ![Desktop: the Console tab](media/screenshots/desktop-console.png)
 
-The **Console** tab lists what happened with times, here two demo jobs
-starting and ending, with how long each took.
+The **Console** tab lists what happened with times, here the demo job
+starting and its earlier runs ending, with how long each took.
 
 ![Desktop: the Settings tab](media/screenshots/desktop-settings.png)
 
 The **Settings** tab: machine name, camera, Files folder, how the tool is
-drawn, the way to the System page, and logs.
+drawn, Telegram, timelapse, the way to the System page, and logs.
 
 ![Desktop: the Planing page](media/screenshots/desktop-planing.png)
 
 The **Planing** page: the rough stock and the 50 mm planing bit in the
-machine's travel, with the toolpath. The simulation is in the first pass: the
-front of the stock is planed (light), the back is still rough (dark).
+machine's travel, with the toolpath, and the settings on the right.
+
+![Desktop: the System page](media/screenshots/desktop-system.png)
+
+The **System** page: updates of the app, the bridge in TNG and Raspberry Pi
+OS, and the Pi itself (here the demo PC, with local changes that block an
+update).
 
 ### Phone
 
 <table>
 <tr>
-<td width="25%"><img src="media/screenshots/mobile.png" alt="Phone: position and job"></td>
+<td width="25%"><img src="media/screenshots/mobile.png" alt="Phone: camera and position"></td>
 <td width="25%"><img src="media/screenshots/mobile-3d.png" alt="Phone: 3D view and G-code"></td>
 <td width="25%"><img src="media/screenshots/mobile-console.png" alt="Phone: Console tab"></td>
 <td width="25%"><img src="media/screenshots/mobile-settings.png" alt="Phone: Settings tab"></td>
 </tr>
 <tr>
-<td>Position, feed, spindle and job progress come first.</td>
+<td>Camera, position and job come first.</td>
 <td>Scroll down for the 3D view (one finger rotates, two zoom and pan) and the G-code.</td>
 <td>The Console tab.</td>
 <td>The Settings tab.</td>
@@ -177,10 +194,12 @@ front of the stock is planed (light), the back is still rough (dark).
 </table>
 
 On a phone (here 390×844, an iPhone 14) the columns stack: camera, position
-and job first, then the 3D view, then the tabbed panel.
+and job first, then the 3D view, then the tabbed panel. The menu is at the
+bottom; the top bar keeps the day / night button, the logo, the status and the
+E-stop.
 
 To retake these after changing the page, see `tools/screenshots.py` (runs on a
-PC with Chrome; not needed on the Pi).
+PC with Chrome or Edge; not needed on the Pi).
 
 ## How it works
 
@@ -230,7 +249,7 @@ default the server only accepts a bridge from the Pi itself.
 | `tools/setup-sudo.sh` | Optional: lets the System page upgrade OS packages and reboot the Pi (see [step 7](#7-optional-allow-os-upgrades-and-reboot-from-the-dashboard)). |
 | `tools/screenshots.py` | Retakes the README screenshots from the demo (on a PC, not needed on the Pi). |
 | `media/` | The animation and screenshots in this README. |
-| `web/` | The dashboard page (HTML, CSS, JavaScript). `tune.js` reads and rewrites programs for the Feeds & steps window; `system-ui.js` holds the E-stop button and the System page (`system.html`, `system.js`); `topbar-boot.js` draws the top bar (menu, status, E-stop) before each page is shown and `nav.js` keeps it current; `help.js` the **?** help popups in Settings; `materials.html` and `materials.js` the Materials page; `camera.html` is the camera page on its own; `planing.html`, `planing.js` and `planing-gcode.js` are the Planing page. |
+| `web/` | The pages (HTML, CSS, JavaScript). `style.css` holds the look of every page, day and night; `theme-boot.js` sets the day / night mode before a page is drawn; `fonts/` are Roboto and Roboto Mono, `sky.svg` the faint stars behind the cards. `tune.js` reads and rewrites programs for the Feeds & steps window; `system-ui.js` holds the E-stop button and the System page (`system.html`, `system.js`); `topbar-boot.js` draws the top bar and the menu (and runs the day / night button) before each page is shown, and `nav.js` keeps them current; `help.js` the **?** help popups in Settings; `materials.html` and `materials.js` the Materials page; `camera.html` is the camera page on its own; `planing.html`, `planing.js` and `planing-gcode.js` are the Planing page. |
 | `settings.json` | Created when you change a setting in the dashboard; it also holds the Telegram bot token, so only its owner may read it. Not part of git. |
 | `timelapses/` | The last 20 job timelapses. Not part of git. |
 | `tuning.json` | The Feeds tab's log of adjusted files. Not part of git. |
@@ -242,7 +261,7 @@ default the server only accepts a bridge from the Pi itself.
 - A Raspberry Pi (or another Linux computer) running **PlanetCNC TNG** with
   the machine connected. This guide uses the setup it was written for:
   - user `mekanika`;
-  - app in `/home/mekanika/PlanetCNC_webapp`;
+  - app in `/home/mekanika/PlanetCNC_Observatory`;
   - TNG profile in `/home/mekanika/PlanetCNC/Profiles/Default`.
 
   Replace these with your own where they differ. Where this guide writes
@@ -269,7 +288,7 @@ sudo apt install git ffmpeg
 ### 2. Get the app
 
 ```bash
-git clone https://github.com/Benoit-LdL/PlanetCNC_webapp ~/PlanetCNC_webapp
+git clone https://github.com/Benoit-LdL/PlanetCNC_Observatory ~/PlanetCNC_Observatory
 ```
 
 Keep it a git clone: the dashboard's update button and `update.sh` rely on it.
@@ -278,7 +297,7 @@ Don't edit files in this folder by hand, because changed files block updates.
 ### 3. Try the server
 
 ```bash
-cd ~/PlanetCNC_webapp
+cd ~/PlanetCNC_Observatory
 python3 server.py --demo
 ```
 
@@ -316,7 +335,7 @@ In TNG, open **Settings → Python Library** and enter the full path of the
 ### 5. Install the bridge into TNG
 
 ```bash
-~/PlanetCNC_webapp/update.sh
+~/PlanetCNC_Observatory/update.sh
 ```
 
 This copies three files into TNG's profile:
@@ -347,15 +366,15 @@ with this content (change the user and paths if yours differ):
 
 ```ini
 [Unit]
-Description=PlanetCNC web monitor
+Description=PlanetCNC Observatory
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 User=mekanika
 EnvironmentFile=-/etc/planetcnc-web.env
-WorkingDirectory=/home/mekanika/PlanetCNC_webapp
-ExecStart=/usr/bin/python3 /home/mekanika/PlanetCNC_webapp/server.py
+WorkingDirectory=/home/mekanika/PlanetCNC_Observatory
+ExecStart=/usr/bin/python3 /home/mekanika/PlanetCNC_Observatory/server.py
 Restart=always
 RestartSec=3
 
@@ -385,7 +404,7 @@ from there, the server needs to run those few commands as root. Allow exactly
 those, and nothing else:
 
 ```bash
-~/PlanetCNC_webapp/tools/setup-sudo.sh
+~/PlanetCNC_Observatory/tools/setup-sudo.sh
 ```
 
 It writes `/etc/sudoers.d/planetcnc-web` for the user that runs it (give
@@ -405,8 +424,8 @@ Restart TNG (or the whole Pi). Then check each part:
 |---|---|
 | TNG's output window | `PlanetCNC web bridge: connected to http://127.0.0.1:8080` |
 | `systemctl status planetcnc-web` | `active (running)` |
-| `journalctl -u planetcnc-web -n 20` | `PlanetCNC web monitor on http://<pi-address>:8080` and `bridge: connected from 127.0.0.1` |
-| http://&lt;pi-address&gt;:8080 | Status shows `IDLE` (not `OFFLINE`), the position matches TNG |
+| `journalctl -u planetcnc-web -n 20` | `Observatory on http://<pi-address>:8080` and `bridge: connected from 127.0.0.1` |
+| http://&lt;pi-address&gt;:8080 | Status shows **Idle** (not **Offline**), the position matches TNG |
 
 If something doesn't match, see [Troubleshooting](#troubleshooting).
 
@@ -418,7 +437,7 @@ should go into E-stop. Release it at the machine.
 For testing without the service and the autostart:
 
 ```bash
-cd ~/PlanetCNC_webapp && python3 server.py
+cd ~/PlanetCNC_Observatory && python3 server.py
 ```
 
 and in TNG, **File → Run Python Script** →
@@ -435,24 +454,27 @@ The top bar is the same on every page, and stays still when you move between
 pages (Edge, Chrome and Safari cross-fade the page below it; in other browsers
 the page simply loads).
 
-- The machine's name (set in Settings).
-- The menu: **Dashboard**, **Planing** (the [Planing page](#planing-rough-stock)),
-  **Materials** (the [Materials page](#materials)) and **System** (the
-  [System page](#system-page)). The page you are on is filled in blue. An
-  orange dot on **System** means an update of the app or of the OS is
-  available. On a phone the menu shows only its icons.
-- What the page is about: on the dashboard, the loaded file.
-- The status (on every page):
+- The **day / night** button at the top left. Each browser remembers its
+  choice; at first it follows the computer's own setting.
+- The logo, **Observatory** and the machine's name (set in Settings); a click
+  goes to the dashboard. On a phone only the logo shows.
+- The status:
 
   | Status | Meaning |
   |---|---|
-  | `RUNNING` (green) | A job is running. |
-  | `PAUSED` (yellow) | The job is paused. |
-  | `E-STOP` (red, blinking) | The emergency stop is active. |
-  | `IDLE` | Connected, no job running. |
-  | `OFFLINE` | The server gets no updates from the bridge, or this page lost its connection to the server. |
+  | **Running** (green) | A job is running. |
+  | **Paused** (yellow) | The job is paused. |
+  | **E-stop** (red, blinking dot) | The emergency stop is active. |
+  | **Idle** | Connected, no job running. |
+  | **Offline** (outlined) | The server gets no updates from the bridge, or this page lost its connection to the server. |
 
 - The red **E-STOP** button, see [E-stop](#e-stop).
+
+The menu sits on the left (at the bottom on a phone): **Dashboard**,
+**Planing** (the [Planing page](#planing-rough-stock)), **Materials** (the
+[Materials page](#materials)) and **System** (the [System page](#system-page)).
+The page you are on is highlighted. A red dot on **System** means an update of
+the app or of the OS is available.
 
 ### E-stop
 
@@ -474,10 +496,11 @@ command in TNG. TNG stops the machine at once.
 - The Console and the log say who pressed it (the device's address and
   browser).
 
-### Left panel
+### Left column
 
 - **Camera** at the top:
-  - The green dot means the camera is live; red means no picture.
+  - **Live** (green) means the camera sends a picture; **No picture** (red)
+    that it doesn't.
   - When there is no picture, the panel says **Camera connection doesn't
     work** and why: no camera found on the Pi, the camera set to **Off**,
     ffmpeg not installed, or no picture coming from the camera.
@@ -491,10 +514,10 @@ command in TNG. TNG stops the machine at once.
 - **Position** of each axis. Switch between **Work** and **Machine**
   coordinates with the tabs. A, B and C only appear when they are used.
 - **Feed, spindle, tool, coordinate system.**
-- **Line, progress, start time, elapsed time** (since the job started, pauses
+- **Job:** the loaded file, the progress (percentage and bar), the **line**, **start time, elapsed time** (since the job started, pauses
   included), **time remaining** (TNG's own estimate when it has one) and the
   time of the last update. The console also says how long a job took when it ends.
-- **Raspberry Pi:** CPU, memory, temperature and disk use, refreshed every 2
+- **Raspberry Pi** (on the Pi only): CPU, memory, temperature and disk use, refreshed every 2
   seconds, plus uptime.
   - A bar and its value turn amber or red, with a word (busy, high, warm, hot, full), when a
     value gets high. The Pi slows itself down from about 80 °C.
@@ -518,8 +541,8 @@ command in TNG. TNG stops the machine at once.
     drawing can be from the real path, for example "10k of 480k moves drawn
     (within 0.012 mm)".
 - **The tool** is drawn at its real diameter and shape (flat, ball, bull nose,
-  V-bit or drill) when the size is known and this is turned on in Settings,
-  with a small see-through holder above it. Under the tool
+  V-bit or drill) when the size is known and this is turned on in Settings:
+  a gold cutter on a steel shank, in a see-through holder. Under the tool
   number, the left panel says which size is drawn and where it came from,
   e.g. "Ø6 mm (program)". The size comes from:
   1. the tool comments the CAM program writes at the top of the file, such as
@@ -529,15 +552,15 @@ command in TNG. TNG stops the machine at once.
      (converted when TNG and the program use different units);
   3. otherwise a generic bit sized to the grid.
 - **Trace** (yellow) shows where the tool actually went during this job.
-- **3D / Top / Front / Right** switch the angle; **Fit** shows the bed and the
-  job; **Follow** keeps the tool centred.
-- **Open file** previews a G-code file from your computer, without touching
+- **3D / Top / Front / Right** switch the angle; **Follow** keeps the tool
+  centred; the square button (**Fit**) shows the bed and the job.
+- The file button (**Open file**) previews a G-code file from your computer, without touching
   TNG, so you can check its origin and orientation against the bed. Only this
   screen shows it. **Close preview** goes back to TNG's program.
 - **Mouse:** left-drag rotates (3D only), right-drag pans, the wheel zooms.
   **Touch:** one finger rotates, two fingers zoom and pan.
 
-### G-code, Console, Files and Settings (right)
+### G-code, Console, Files, Feeds and Settings (right)
 
 One panel with a tab for each; it uses the full height of the window.
 
@@ -584,8 +607,8 @@ with it ("ran to the end" or "stopped at line …", with how long it took).
 
 **Settings.**
 
-- **Name:** the machine's name, shown in the top bar and the browser tab, for
-  everyone.
+- **Name:** the machine's name, shown under **Observatory** in the top bar,
+  in the browser tab and in Telegram messages, for everyone.
 - **Camera:** **Automatic** (the first camera found), a specific camera, or
   **Off**. The change applies right away.
   - **Show the camera on the dashboard** shows or hides the camera panel, for
@@ -613,18 +636,18 @@ to `server.py`. Updates keep them.
 
 ### System page
 
-**http://&lt;pi-address&gt;:8080/system**: open it with **System** in the top
-bar (or **Settings → Software and system**).
+**http://&lt;pi-address&gt;:8080/system**: open it with **System** in the menu
+(or **Settings → Software and system**).
 
 - **Updates**, one row per part, like an update manager: its name, the
   installed version (in blue, *installed › new*, when there is an update),
   and on the right **Up-to-date**, **Update** / **Upgrade**, or what is wrong
-  (**Error**, **Blocked**, **Old**...). The **i** opens the details.
+  (**Error**, **Blocked**, **Old**...). The arrow opens the details.
   - Checked each time the page opens: GitHub every time; the OS package lists
     when they are more than 15 minutes old and no program runs (refreshing
     them takes a while and works the Pi hard). The round arrow at the top
     checks both now. The Pi also checks both by itself every 6 hours.
-  - **PlanetCNC Web Monitor:** **Update** installs what is on GitHub. The
+  - **Observatory:** **Update** installs what is on GitHub. The
     details list the new changes and have **Roll back**, see
     [Updating](#updating).
   - **Bridge in TNG:** the version running inside TNG, and whether the copy in
@@ -638,14 +661,15 @@ bar (or **Settings → Software and system**).
     reboot. Packages that need `apt full-upgrade` are listed as held back: do
     those over SSH.
 - **Raspberry Pi:** model, OS, kernel, Python, name and address, how long the
-  Pi and the dashboard server have been running.
-- **Power:** **Reboot** and **Shut down**, after a confirmation. TNG
-  closes with the Pi. After a reboot the page reloads itself when the Pi is
-  back; after a shutdown, switch the Pi off and on to start it again.
+  Pi and the dashboard server have been running, and, in the same card since
+  they belong to the same hardware, **Reboot** and **Shut down**, after a
+  confirmation. TNG closes with the Pi. After a reboot the page reloads itself
+  when the Pi is back; after a shutdown, switch the Pi off and on to start it
+  again.
 
 Upgrading packages, rebooting and shutting down are refused while a program
 runs, and need [step 7](#7-optional-allow-os-upgrades-and-reboot-from-the-dashboard)
-of the installation. Without it the window still shows what can be upgraded,
+of the installation. Without it the page still shows what can be upgraded,
 from the package lists as the Pi last refreshed them.
 
 ### Feeds & steps
@@ -702,7 +726,7 @@ loads or starts anything in TNG. Its E-stop button works as in the top bar.
 
 ### Planing rough stock
 
-**http://&lt;pi-address&gt;:8080/planing** (or **Planing** in the top bar)
+**http://&lt;pi-address&gt;:8080/planing** (or **Planing** in the menu)
 makes the program that planes the top of rough stock flat, with a surfacing
 bit. Millimetres only. Laid out like the dashboard: the 3D view, and the
 settings in the panel on the right.
@@ -767,7 +791,7 @@ program at the machine. The last values entered are remembered in the browser.
 ### Materials
 
 **http://&lt;pi-address&gt;:8080/materials** (or **Materials** in the
-top bar) shows all the Planing page's materials in one table: name, spindle
+menu) shows all the Planing page's materials in one table: name, spindle
 speed, feed, plunge feed, step-down and stepover (% of the bit diameter).
 
 - **Change** a value or the name in a row: the row turns yellow and its
@@ -852,7 +876,7 @@ A job, as it arrives in Telegram (each message with a camera photo):
 or, when it goes wrong:
 
 ```
-🛑 E-STOP on CNC Monitor at line 9779 of kumiko v6.nc
+🛑 E-STOP on PlanetCNC at line 9779 of kumiko v6.nc
 ⏹ Job stopped by E-stop: kumiko v6.nc at line 9779 of 114404 (8 %) after 0:20:00
 ```
 
@@ -1021,7 +1045,7 @@ Good to know:
 
 ## Updating
 
-**From the dashboard:** open the **System** window (button in the top bar).
+**From the dashboard:** open the **System** page (in the menu).
 
 - It shows the installed version and what is on GitHub. GitHub is checked
   each time the page opens, and by the Pi every 6 hours.
@@ -1040,14 +1064,14 @@ Good to know:
 **Over SSH:**
 
 ```bash
-~/PlanetCNC_webapp/update.sh             # latest version
-~/PlanetCNC_webapp/update.sh rollback    # the version before the last update
+~/PlanetCNC_Observatory/update.sh             # latest version
+~/PlanetCNC_Observatory/update.sh rollback    # the version before the last update
 sudo systemctl restart planetcnc-web     # then restart the server
 ```
 
 Notes:
 
-- Files changed by hand in `~/PlanetCNC_webapp` block updates, because git
+- Files changed by hand in `~/PlanetCNC_Observatory` block updates, because git
   would overwrite them. `update.sh` names them. `git checkout -- <file>`
   undoes a change.
 - This version's bridge (version 3) adds the E-stop. A bridge from before
@@ -1057,6 +1081,30 @@ Notes:
   it, restart TNG once at a convenient moment.
 - An update applied with a plain `git pull` doesn't copy the bridge into TNG.
   Use `update.sh`, which does both.
+
+### Moving an install from `PlanetCNC_webapp`
+
+The app used to be called PlanetCNC Web Monitor and lived in
+`~/PlanetCNC_webapp`. To move an existing install to the new folder name, over
+SSH, while no job runs:
+
+```bash
+sudo systemctl stop planetcnc-web
+mv ~/PlanetCNC_webapp ~/PlanetCNC_Observatory
+cd ~/PlanetCNC_Observatory
+git remote set-url origin https://github.com/Benoit-LdL/PlanetCNC_Observatory.git
+./update.sh                                   # latest version, bridge copied into TNG
+sudo sed -i 's#/PlanetCNC_webapp#/PlanetCNC_Observatory#g' /etc/systemd/system/planetcnc-web.service
+grep -n PlanetCNC /etc/systemd/system/planetcnc-web.service   # both paths now say PlanetCNC_Observatory
+sudo systemctl daemon-reload
+sudo systemctl start planetcnc-web
+journalctl -u planetcnc-web -n 20 --no-pager  # "Observatory on http://..."
+```
+
+Settings, the Feeds log, the materials, the logs and the timelapses are inside
+the folder, so they move with it. The sudo rule from `setup-sudo.sh` and the
+bridge in TNG's profile don't refer to the folder: they need no change. The
+service keeps its name, `planetcnc-web`.
 
 ## Logs and debugging
 
@@ -1096,8 +1144,8 @@ Example:
 - **In the dashboard:** **Settings → Logs.** **Show recent** shows the end of
   the log. Choose "Warnings and errors" to see only problems. Each log file
   can be downloaded from there.
-- **On the Pi:** `~/PlanetCNC_webapp/logs/server.log`, for example
-  `tail -f ~/PlanetCNC_webapp/logs/server.log`.
+- **On the Pi:** `~/PlanetCNC_Observatory/logs/server.log`, for example
+  `tail -f ~/PlanetCNC_Observatory/logs/server.log`.
 - **The systemd journal** gets the same lines, except the detailed ones:
   `journalctl -u planetcnc-web -f`.
 - **TNG's output window** shows the bridge's warnings and errors.
@@ -1173,7 +1221,7 @@ Bridge settings (`SERVER_URL`, `TOKEN`, update interval) are at the top of
 `bridge/planetcnc_bridge.py`. `SERVER_URL` stays `http://127.0.0.1:8080` as
 long as the bridge and the server run on the same Pi, so normally nothing needs
 changing there. If you do change them, edit the copy in TNG's
-`Profiles/Default/Scripts/`, not the one in `~/PlanetCNC_webapp` (that would
+`Profiles/Default/Scripts/`, not the one in `~/PlanetCNC_Observatory` (that would
 block updates), and redo the change after each update, which overwrites it.
 
 ## Inside the bridge
@@ -1212,12 +1260,12 @@ Look at **Settings → Logs** first: most problems leave a warning there.
 
 | Symptom | What to check |
 |---|---|
-| Status says `OFFLINE`, but the server answers | The bridge isn't sending. TNG's output window gives the reason: no bridge message at all means it never started (check **Settings → Python Library** in TNG, then restart TNG); "rejected" means `TOKEN` and `--token` differ; "cannot reach" means the server isn't running. |
-| `OFFLINE` on one device while others are fine | That page lost its connection. It reconnects by itself within a few seconds; the log shows `live connection lost` / `back` lines for that device. If it doesn't come back, reload the page. |
-| A dashboard tab won't load or stays `OFFLINE` | Browsers allow 6 connections to one server, and each dashboard tab uses 2 (updates and camera); a camera page uses 1. Close dashboard and camera tabs you don't need. |
+| Status says **Offline**, but the server answers | The bridge isn't sending. TNG's output window gives the reason: no bridge message at all means it never started (check **Settings → Python Library** in TNG, then restart TNG); "rejected" means `TOKEN` and `--token` differ; "cannot reach" means the server isn't running. |
+| **Offline** on one device while others are fine | That page lost its connection. It reconnects by itself within a few seconds; the log shows `live connection lost` / `back` lines for that device. If it doesn't come back, reload the page. |
+| A dashboard tab won't load or stays **Offline** | Browsers allow 6 connections to one server, and each dashboard tab uses 2 (updates and camera); a camera page uses 1. Close dashboard and camera tabs you don't need. |
 | Page doesn't open at all | Is the server running (`systemctl status planetcnc-web`)? Is the address right? `journalctl -u planetcnc-web -n 50` shows why it stopped. |
 | The 3D view stays empty | The device needs internet access to load three.js. |
-| Updates say files were changed locally | Something in `~/PlanetCNC_webapp` was edited by hand. `cd ~/PlanetCNC_webapp && git status` shows what; `git checkout -- <file>` undoes it. |
+| Updates say files were changed locally | Something in `~/PlanetCNC_Observatory` was edited by hand. `cd ~/PlanetCNC_Observatory && git status` shows what; `git checkout -- <file>` undoes it. |
 | No bed grid, only a small grid around zero | TNG's motor limits aren't set (Settings → Motors → Limits). |
 | Camera shows "No camera signal" | Check `ls /dev/video*` and the `pcnc.camera` lines in the log (they include ffmpeg's error). `v4l2-ctl --list-formats-ext` (package `v4l-utils`) lists the sizes the camera supports; set one with `--camera-size`. |
 | No camera panel at all | ffmpeg isn't installed (Settings → Camera says so), Camera is set to **Off**, or no camera is plugged in. After plugging one in, press **Rescan**. |
@@ -1225,7 +1273,7 @@ Look at **Settings → Logs** first: most problems leave a warning there.
 | The E-stop button says it failed with "this TNG has no planetcnc.estop()" | Your TNG version names the function differently. Use the machine's E-stop, and open an issue with your TNG version. |
 | No timelapse video | Look for `pcnc.telegram` lines with "timelapse" in the log: "only 0 photo(s)" means the camera gave no picture; an ffmpeg error says why the video failed. |
 | Telegram or timelapse problems | See [Problems with Telegram](#problems-with-telegram). |
-| OS upgrade or reboot says "not allowed" | Run `~/PlanetCNC_webapp/tools/setup-sudo.sh` on the Pi, as the user the server runs as. |
+| OS upgrade or reboot says "not allowed" | Run `~/PlanetCNC_Observatory/tools/setup-sudo.sh` on the Pi, as the user the server runs as. |
 | Highlighted line is always one off | Start the server with `--line-offset 1` or `--line-offset -1`. |
 | The Pi acts up at random | Look for `under-voltage` in the log or the Pi panel: use a stronger power supply. |
 
@@ -1237,7 +1285,7 @@ sudo rm /etc/systemd/system/planetcnc-web.service
 sudo rm -f /etc/sudoers.d/planetcnc-web
 rm ~/PlanetCNC/Profiles/Default/Expr/Expr_WebMonitor.txt
 rm ~/PlanetCNC/Profiles/Default/Scripts/planetcnc_bridge.py ~/PlanetCNC/Profiles/Default/Scripts/bridge_autostart.py
-rm -rf ~/PlanetCNC_webapp
+rm -rf ~/PlanetCNC_Observatory
 ```
 
 Then restart TNG.
