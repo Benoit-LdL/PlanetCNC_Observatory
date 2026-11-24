@@ -52,7 +52,8 @@ the right.*
 - The machine's real travel area as a grid and box, from TNG's motor limits,
   with the work zero marked.
 - The machine itself (an EVO-M): the frame and its six spoilboards, and the
-  gantry, the X carriage and the spindle moving with the live position.
+  gantry, the X carriage and the spindle moving with the live position (and
+  with the simulated bit on the Planing page).
 - The job's toolpath, shaded by depth, with rapids in red. Large 3D jobs are
   simplified so they stay smooth, within a stated tolerance.
 - The tool at its real diameter and shape (flat, ball, bull nose, V-bit,
@@ -836,7 +837,8 @@ comment so the dashboard draws the bit when the program is loaded.
 
 **The 3D view** shows the machine's travel (from TNG, when the bridge is
 connected), the stock (drawn with a flat top), the toolpath and the
-bit. The page warns when the bit's path leaves the machine's travel: that is
+bit, and with **Machine** the machine itself, its spindle following the
+simulated bit (as on the dashboard; the choice is shared). The page warns when the bit's path leaves the machine's travel: that is
 checked from the *current* work zero, so set X0 Y0 (and Z) on the stock first
 for the check to mean something. Below the view, **Play** runs the simulation
 (1× to 200×; drag the slider to jump): the top turns from rough (dark) to

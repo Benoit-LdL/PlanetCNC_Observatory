@@ -288,6 +288,22 @@ export class Viewer {
     }, undefined, (err) => console.warn('machine model not loaded:', err?.message || err));
   }
 
+  /** Load the machine and let a toggle button show or hide it. Every page with a 3D view shares
+   *  the choice, which each browser remembers. */
+  machineButton(btn, url = 'machine/evo-m.glb') {
+    let shown = true;
+    try { shown = localStorage.getItem('view.machine') !== '0'; } catch { /* storage unavailable */ }
+    btn.classList.toggle('active', shown);
+    this.setMachineVisible(shown);
+    this.loadMachine(url);
+    btn.addEventListener('click', () => {
+      shown = !shown;
+      btn.classList.toggle('active', shown);
+      try { localStorage.setItem('view.machine', shown ? '1' : '0'); } catch { /* not remembered */ }
+      this.setMachineVisible(shown);
+    });
+  }
+
   setMachineVisible(v) {
     this.machineWanted = v;
     if (this.machine) this.machine.group.visible = v && !!this.bed;

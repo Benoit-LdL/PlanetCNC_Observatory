@@ -173,6 +173,7 @@ document.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('clic
   viewer.setView(b.dataset.view);
 }));
 $('fitBtn').addEventListener('click', () => viewer.fit());
+viewer.machineButton($('machineBtn'));
 $('pathBtn').addEventListener('click', () => {
   const on = $('pathBtn').classList.toggle('active');
   if (viewer.path) viewer.path.visible = on;
