@@ -599,6 +599,9 @@ The machine is drawn from `web/machine/evo-m.glb`, a light version (0.4 MB,
 extrusions, the metal plates, the spindle (as a plain cylinder) and the six
 spoilboards. It is placed by assuming that:
 
+- the machine has the 350 mm Z upgrade: the CAD is the 250 mm version, so the
+  script makes the gantry 100 mm taller and the Z slide 100 mm longer
+  (`--z-extra 0` for a 250 mm Z);
 - the travel (TNG's limits) is centred on the frame, in X and in Y;
 - the lowest Z the tool can reach is just above the spoilboards;
 - the machine's X, Y and Z run the same way as the CAD model's.

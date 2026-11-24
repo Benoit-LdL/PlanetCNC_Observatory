@@ -10,7 +10,11 @@ small enough to draw smoothly (the export is 70 MB, 2 million triangles):
   gantry    the side plates and the X beam: moves with Y
   carriage  the X carriage's plates: moves with X (and Y)
   zaxis     the Z slide (its two extrusions and plates) and the spindle: moves with Z (and X, Y)
-The spoilboards are part of the frame: one board (an .obj export in the same coordinates as the
+For the 350 mm Z upgrade of a 250 mm model, Z_EXTRA is added twice: the gantry is made that much
+taller (the side plates grow above the frame, the beam, the carriage and the Z axis go up), and the
+Z slide that much longer (its upper half goes up: its extrusions and front plate grow, its top
+plate rises, the spindle stays at its bottom). The CAD shows the slide at its highest, so the
+spindle's nose there is the top of the Z travel. The spoilboards are part of the frame: one board (an .obj export in the same coordinates as the
 machine, lying where it goes) copied BOARDS times along Y, side by side, towards the middle.
 Coordinates: millimetres, Z up, the frame's middle at X0 Y0 and its top at Z0. Stored in the file
 (extras) for viewer.js: the spindle's nose (where the tool comes out), to put it on the tool, and
@@ -35,6 +39,7 @@ from array import array
 
 CELL = 2.5            # mm: corners closer than this are merged
 BOARDS = 6            # spoilboards on the frame
+Z_EXTRA = 100.0       # mm: the gantry is this much taller and the Z slide this much longer than in the CAD (the 350 mm Z upgrade; 0 for the 250 mm Z)
 # Where the moving parts are, in the CAD's coordinates (mm, Z up), as exported:
 GANTRY_Y = (1140, 1465)       # the gantry's band along Y; it also reaches above the frame's top
 CARRIAGE_X = (-310, -128)     # the X carriage on the beam
@@ -242,6 +247,7 @@ def main():
     ap.add_argument('--out', default=os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'web', 'machine', 'evo-m.glb'))
     ap.add_argument('--spoilboard', help="one spoilboard, exported as .obj (mm, Z up, in the machine model's own coordinates)")
     ap.add_argument('--boards', type=int, default=BOARDS, help='how many spoilboards (default %(default)s)')
+    ap.add_argument('--z-extra', type=float, default=Z_EXTRA, help='mm to add to the gantry height and the Z slide (default %(default)s)')
     ap.add_argument('--report', action='store_true', help='list the kept parts by group, write nothing')
     args = ap.parse_args()
 
@@ -278,13 +284,27 @@ def main():
         gc.extend(bytes(int(max(0, min(1, c)) * 255 + .5) for c in col) * (len(p) // 3))
         gi.extend(v + base for v in t)
 
+    # The Z slide's extrusions: what lies above their middle is moved up by --z-extra
+    slide = [(k[3][2], k[4][2]) for k in kept if k[5] == 'extrusion' and group_of(k[3], k[4], frame_top) == 'zaxis']
+    slide_mid = (min(a for a, _ in slide) + max(b for _, b in slide)) / 2 if slide else None
+
     nose = None
     for pos, idx, col, lo, hi, what in kept:
         if what == 'spindle' and hi[2] - lo[2] >= 200:
             pos, idx = cylinder(lo, hi)   # the spindle's body, without its fins
-        add(group_of(lo, hi, frame_top), pos, idx, col)
-        if what == 'spindle' and (nose is None or lo[2] - shift[2] < nose[2]):
-            nose = ((lo[0] + hi[0]) / 2 - shift[0], (lo[1] + hi[1]) / 2 - shift[1], lo[2] - shift[2])
+        g = group_of(lo, hi, frame_top)
+        e = args.z_extra
+        if e and g != 'frame':
+            def lift(z):
+                if g == 'gantry':   # the side plates grow above the frame; the beam goes up
+                    return e if z > frame_top else 0.0
+                if g == 'zaxis' and what != 'spindle' and slide_mid is not None and z > slide_mid:
+                    return 2 * e    # the Z slide's upper half: the gantry's extra height, and its own
+                return e
+            pos = array('f', (v + lift(v) if k % 3 == 2 else v for k, v in enumerate(pos)))
+        add(g, pos, idx, col)
+        if what == 'spindle' and (nose is None or lo[2] + e - shift[2] < nose[2]):
+            nose = ((lo[0] + hi[0]) / 2 - shift[0], (lo[1] + hi[1]) / 2 - shift[1], lo[2] + e - shift[2])
 
     bed_top = 0.0   # without spoilboards, the tool goes down to the frame's top
     if args.spoilboard:
@@ -312,6 +332,9 @@ def main():
               {'units': 'mm', 'up': 'Z', 'nose': [round(v, 2) for v in nose], 'bed_top': round(bed_top, 2),
                'frame': {'size': [round(fhi[0] - flo[0], 1), round(fhi[1] - flo[1], 1)]},
                'source': os.path.basename(args.source)})
+    if slide:
+        print('Z slide: %.0f mm long; slide and gantry made %.0f mm longer and taller'
+              % (max(b for _, b in slide) - min(a for a, _ in slide), args.z_extra))
     print('nose (where the tool comes out): X %.1f Y %.1f Z %.1f' % nose)
     print('wrote %s (%.1f MB)' % (os.path.normpath(args.out), os.path.getsize(args.out) / 1e6))
 
