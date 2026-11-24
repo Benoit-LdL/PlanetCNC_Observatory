@@ -2287,8 +2287,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
-        for k, v in (extra or {}).items():
+        extra = dict(extra or {})
+        self.send_header("Cache-Control", extra.pop("Cache-Control", "no-store"))
+        for k, v in extra.items():
             self.send_header(k, v)
         self.end_headers()
         if self.command != "HEAD":
@@ -3227,8 +3228,12 @@ class Handler(BaseHTTPRequestHandler):
         ctype = mimetypes.guess_type(full)[0] or "application/octet-stream"
         if full.endswith(".js"):
             ctype = "text/javascript"
+        # The machine model is big and rarely changes: browsers may keep it for an hour
+        cache = {"Cache-Control": "max-age=3600"} if full.endswith(".glb") else None
+        if full.endswith(".glb"):
+            ctype = "model/gltf-binary"
         with open(full, "rb") as f:
-            self._send(200, f.read(), ctype)
+            self._send(200, f.read(), ctype, cache)
 
     def _sse(self):
         self.send_response(200)

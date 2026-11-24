@@ -243,3 +243,7 @@ planing_presets.json.tmp
 # Planing bits of the /planing page, saved on the Pi
 planing_bits.json
 planing_bits.json.tmp
+
+# The complete CAD exports of the machine (tens of MB); tools/machine_model.py
+# makes the light web/machine/evo-m.glb from them
+CAD/
