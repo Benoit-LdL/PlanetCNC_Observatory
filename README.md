@@ -51,6 +51,8 @@ the right.*
 
 - The machine's real travel area as a grid and box, from TNG's motor limits,
   with the work zero marked.
+- The machine itself (an EVO-M): the frame, and the gantry, the X carriage and
+  the spindle moving with the live position.
 - The job's toolpath, shaded by depth, with rapids in red. Large 3D jobs are
   simplified so they stay smooth, within a stated tolerance.
 - The tool at its real diameter and shape (flat, ball, bull nose, V-bit,
@@ -257,8 +259,9 @@ default the server only accepts a bridge from the Pi itself.
 | `update.sh` | Gets the latest version from GitHub and copies the bridge files into TNG's profile. |
 | `tools/setup-sudo.sh` | Optional: lets the System page upgrade OS packages and reboot the Pi (see [step 7](#7-optional-allow-os-upgrades-and-reboot-from-the-dashboard)). |
 | `tools/screenshots.py` | Retakes the README screenshots from the demo (on a PC, not needed on the Pi). |
+| `tools/machine_model.py` | Makes the light machine model `web/machine/evo-m.glb` from the complete CAD export (on a PC, not needed on the Pi; see [The machine in the 3D view](#the-machine-in-the-3d-view)). |
 | `media/` | The animation and screenshots in this README. |
-| `web/` | The pages (HTML, CSS, JavaScript). `style.css` holds the look of every page, day and night; `theme-boot.js` sets the day / night mode before a page is drawn; `fonts/` are Roboto and Roboto Mono, `sky.svg` the faint stars behind the cards (moved by `topbar-boot.js` as the page scrolls). `tune.js` reads and rewrites programs for the Feeds & steps window; `system-ui.js` holds the E-stop button and the System page (`system.html`, `system.js`); `topbar-boot.js` draws the top bar and the menu (and runs the day / night button) before each page is shown, and `nav.js` keeps them current; `help.js` the **?** help popups in Settings; `settings.html` and `settings.js` the Settings page; `materials.html` and `materials.js` the Materials page (materials and planing bits); `camera.html` is the camera page on its own; `planing.html`, `planing.js` and `planing-gcode.js` are the Planing page. |
+| `web/` | The pages (HTML, CSS, JavaScript). `style.css` holds the look of every page, day and night; `theme-boot.js` sets the day / night mode before a page is drawn; `fonts/` are Roboto and Roboto Mono, `sky.svg` the faint stars behind the cards (moved by `topbar-boot.js` as the page scrolls). `tune.js` reads and rewrites programs for the Feeds & steps window; `system-ui.js` holds the E-stop button and the System page (`system.html`, `system.js`); `topbar-boot.js` draws the top bar and the menu (and runs the day / night button) before each page is shown, and `nav.js` keeps them current; `help.js` the **?** help popups in Settings; `settings.html` and `settings.js` the Settings page; `materials.html` and `materials.js` the Materials page (materials and planing bits); `camera.html` is the camera page on its own; `planing.html`, `planing.js` and `planing-gcode.js` are the Planing page; `machine/evo-m.glb` is the machine drawn in the 3D view. |
 | `settings.json` | Created when you change a setting in the dashboard; it also holds the Telegram bot token, so only its owner may read it. Not part of git. |
 | `timelapses/` | The last 20 job timelapses. Not part of git. |
 | `tuning.json` | The Feeds tab's log of adjusted files. Not part of git. |
@@ -562,7 +565,8 @@ On a phone they are in the dashboard's Raspberry Pi card instead.
     (within 0.012 mm)".
 - **The tool** is drawn at its real diameter and shape (flat, ball, bull nose,
   V-bit or drill) when the size is known and this is turned on in Settings:
-  a gold cutter on a steel shank, in a see-through holder. Under the tool
+  a gold cutter on a steel shank, under the spindle (or in a see-through
+  holder when the machine is hidden). Under the tool
   number, the left panel says which size is drawn and where it came from,
   e.g. "Ø6 mm (program)". The size comes from:
   1. the tool comments the CAM program writes at the top of the file, such as
@@ -571,14 +575,43 @@ On a phone they are in the dashboard's Raspberry Pi card instead.
   2. otherwise the diameter TNG reports for the loaded tool, if it has one
      (converted when TNG and the program use different units);
   3. otherwise a generic bit sized to the grid.
+- **Machine** shows the machine around the travel: the frame stays still, the
+  gantry moves with Y, the X carriage with X and the spindle with Z, so the
+  spindle's nose always sits on the tool. It needs TNG's limits (the travel)
+  to know where to go, so it is hidden without them. Turn it off to see only
+  the job; the choice is remembered in this browser.
 - **Trace** (yellow) shows where the tool actually went during this job.
 - **3D / Top / Front / Right** switch the angle; **Follow** keeps the tool
-  centred; the square button (**Fit**) shows the bed and the job.
-- The file button (**Open file**) previews a G-code file from your computer, without touching
+  centred.
+- The buttons at the top right of the view: **Fit** (the square) shows the
+  bed, the job and the machine; the file button (**Open file**) previews a G-code file from your computer, without touching
   TNG, so you can check its origin and orientation against the bed. Only this
   screen shows it. **Close preview** goes back to TNG's program.
 - **Mouse:** left-drag rotates (3D only), right-drag pans, the wheel zooms.
   **Touch:** one finger rotates, two fingers zoom and pan.
+
+#### The machine in the 3D view
+
+The machine is drawn from `web/machine/evo-m.glb`, a light version (about
+1 MB, 50k triangles) of the complete CAD model of the EVO-M. It is placed by
+assuming that:
+
+- the travel (TNG's limits) is centred on the frame, in X and in Y;
+- the lowest Z the tool can reach is just above the frame's top;
+- the machine's X, Y and Z run the same way as the CAD model's.
+
+If the drawing is off on your machine, that's the place to look. To make the
+model again after changing the CAD (on a PC, with Python 3; the complete export
+is too big for git, so `CAD/` is not part of it):
+
+```
+python tools/machine_model.py "CAD/EVO-M V1.0.glb"
+```
+
+It leaves out the screws, nuts and bolts, simplifies the rest, and sorts the
+parts into the frame, the gantry, the X carriage and the Z axis by where they
+are in the CAD. The boxes it uses for that are at the top of the script;
+`--report` lists the parts per group without writing anything.
 
 ### G-code, Console, Files and Feeds (right)
 

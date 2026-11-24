@@ -238,8 +238,8 @@ code { font-family: var(--mono); }
 .vbtn:disabled { opacity: .38; cursor: not-allowed; }
 a.linkbtn { text-decoration: none; }
 /* Filter chips: Follow, Trace, Toolpath */
-.vbtn.toggle { height: 32px; padding: 0 12px; border-radius: 8px; border-color: var(--md-outline); color: var(--md-on-surface-variant); }
-.vbtn.toggle.active { border-color: transparent; color: var(--md-on-secondary-container); padding-left: 8px; }
+.vbtn.toggle { height: 32px; padding: 0 10px; border-radius: 8px; border-color: var(--md-outline); color: var(--md-on-surface-variant); }
+.vbtn.toggle.active { border-color: transparent; color: var(--md-on-secondary-container); padding-left: 6px; gap: 6px; }
 .vbtn.toggle.active::before, .seg > .active::before, .tabs > .tab.active::before {
   content: ""; width: 18px; height: 18px; flex: none; background: currentColor; -webkit-mask: var(--check) center / contain no-repeat; mask: var(--check) center / contain no-repeat;
 }
@@ -403,7 +403,7 @@ input.bad { border-color: var(--md-error) !important; box-shadow: inset 0 0 0 1p
 
 /* ---------- 3D view ---------- */
 .view-panel { position: relative; }
-.view-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; }
+.view-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 10px; }
 .view-toolbar .sep { flex: 1; }
 .preview-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 0 8px 8px; padding: 6px 8px 6px 16px;
                border-radius: 12px; background: var(--md-tertiary-container); color: var(--md-on-tertiary-container); }
@@ -412,6 +412,10 @@ input.bad { border-color: var(--md-error) !important; box-shadow: inset 0 0 0 1p
 .preview-text .muted { color: inherit; opacity: .8; }
 .viewport { flex: 1; min-height: 0; position: relative; margin: 0 8px; border-radius: 12px; overflow: hidden; background: var(--view-bg); }
 .viewport canvas { display: block; width: 100%; height: 100%; }
+/* Fit and Open file, in the top-right corner of the 3D view */
+.viewport-tools { position: absolute; top: 8px; right: 8px; z-index: 1; display: flex; flex-direction: column; gap: 6px; }
+.viewport-tools .icon-btn { background: var(--md-surface-container-high); color: var(--md-on-surface);
+                            box-shadow: 0 1px 3px rgba(0, 0, 0, .3); }
 .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; padding: 10px 16px 12px;
           font-size: 12px; line-height: 16px; color: var(--md-on-surface-variant); }
 .viewport .legend { position: absolute; left: 0; bottom: 0; padding: 8px 12px; pointer-events: none; }

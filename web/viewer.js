@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 const css = (name) => new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue(name).trim());
 // The 3D view's colours for the day / night theme (style.css: --view-*, --path-*, --rapid, --trace)
@@ -130,6 +131,7 @@ export class Viewer {
       this.shank.position.z = this.cutterLength;
     }
     this.holder.position.z = this.cutter ? this.cutterLength + shankL : 8 * s;
+    this._placeMachine?.();   // the spindle sits on top of what is drawn of the tool
     this.dirty = true;
   }
 
@@ -255,17 +257,85 @@ export class Viewer {
     const first = !this.bed && bed;
     this.bed = bed;
     this._buildWorld();
+    this._placeMachine();
     if (first) this.fit();
   }
 
-  /** What Fit shows: the program and the machine bed together. */
+  // ---------------- the machine itself ----------------
+
+  /** Load the machine (web/machine/*.glb, made by tools/machine_model.py): a still frame, and the
+   *  gantry, the X carriage and the Z axis that follow the tool. Millimetres, Z up, the frame's
+   *  middle at X0 Y0 and its top at Z0; scene.userData.nose is where the tool comes out. */
+  loadMachine(url) {
+    new GLTFLoader().load(url, (gltf) => {
+      const mat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, metalness: 0.15, roughness: 0.65 });
+      const m = { group: new THREE.Group(), nose: new THREE.Vector3(...(gltf.scene.userData.nose || [0, 0, 0])) };
+      for (const name of ['frame', 'gantry', 'carriage', 'zaxis']) {
+        const node = gltf.scene.getObjectByName(name);
+        const part = new THREE.Group();
+        if (node?.isMesh) part.add(new THREE.Mesh(node.geometry, mat));
+        else node?.traverse((o) => { if (o.isMesh) part.add(new THREE.Mesh(o.geometry, mat)); });
+        m[name] = part;
+        m.group.add(part);
+      }
+      m.group.visible = this.machineWanted !== false;
+      this.machine = m;
+      this.scene.add(m.group);
+      this._placeMachine();
+      if (m.group.visible) this.fit();
+    }, undefined, (err) => console.warn('machine model not loaded:', err?.message || err));
+  }
+
+  setMachineVisible(v) {
+    this.machineWanted = v;
+    if (this.machine) this.machine.group.visible = v && !!this.bed;
+    this._layoutTool();
+    this._placeMachine();
+    if (this.machine) this.fit();
+  }
+
+  /** Put the frame under the machine's travel (centred on it, its top at the lowest Z the tool
+   *  reaches) and the moving parts so that the spindle's nose is just above the tool. Without
+   *  TNG's limits there is no place for it: hidden. */
+  _placeMachine() {
+    const m = this.machine;
+    if (!m) return;
+    const show = this.machineWanted !== false && !!this.bed;
+    m.group.visible = show;
+    this.holder.visible = !show;   // the spindle's own nose is drawn instead
+    if (!show) return;
+    const unit = this.programInches ? 1 / 25.4 : 1;   // the model is in mm, the scene in the program's units
+    const { min, max } = this.bed;
+    m.group.scale.setScalar(unit);
+    m.group.position.set((min[0] + max[0]) / 2, (min[1] + max[1]) / 2, min[2] - 0.5 * unit);
+    // Where the nose has to be, in the model's millimetres: above the tool, at the top of what is
+    // drawn of it (the cutter and its shank)
+    const t = this.tool.position;
+    const nx = (t.x - m.group.position.x) / unit, ny = (t.y - m.group.position.y) / unit;
+    const nz = (t.z + this.holder.position.z - m.group.position.z) / unit;
+    const dx = nx - m.nose.x, dy = ny - m.nose.y, dz = nz - m.nose.z;
+    m.gantry.position.set(0, dy, 0);
+    m.carriage.position.set(dx, dy, 0);
+    m.zaxis.position.set(dx, dy, dz);
+    this.dirty = true;
+  }
+
+  /** What Fit shows: the program and the machine bed together, and the machine when it is shown. */
   _fitBounds() {
     const b = this.hasProgram || !this.bed ? this.bounds : this.bed;
     if (!this.bed) return b;
-    return {
+    const out = {
       min: [0, 1, 2].map((k) => Math.min(b.min[k], this.bed.min[k])),
       max: [0, 1, 2].map((k) => Math.max(b.max[k], this.bed.max[k])),
     };
+    if (this.machine?.group.visible) {
+      const box = new THREE.Box3().setFromObject(this.machine.group);
+      for (const k of [0, 1, 2]) {
+        out.min[k] = Math.min(out.min[k], box.min.getComponent(k));
+        out.max[k] = Math.max(out.max[k], box.max.getComponent(k));
+      }
+    }
+    return out;
   }
 
   // ---------------- program ----------------
@@ -335,6 +405,7 @@ export class Viewer {
   setToolPosition(x, y, z, recordTrace) {
     if (this.tool.position.x !== x || this.tool.position.y !== y || this.tool.position.z !== z) this.dirty = true;
     this.tool.position.set(x, y, z);
+    this._placeMachine();
     if (recordTrace) this._addTrace(x, y, z);
     if (this.follow) this._centerOn(this.tool.position);
   }

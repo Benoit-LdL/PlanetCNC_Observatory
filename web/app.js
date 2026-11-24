@@ -316,6 +316,18 @@ $('followBtn').addEventListener('click', (e) => {
   const on = e.currentTarget.classList.toggle('active');
   viewer.setFollow(on);
 });
+// The machine around the toolpath (web/machine/evo-m.glb); each browser remembers whether it is shown
+let machineShown = true;
+try { machineShown = localStorage.getItem('view.machine') !== '0'; } catch { /* storage unavailable */ }
+$('machineBtn').classList.toggle('active', machineShown);
+viewer.setMachineVisible(machineShown);
+viewer.loadMachine('machine/evo-m.glb');
+$('machineBtn').addEventListener('click', (e) => {
+  machineShown = !machineShown;
+  e.currentTarget.classList.toggle('active', machineShown);
+  try { localStorage.setItem('view.machine', machineShown ? '1' : '0'); } catch { /* not remembered */ }
+  viewer.setMachineVisible(machineShown);
+});
 $('traceBtn').addEventListener('click', (e) => {
   const on = e.currentTarget.classList.toggle('active');
   viewer.setTraceVisible(on);

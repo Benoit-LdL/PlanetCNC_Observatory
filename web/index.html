@@ -99,15 +99,17 @@
       <span class="sep"></span>
       <button class="vbtn toggle" id="followBtn" title="Keep the tool in the middle">Follow</button>
       <button class="vbtn toggle active" id="traceBtn" title="Show where the tool really went">Trace</button>
-      <button class="icon-btn outlined" id="fitBtn" title="Fit the job and the bed" aria-label="Fit the job and the bed"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4"/></svg></button>
-      <button class="icon-btn tonal" id="openBtn" title="Open a G-code file from this computer, to preview it" aria-label="Open a G-code file from this computer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 18v-6M9 15l3-3 3 3"/></svg></button>
+      <button class="vbtn toggle active" id="machineBtn" title="Show the machine: the frame, and the gantry and the spindle following the tool">Machine</button>
       <input type="file" id="fileInput" accept=".nc,.ngc,.gcode,.gc,.tap,.cnc,.txt" hidden>
     </div>
     <div class="preview-bar" id="previewBar" hidden>
       <span class="preview-text">Preview: <b id="previewName"></b> <span class="muted">– only on this screen</span></span>
       <button class="vbtn" id="closePreviewBtn">Close preview</button>
     </div>
-    <div class="viewport" id="viewport"></div>
+    <div class="viewport" id="viewport">
+      <div class="viewport-tools"><button class="icon-btn" id="fitBtn" title="Fit: the job, the bed and the machine" aria-label="Fit the view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4"/></svg></button>
+        <button class="icon-btn" id="openBtn" title="Open a G-code file from this computer, to preview it" aria-label="Open a G-code file from this computer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 18v-6M9 15l3-3 3 3"/></svg></button></div>
+    </div>
     <div class="legend">
       <span><i class="depth-swatch"></i>Toolpath (light = top, dark = deepest)</span>
       <span><i style="background:var(--rapid)"></i>Rapids</span>
