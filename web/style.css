@@ -746,18 +746,20 @@ span.ptab::after { display: none; }
 .upd-out { margin: 0; padding: 10px; border-radius: 8px; background: var(--md-surface-container-lowest); font: 12px/1.45 var(--mono);
            white-space: pre-wrap; max-height: 200px; overflow-y: auto; }
 /* The badge on the right of a row; a button when there is something to do */
-.ubtn { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 16px 0 12px; border: 0; border-radius: 8px;
+/* All the same size, whatever they say, so the rows line up */
+.ubtn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 152px; height: 40px; padding: 0 12px;
+        border: 0; border-radius: 8px;
         background: none; color: var(--md-on-surface-variant); box-shadow: inset 0 0 0 1px var(--md-outline-variant);
         font-size: 13px; font-weight: 500; white-space: nowrap; }
 .ubtn svg { width: 18px; height: 18px; }
 .ubtn[data-kind="ok"] { color: var(--md-success); }
 .ubtn[data-kind="warn"] { color: var(--md-warning); box-shadow: inset 0 0 0 1px var(--md-warning); }
 .ubtn[data-kind="err"] { color: var(--md-error); box-shadow: inset 0 0 0 1px var(--md-error); }
-.ubtn[data-kind="update"] { height: 40px; padding: 0 20px 0 16px; border-radius: 20px; box-shadow: none; cursor: pointer;
+.ubtn[data-kind="update"] { border-radius: 20px; box-shadow: none; cursor: pointer;
                             background: var(--md-primary); color: var(--md-on-primary); font-size: 14px; }
 .ubtn[data-kind="update"]:disabled { opacity: .38; cursor: not-allowed; }
 /* "Up-to-date" that turns into "Check update" on hover: both faces in one cell, so the width stays */
-.ubtn.recheck { display: inline-grid; cursor: pointer; }
+.ubtn.recheck { display: inline-grid; justify-content: stretch; cursor: pointer; }
 .ubtn-face { grid-area: 1 / 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 .ubtn-face.alt { visibility: hidden; }
 .ubtn.recheck:is(:hover, :focus-visible):not(:disabled) { color: var(--md-primary); box-shadow: inset 0 0 0 1px var(--md-primary); }
