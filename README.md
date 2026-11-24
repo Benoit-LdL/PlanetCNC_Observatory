@@ -833,7 +833,7 @@ pass runs the lines back from
 where the last one ended. With **Cut** set to one direction only, the bit
 instead lifts at the end of every line and comes back in a rapid, so each
 line is cut the same way. It starts with `M3` and a `G4` pause for the spindle
-to spin up, and ends with `M5` and the bit above X0 Y0 at the safe height.
+to spin up, before any move (so don't leave the bit touching the stock), and ends with `M5` and the bit above X0 Y0 at the safe height.
 There is no tool change: the bit must already be in the spindle and Z touched
 off. The file starts with comments listing the values, and a Fusion-style tool
 comment so the dashboard draws the bit when the program is loaded.
@@ -861,8 +861,10 @@ them all, change, rename, import or export them, use the
 **Save** writes the program to the top of the Files folder (set in Settings),
 named after the material, size and depth, e.g. `plane_oak_600x200_3mm.nc`; you
 can type another name. If the file exists, it asks before replacing it.
-**Save & load in TNG** saves it the same way, then opens it in TNG, ready to
-run; it is greyed out while the machine runs or TNG isn't connected. Starting
+**Send to TNG** opens it in TNG, ready to run, without saving it in the Files
+folder: it goes to a working file in `sent/` next to the server (only the
+latest one is kept), named as in the name field. It is greyed out while the
+machine runs or TNG isn't connected. Starting
 the program always happens at the machine. The last values entered are remembered in the browser.
 
 ### Materials

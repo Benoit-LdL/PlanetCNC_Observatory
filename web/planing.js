@@ -573,11 +573,10 @@ let busy = false;      // saving or loading
 let tngLoad = 'TNG is not connected';   // why the program can't be loaded in TNG now ('' = it can)
 
 function syncButtons() {
-  const canSave = filesEnabled && !!plan && !plan.errors.length && !busy;
-  $('saveBtn').disabled = !canSave;
-  $('loadBtn').disabled = !canSave || !!tngLoad;
-  $('loadBtn').title = tngLoad || (!filesEnabled ? 'Choose a Files folder in the dashboard\'s Settings first'
-    : 'Save the program, then open it in TNG (it does not start it)');
+  const ready = !!plan && !plan.errors.length && !busy;
+  $('saveBtn').disabled = !ready || !filesEnabled;
+  $('loadBtn').disabled = !ready || !!tngLoad;
+  $('loadBtn').title = tngLoad || 'Open the program in TNG without saving it (it does not start it)';
 }
 
 async function showFolder() {
@@ -640,24 +639,27 @@ $('saveBtn').addEventListener('click', () => withButtons(async () => {
 }));
 
 $('loadBtn').addEventListener('click', () => withButtons(async () => {
-  const name = await saveProgram();
-  if (!name) return;
-  message(`Saved ${esc(name)}. Loading it in TNG…`);
+  if (!plan || plan.errors.length) return;
+  let name = $('fileName').value.trim() || defaultName(lastParams);
+  if (!/\.[a-z0-9]{1,5}$/i.test(name)) name += '.nc';
+  // The program carries the date it was made: rebuild it now, with the values on screen
+  const text = planPlaning(lastParams).text;
+  message('Sending to TNG…');
   let res;
   try {
-    const r = await fetch('/api/tng/open', { method: 'POST', headers: writeHeaders, body: JSON.stringify({ path: name }) });
+    const r = await fetch('/api/tng/send', { method: 'POST', headers: writeHeaders, body: JSON.stringify({ name, text }) });
     res = await r.json().catch(() => ({ ok: false, message: `HTTP ${r.status}` }));
   } catch {
     res = { ok: false, message: 'Server unreachable' };
   }
   if (res.ok && res.loaded) {
-    message(`Saved ${esc(name)} and loaded it in TNG. Start it at the machine.`, 'ok');
-    log.info(`planing: loaded ${name} in TNG`);
+    message(`Loaded ${esc(name)} in TNG (not saved). Start it at the machine.`, 'ok');
+    log.info(`planing: sent ${name} to TNG (${plan.info.passes} passes, ${fmt(lastParams.depth)} mm)`);
   } else if (res.ok) {
-    message(`Saved ${esc(name)}. ${esc(res.message)}: check TNG.`, 'err');
+    message(`${esc(res.message)}: check TNG.`, 'err');
   } else {
-    log.warn(`planing: loading ${name} in TNG failed:`, res.message);
-    message(`Saved ${esc(name)}, but could not load it in TNG: ${esc(res.message || 'failed')}`, 'err');
+    log.warn(`planing: sending ${name} to TNG failed:`, res.message);
+    message(`Could not load it in TNG: ${esc(res.message || 'failed')}`, 'err');
   }
 }));
 

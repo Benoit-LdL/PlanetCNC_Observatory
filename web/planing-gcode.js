@@ -134,12 +134,13 @@ export function planPlaning(input, { date = new Date() } = {}) {
   G(`(Lines run ${fmt(p.clearance)} mm past the edges${p.clearTurn ? ', turning round with the bit clear of the stock' : ''})`);
   G(`(Spindle ${fmt(p.rpm)} rpm, feed ${fmt(p.feed)} mm/min, plunge ${fmt(p.plunge)} mm/min)`);
   G('G21 G90 G94 G17');
-  G(`G0 Z${fmt(safeZ)}`);
+  // Spindle up to speed before the first move, wherever the bit is parked
   G(`M3 S${fmt(p.rpm)}`);
   if (p.dwell > 0) {
     G(`G4 P${fmt(p.dwell)}`);
     moves.push({ x: cur[0], y: cur[1], z: cur[2], rapid: false, feed: 0, dwell: p.dwell, pass: 0 });
   }
+  G(`G0 Z${fmt(safeZ)}`);
   G(`G0 ${xy(cur)}`);
   G(`G0 Z${fmt(startZ + 1)}`);
   go(null, startZ + 1, true, 0, 0);

@@ -1969,6 +1969,8 @@ SETTINGS_FILE = os.path.join(APP_DIR, "settings.json")
 TUNING_FILE = os.path.join(APP_DIR, "tuning.json")   # the feeds log, see TuningLog
 PRESETS_FILE = os.path.join(APP_DIR, "planing_presets.json")   # material presets of the /planing page
 BITS_FILE = os.path.join(APP_DIR, "planing_bits.json")         # planing bits of the /planing page
+SENT_DIR = os.path.join(APP_DIR, "sent")    # programs loaded in TNG without being saved (/api/tng/send)
+MAX_SEND_BYTES = 20 * 2**20
 DEFAULT_NAME = "PlanetCNC"
 OLD_DEFAULT_NAMES = ("CNC Monitor",)   # earlier defaults, saved in settings.json: shown as the new one
 MAX_NAME_LENGTH = 40
@@ -2273,7 +2275,7 @@ class Handler(BaseHTTPRequestHandler):
             took = time.time() - self._started
             path = urlparse(getattr(self, "path", "")).path
             if took > SLOW_REQUEST and path not in ("/api/events", "/api/camera.mjpg", "/api/camera.jpg", "/api/tng/call",
-                                                     "/api/estop", "/api/tng/open",
+                                                     "/api/estop", "/api/tng/open", "/api/tng/send",
                                                      "/api/update/check", "/api/update/apply", "/api/update/rollback",
                                                      "/api/system/os/check"):
                 log_http.warning("slow request: %s %s from %s took %.1f s", self.command, path,
@@ -2381,6 +2383,10 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/tng/open":
             if self._require_writer():
                 self._tng_open()
+            return
+        if path == "/api/tng/send":
+            if self._require_writer():
+                self._tng_send()
             return
         if path == "/api/telegram/test":
             if self._require_writer():
@@ -2622,10 +2628,63 @@ class Handler(BaseHTTPRequestHandler):
             self._json(400, {"ok": False, "message": "expected JSON with a path"})
             return
         full = self._files_path(rel) if rel else None
-        state = HUB.snapshot()[1]
         if not full or not os.path.isfile(full):
-            result = {"ok": False, "message": "file not found in the Files folder"}
-        elif not full.lower().endswith(GCODE_EXTS):
+            self._json(409, {"ok": False, "message": "file not found in the Files folder"})
+            return
+        result = self._open_in_tng(full)
+        self._json(200 if result["ok"] else 409, result)
+
+    def _tng_send(self):
+        """POST /api/tng/send {"name": "plane.nc", "text": "<G-code>"}: load a program in TNG without
+        saving it in the Files folder.
+
+        The text goes to a working file in SENT_DIR (only the latest one is kept), which TNG opens.
+        Loading only, as /api/tng/open.
+        """
+        try:
+            data = json.loads(self._read_body() or b"{}")
+            text = str(data.get("text") or "")
+            name = os.path.basename(str(data.get("name") or "").replace("\\", "/")).strip()
+        except (ValueError, AttributeError):
+            self._json(400, {"ok": False, "message": "expected JSON with a name and a text"})
+            return
+        if not text.strip():
+            self._json(400, {"ok": False, "message": "empty program"})
+            return
+        if len(text) > MAX_SEND_BYTES:
+            self._json(413, {"ok": False, "message": "program larger than %d MB" % (MAX_SEND_BYTES // 2**20)})
+            return
+        name = re.sub(r'[<>:"|?*\x00-\x1f]', "_", name).lstrip(".") or "program.nc"
+        if not name.lower().endswith(GCODE_EXTS):
+            name += ".nc"
+        state = HUB.snapshot()[1]
+        if state.get("running"):
+            # Never touch the file of a program that may be running
+            self._json(409, {"ok": False, "message": "the machine is running - send it when it has stopped"})
+            return
+        full = os.path.join(SENT_DIR, name)
+        try:
+            os.makedirs(SENT_DIR, exist_ok=True)
+            for old in os.listdir(SENT_DIR):      # keep only the program just sent
+                if old != name:
+                    try:
+                        os.remove(os.path.join(SENT_DIR, old))
+                    except OSError:
+                        pass
+            tmp = full + ".part"
+            with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+                f.write(text)
+            os.replace(tmp, full)
+        except OSError as e:
+            self._json(500, {"ok": False, "message": "could not write the program: %s" % e})
+            return
+        result = self._open_in_tng(full)
+        self._json(200 if result["ok"] else 409, result)
+
+    def _open_in_tng(self, full):
+        """Ask TNG to load `full` (a G-code file on this machine); the result for the page."""
+        state = HUB.snapshot()[1]
+        if not full.lower().endswith(GCODE_EXTS):
             result = {"ok": False, "message": "not a G-code file"}
         elif not state["bridge_online"]:
             result = {"ok": False, "message": "TNG bridge is offline"}
@@ -2643,7 +2702,7 @@ class Handler(BaseHTTPRequestHandler):
                 result["loaded"] = self._wait_loaded(full)
                 if not result["loaded"]:
                     result["message"] = "Asked TNG to open it, but TNG doesn't show it as loaded yet"
-        self._json(200 if result["ok"] else 409, result)
+        return result
 
     @staticmethod
     def _wait_loaded(full, timeout=4.0):

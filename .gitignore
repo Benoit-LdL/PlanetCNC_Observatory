@@ -244,6 +244,9 @@ planing_presets.json.tmp
 planing_bits.json
 planing_bits.json.tmp
 
+# Programs sent to TNG from the /planing page without saving them
+sent/
+
 # The complete CAD exports of the machine (tens of MB); tools/machine_model.py
 # makes the light web/machine/evo-m.glb from them
 CAD/
