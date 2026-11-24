@@ -28,13 +28,13 @@ import argparse
 import json
 import math
 import os
+import re
 import struct
 import sys
 from array import array
 
 CELL = 2.5            # mm: corners closer than this are merged
 BOARDS = 6            # spoilboards on the frame
-BOARD_COLOUR = (0.76, 0.62, 0.45)   # MDF
 # Where the moving parts are, in the CAD's coordinates (mm, Z up), as exported:
 GANTRY_Y = (1140, 1465)       # the gantry's band along Y; it also reaches above the frame's top
 CARRIAGE_X = (-310, -128)     # the X carriage on the beam
@@ -161,11 +161,17 @@ def cylinder(lo, hi, segs=32):
 
 
 def read_obj(path):
-    """A Wavefront .obj: (positions [x,y,z...], triangles [i...]); polygons are split into
-    triangles, texture coordinates and normals are ignored."""
-    pos, tris = array('f'), array('I')
+    """A Wavefront .obj: (positions [x,y,z...], triangles [i...], colour (r,g,b)); polygons are
+    split into triangles, texture coordinates and normals are ignored. The colour is the first
+    material's: its Kd in the .mtl file next to it (the one the .obj names, or else one with the
+    .obj's own name), or else the one in its name, as Fusion 360 writes it ("Opaque(89,89,89)")."""
+    pos, tris, col, mtl, lib = array('f'), array('I'), None, None, None
     for line in open(path, encoding='utf-8', errors='replace'):
-        if line.startswith('v '):
+        if line.startswith('mtllib ') and lib is None:
+            lib = os.path.join(os.path.dirname(path), line.split(None, 1)[1].strip())
+        elif line.startswith('usemtl ') and mtl is None:
+            mtl = line.split(None, 1)[1].strip()
+        elif line.startswith('v '):
             pos.extend(float(v) for v in line.split()[1:4])
         elif line.startswith('f '):
             n = len(pos) // 3
@@ -175,7 +181,20 @@ def read_obj(path):
                 tris.extend((ids[0], ids[k], ids[k + 1]))
     if not tris:
         sys.exit('%s: no faces found' % path)
-    return pos, tris
+    if not (lib and os.path.isfile(lib)):
+        lib = os.path.splitext(path)[0] + '.mtl'
+    if mtl and os.path.isfile(lib):
+        current = None
+        for line in open(lib, encoding='utf-8', errors='replace'):
+            w = line.split()
+            if w[:1] == ['newmtl']:
+                current = ' '.join(w[1:])
+            elif w[:1] == ['Kd'] and current == mtl and col is None:
+                col = tuple(float(v) for v in w[1:4])
+    m = re.search(r'\((\d+),\s*(\d+),\s*(\d+)\)', mtl or '')
+    if col is None and m:
+        col = tuple(int(v) / 255 for v in m.groups())
+    return pos, tris, col or (0.6, 0.6, 0.6)
 
 
 def write_glb(path, groups, extras):
@@ -269,12 +288,12 @@ def main():
 
     bed_top = 0.0   # without spoilboards, the tool goes down to the frame's top
     if args.spoilboard:
-        bpos, btris = read_obj(args.spoilboard)
+        bpos, btris, bcol = read_obj(args.spoilboard)
         blo, bhi = bounds(bpos)
         pitch = bhi[1] - blo[1]
         step = -pitch if (blo[1] + bhi[1]) / 2 > shift[1] else pitch   # side by side, towards the middle
         for n in range(args.boards):
-            add('frame', bpos, btris, BOARD_COLOUR, n * step)
+            add('frame', bpos, btris, bcol, n * step)
         bed_top = bhi[2] - frame_top
         print('spoilboards: %d of %.0f x %.0f x %.0f mm, top %.1f mm above the frame'
               % (args.boards, bhi[0] - blo[0], pitch, bhi[2] - blo[2], bed_top))
