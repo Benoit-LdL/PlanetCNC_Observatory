@@ -3228,10 +3228,20 @@ class Handler(BaseHTTPRequestHandler):
         ctype = mimetypes.guess_type(full)[0] or "application/octet-stream"
         if full.endswith(".js"):
             ctype = "text/javascript"
-        # The machine model is big and rarely changes: browsers may keep it for an hour
-        cache = {"Cache-Control": "max-age=3600"} if full.endswith(".glb") else None
+        cache = None
         if full.endswith(".glb"):
+            # The machine model is big and rarely changes: browsers keep it, but ask each time
+            # whether it changed (after an update it may have), and get "304 Not Modified" if not
             ctype = "model/gltf-binary"
+            st = os.stat(full)
+            etag = '"%x-%x"' % (int(st.st_mtime), st.st_size)
+            if self.headers.get("If-None-Match") == etag:
+                self.send_response(304)
+                self.send_header("ETag", etag)
+                self.send_header("Cache-Control", "no-cache")
+                self.end_headers()
+                return
+            cache = {"Cache-Control": "no-cache", "ETag": etag}
         with open(full, "rb") as f:
             self._send(200, f.read(), ctype, cache)
 
