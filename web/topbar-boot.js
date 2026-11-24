@@ -69,6 +69,22 @@
     }
   };
 
+  // Parallax: when the page scrolls, the sky behind the cards follows at a quarter of the speed,
+  // so it seems far away. Only the page itself (the document, or a page's main.page), not the
+  // panels inside it (G-code, console). style.css reads --sky-shift.
+  var skyAt = 0, skyFrame = 0;
+  document.addEventListener('scroll', function (e) {
+    var t = e.target === document ? document.scrollingElement : e.target;
+    if (!t || !(t === document.scrollingElement || (t.classList && t.classList.contains('page')))) return;
+    skyAt = t.scrollTop;
+    if (!skyFrame) {
+      skyFrame = requestAnimationFrame(function () {
+        skyFrame = 0;
+        document.documentElement.style.setProperty('--sky-shift', (-skyAt * 0.25).toFixed(1) + 'px');
+      });
+    }
+  }, { capture: true, passive: true });
+
   // Day / night
   var root = document.documentElement;
   var btn = document.getElementById('themeBtn');

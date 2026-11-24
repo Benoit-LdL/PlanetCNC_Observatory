@@ -97,8 +97,9 @@ body {
 /* The sky behind the cards: stars and planets, barely visible */
 body::before {
   content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  background: url(sky.svg) 0 0 / 720px repeat; opacity: var(--sky-opacity); filter: var(--sky-filter);
+  background: url(sky.svg) 0 var(--sky-shift, 0px) / 720px repeat; opacity: var(--sky-opacity); filter: var(--sky-filter);
 }
+@media (prefers-reduced-motion: reduce) { body::before { background-position: 0 0; } }
 button, input, select, textarea { font: inherit; color: inherit; }
 a { color: var(--md-primary); }
 code { font-family: var(--mono); }
