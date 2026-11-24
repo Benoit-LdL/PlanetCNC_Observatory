@@ -265,11 +265,13 @@ export class Viewer {
 
   /** Load the machine (web/machine/*.glb, made by tools/machine_model.py): a still frame, and the
    *  gantry, the X carriage and the Z axis that follow the tool. Millimetres, Z up, the frame's
-   *  middle at X0 Y0 and its top at Z0; scene.userData.nose is where the tool comes out. */
+   *  middle at X0 Y0 and its top at Z0; scene.userData.nose is where the tool comes out,
+   *  scene.userData.bed_top the spoilboards' top above the frame. */
   loadMachine(url) {
     new GLTFLoader().load(url, (gltf) => {
       const mat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, metalness: 0.15, roughness: 0.65 });
-      const m = { group: new THREE.Group(), nose: new THREE.Vector3(...(gltf.scene.userData.nose || [0, 0, 0])) };
+      const info = gltf.scene.userData;
+      const m = { group: new THREE.Group(), nose: new THREE.Vector3(...(info.nose || [0, 0, 0])), bedTop: info.bed_top || 0 };
       for (const name of ['frame', 'gantry', 'carriage', 'zaxis']) {
         const node = gltf.scene.getObjectByName(name);
         const part = new THREE.Group();
@@ -294,8 +296,8 @@ export class Viewer {
     if (this.machine) this.fit();
   }
 
-  /** Put the frame under the machine's travel (centred on it, its top at the lowest Z the tool
-   *  reaches) and the moving parts so that the spindle's nose is just above the tool. Without
+  /** Put the frame under the machine's travel (centred on it, the spoilboards' top - or the
+   *  frame's, without them - at the lowest Z the tool reaches) and the moving parts so that the spindle's nose is just above the tool. Without
    *  TNG's limits there is no place for it: hidden. */
   _placeMachine() {
     const m = this.machine;
@@ -307,7 +309,7 @@ export class Viewer {
     const unit = this.programInches ? 1 / 25.4 : 1;   // the model is in mm, the scene in the program's units
     const { min, max } = this.bed;
     m.group.scale.setScalar(unit);
-    m.group.position.set((min[0] + max[0]) / 2, (min[1] + max[1]) / 2, min[2] - 0.5 * unit);
+    m.group.position.set((min[0] + max[0]) / 2, (min[1] + max[1]) / 2, min[2] - (m.bedTop + 0.5) * unit);
     // Where the nose has to be, in the model's millimetres: above the tool, at the top of what is
     // drawn of it (the cutter and its shank)
     const t = this.tool.position;

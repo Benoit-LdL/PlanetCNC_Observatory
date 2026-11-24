@@ -51,8 +51,8 @@ the right.*
 
 - The machine's real travel area as a grid and box, from TNG's motor limits,
   with the work zero marked.
-- The machine itself (an EVO-M): the frame, and the gantry, the X carriage and
-  the spindle moving with the live position.
+- The machine itself (an EVO-M): the frame and its six spoilboards, and the
+  gantry, the X carriage and the spindle moving with the live position.
 - The job's toolpath, shaded by depth, with rapids in red. Large 3D jobs are
   simplified so they stay smooth, within a stated tolerance.
 - The tool at its real diameter and shape (flat, ball, bull nose, V-bit,
@@ -575,7 +575,8 @@ On a phone they are in the dashboard's Raspberry Pi card instead.
   2. otherwise the diameter TNG reports for the loaded tool, if it has one
      (converted when TNG and the program use different units);
   3. otherwise a generic bit sized to the grid.
-- **Machine** shows the machine around the travel: the frame stays still, the
+- **Machine** shows the machine around the travel: the frame and the
+  spoilboards stay still, the
   gantry moves with Y, the X carriage with X and the spindle with Z, so the
   spindle's nose always sits on the tool. It needs TNG's limits (the travel)
   to know where to go, so it is hidden without them. Turn it off to see only
@@ -592,12 +593,13 @@ On a phone they are in the dashboard's Raspberry Pi card instead.
 
 #### The machine in the 3D view
 
-The machine is drawn from `web/machine/evo-m.glb`, a light version (about
-1 MB, 50k triangles) of the complete CAD model of the EVO-M. It is placed by
-assuming that:
+The machine is drawn from `web/machine/evo-m.glb`, a light version (0.4 MB,
+20k triangles) of the complete CAD model of the EVO-M: only the aluminium
+extrusions, the metal plates, the spindle (as a plain cylinder) and the six
+spoilboards. It is placed by assuming that:
 
 - the travel (TNG's limits) is centred on the frame, in X and in Y;
-- the lowest Z the tool can reach is just above the frame's top;
+- the lowest Z the tool can reach is just above the spoilboards;
 - the machine's X, Y and Z run the same way as the CAD model's.
 
 If the drawing is off on your machine, that's the place to look. To make the
@@ -605,12 +607,14 @@ model again after changing the CAD (on a PC, with Python 3; the complete export
 is too big for git, so `CAD/` is not part of it):
 
 ```
-python tools/machine_model.py "CAD/EVO-M V1.0.glb"
+python tools/machine_model.py "CAD/EVO-M V1.0.glb" --spoilboard CAD/spoilboard.obj
 ```
 
-It leaves out the screws, nuts and bolts, simplifies the rest, and sorts the
-parts into the frame, the gantry, the X carriage and the Z axis by where they
-are in the CAD. The boxes it uses for that are at the top of the script;
+It keeps the extrusions, plates and spindle (recognised by their shape) and
+leaves out the motors, wheels, bearings, leadscrew and screws, simplifies what
+is left, and sorts it into the frame, the gantry, the X carriage and the Z axis
+by where it is in the CAD. The spoilboard (one board, exported in the same
+coordinates) is laid six times side by side; `--boards` changes the count. The boxes it uses for that are at the top of the script;
 `--report` lists the parts per group without writing anything.
 
 ### G-code, Console, Files and Feeds (right)
