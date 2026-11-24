@@ -298,6 +298,7 @@ function readForm() {
       : TEXT_FIELDS.has(f) ? el.value : (el.value.trim() === '' ? NaN : Number(el.value));
   }
   p.material = $('material').value;
+  p.bit = $('bit').value;
   return p;
 }
 
@@ -336,7 +337,8 @@ function update() {
   const ax = p.direction === 'y' ? 'Y' : 'X';
   $('cutWay').options[1].textContent = `+${ax} only`;
   $('cutWay').options[2].textContent = `−${ax} only`;
-  showMaterialChanged(p);
+  materials.showChanged(p);
+  bits.showChanged(p);
 
   const notes = result.errors.map((e) => `<li class="err">${esc(e)}</li>`);
   if (result.errors.length) {
@@ -443,91 +445,112 @@ async function pollState() {
   setTimeout(pollState, document.visibilityState === 'visible' ? 1000 : 5000);
 }
 
-// ---------------------------------------------------------------- material presets
+// ---------------------------------------------------------------- materials and bits
+// Named values kept on the Pi (the Materials page shows them all): a material holds the cutting
+// values, a bit its diameter. Picking one fills in the form; "Changed" shows when the form no
+// longer matches it; Save as... and Delete change the list.
 
-let presets = {};
+function library(cfg) {
+  // cfg: {api, select, save, del, changed, none, what, fields: {stored key: form field}, ask}
+  const sel = $(cfg.select);
+  const keys = Object.entries(cfg.fields);
+  const lib = { items: {} };
 
-function renderPresets(select) {
-  const names = Object.keys(presets).sort((a, b) => a.localeCompare(b));
-  const cur = select ?? $('material').value;
-  $('material').innerHTML = '<option value="">No material</option>' +
-    names.map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
-  $('material').value = names.includes(cur) ? cur : '';
-  $('matDelete').disabled = !$('material').value;
-}
-
-function showMaterialChanged(p) {
-  const pr = presets[p.material];
-  $('matChanged').hidden = !pr || PRESET_KEYS.every((k) => pr[k] === p[k]);
-}
-
-async function loadPresets(select) {
-  try {
-    const d = await (await fetch('/api/planing/presets', { cache: 'no-store' })).json();
-    presets = d.presets || {};
-  } catch { presets = {}; }
-  renderPresets(select);
-}
-
-$('material').addEventListener('change', () => {
-  const pr = presets[$('material').value];
-  if (pr) fillForm(pr);
-  $('matDelete').disabled = !$('material').value;
-  schedule();
-});
-
-async function presetCall(body) {
-  const r = await fetch('/api/planing/presets', { method: 'POST', headers: writeHeaders, body: JSON.stringify(body) });
-  const res = await r.json().catch(() => ({ ok: false, message: `HTTP ${r.status}` }));
-  if (!res.ok) throw new Error(res.message || 'failed');
-  presets = res.presets || presets;
-  return res;
-}
-
-$('matSave').addEventListener('click', async () => {
-  const p = readForm();
-  const values = Object.fromEntries(PRESET_KEYS.map((k) => [k, p[k]]));
-  if (!PRESET_KEYS.every((k) => Number.isFinite(values[k]) && values[k] > 0)) {
-    message('Fill in spindle speed, feeds, step-down and stepover first.', 'err');
-    return;
+  lib.render = (pick) => {
+    const names = Object.keys(lib.items).sort((a, b) => a.localeCompare(b));
+    const cur = pick ?? sel.value;
+    sel.innerHTML = `<option value="">${cfg.none}</option>` + names.map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+    sel.value = names.includes(cur) ? cur : '';
+    $(cfg.del).disabled = !sel.value;
+  };
+  lib.showChanged = (p) => {
+    const it = lib.items[sel.value];
+    $(cfg.changed).hidden = !it || keys.every(([k, f]) => it[k] === p[f]);
+  };
+  lib.load = async (pick) => {
+    try {
+      lib.items = (await (await fetch(cfg.api, { cache: 'no-store' })).json()).presets || {};
+    } catch { lib.items = {}; }
+    lib.render(pick);
+  };
+  async function call(body) {
+    const r = await fetch(cfg.api, { method: 'POST', headers: writeHeaders, body: JSON.stringify(body) });
+    const res = await r.json().catch(() => ({ ok: false, message: `HTTP ${r.status}` }));
+    if (!res.ok) throw new Error(res.message || 'failed');
+    lib.items = res.presets || lib.items;
+    return res;
   }
-  const name = await askText({ title: 'Save as a material', text: 'The spindle speed, feeds, step-down and stepover, under the name of a material (e.g. Oak).',
-    label: 'Material', value: $('material').value, ok: 'Save' });
-  if (!name) return;
-  const existing = Object.keys(presets).find((n) => n.toLowerCase() === name.toLowerCase());
-  if (existing && existing !== $('material').value
-      && !await ask({ title: 'Replace the material?', text: `${existing} already has cutting values saved.`, ok: 'Replace', danger: true })) return;
-  try {
-    const res = await presetCall({ action: 'save', name, values });
-    renderPresets(res.name);
-    showMaterialChanged(readForm());
-    message(`Saved the cutting values for ${esc(res.name)}.`, 'ok');
-    schedule();   // the file name follows the material
-  } catch (e) {
-    message('Could not save the material: ' + esc(e.message), 'err');
-  }
-});
 
-$('matDelete').addEventListener('click', async () => {
-  const name = $('material').value;
-  if (!name || !await ask({ title: 'Delete the material?', text: `${name} is deleted, for every device. The values in the form stay.`,
-    ok: 'Delete', danger: true })) return;
-  try {
-    await presetCall({ action: 'delete', name });
-    renderPresets('');
-    message(`Deleted ${esc(name)}.`, 'ok');
+  sel.addEventListener('change', () => {
+    const it = lib.items[sel.value];
+    if (it) fillForm(Object.fromEntries(keys.map(([k, f]) => [f, it[k]])));
+    $(cfg.del).disabled = !sel.value;
     schedule();
-  } catch (e) {
-    message('Could not delete the material: ' + esc(e.message), 'err');
-  }
+  });
+
+  $(cfg.save).addEventListener('click', async () => {
+    const p = readForm();
+    const values = Object.fromEntries(keys.map(([k, f]) => [k, p[f]]));
+    if (!keys.every(([k]) => Number.isFinite(values[k]) && values[k] > 0)) {
+      message(cfg.missing, 'err');
+      return;
+    }
+    const name = await askText({ ...cfg.ask, value: sel.value, ok: 'Save' });
+    if (!name) return;
+    const existing = Object.keys(lib.items).find((n) => n.toLowerCase() === name.toLowerCase());
+    if (existing && existing !== sel.value
+        && !await ask({ title: `Replace the ${cfg.what}?`, text: `${existing} is already saved.`, ok: 'Replace', danger: true })) return;
+    try {
+      const res = await call({ action: 'save', name, values });
+      lib.render(res.name);
+      lib.showChanged(readForm());
+      message(`Saved the ${cfg.what} ${esc(res.name)}.`, 'ok');
+      schedule();   // the file name follows the material
+    } catch (e) {
+      message(`Could not save the ${cfg.what}: ` + esc(e.message), 'err');
+    }
+  });
+
+  $(cfg.del).addEventListener('click', async () => {
+    const name = sel.value;
+    if (!name || !await ask({ title: `Delete the ${cfg.what}?`, text: `${name} is deleted, for every device. The values in the form stay.`,
+      ok: 'Delete', danger: true })) return;
+    try {
+      await call({ action: 'delete', name });
+      lib.render('');
+      message(`Deleted ${esc(name)}.`, 'ok');
+      schedule();
+    } catch (e) {
+      message(`Could not delete the ${cfg.what}: ` + esc(e.message), 'err');
+    }
+  });
+  return lib;
+}
+
+const materials = library({
+  api: '/api/planing/presets', select: 'material', save: 'matSave', del: 'matDelete', changed: 'matChanged',
+  none: 'No material', what: 'material',
+  fields: Object.fromEntries(PRESET_KEYS.map((k) => [k, k])),
+  missing: 'Fill in spindle speed, feeds, step-down and stepover first.',
+  ask: { title: 'Save as a material', label: 'Material',
+         text: 'The spindle speed, feeds, step-down and stepover, under the name of a material (e.g. Oak).' },
+});
+const bits = library({
+  api: '/api/planing/bits', select: 'bit', save: 'bitSave', del: 'bitDelete', changed: 'bitChanged',
+  none: 'No saved bit', what: 'bit',
+  fields: { d: 'toolD' },
+  missing: 'Fill in the bit diameter first.',
+  ask: { title: 'Save as a bit', label: 'Bit', text: 'The bit diameter, under the name of the bit (e.g. Surfacing 50 mm).' },
 });
 
-// Materials changed on the Materials page (another tab, or another device): pick them up
-// when this page is shown again.
+// Changed on the Materials page (another tab, or another device): pick them up when this page
+// is shown again.
 document.addEventListener('visibilitychange', async () => {
   if (document.hidden) return;
-  await loadPresets();
-  showMaterialChanged(readForm());
+  await Promise.all([materials.load(), bits.load()]);
+  const p = readForm();
+  materials.showChanged(p);
+  bits.showChanged(p);
 });
 
 // ---------------------------------------------------------------- saving the program
@@ -644,7 +667,7 @@ $('loadBtn').addEventListener('click', () => withButtons(async () => {
   initSystem();   // the E-stop button
   initHelp($('form'));
   fillForm({ ...DEFAULTS, ...(saved || {}) });
-  await loadPresets(saved?.material || '');
+  await Promise.all([materials.load(saved?.material || ''), bits.load(saved?.bit || '')]);
   schedule();
   pollState();
 })();

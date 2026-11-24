@@ -857,6 +857,11 @@ span.ptab::after { display: none; }
 /* ---------- the Materials page ---------- */
 .mt-wrap { overflow-x: auto; }
 table.mt { border-collapse: separate; border-spacing: 0 4px; width: 100%; min-width: 760px; font-size: 14px; }
+/* The bits: a name and a diameter, no need for the full width */
+table.mt.narrow { width: auto; min-width: 0; }
+table.mt.narrow input.name { width: 260px; }
+table.mt.narrow input:not(.name) { width: 140px; }
+table.mt.narrow .acts { width: auto; }   /* a 1% cell would stretch the table to the full width */
 .mt th { text-align: left; font-weight: 500; font-size: 12px; letter-spacing: .4px; color: var(--md-on-surface-variant);
          padding: 4px 8px; white-space: nowrap; }
 .mt th .unit { font-weight: 400; }

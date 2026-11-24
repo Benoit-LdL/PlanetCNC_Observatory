@@ -17,7 +17,7 @@
   var PAGES = [
     ['dashboard', '/', 'Dashboard', 'The machine, live'],
     ['planing', '/planing', 'Planing', 'Make a program that planes rough stock flat'],
-    ['materials', '/materials', 'Materials', 'The cutting values per material used by Planing'],
+    ['materials', '/materials', 'Materials', 'The materials and planing bits used by Planing'],
     ['settings', '/settings', 'Settings', 'Machine name, camera, Files folder, Telegram, timelapse, logs'],
     ['system', '/system', 'System', 'Versions, updates, the Raspberry Pi'],
   ];

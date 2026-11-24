@@ -1968,6 +1968,7 @@ def system_view():
 SETTINGS_FILE = os.path.join(APP_DIR, "settings.json")
 TUNING_FILE = os.path.join(APP_DIR, "tuning.json")   # the feeds log, see TuningLog
 PRESETS_FILE = os.path.join(APP_DIR, "planing_presets.json")   # material presets of the /planing page
+BITS_FILE = os.path.join(APP_DIR, "planing_bits.json")         # planing bits of the /planing page
 DEFAULT_NAME = "PlanetCNC"
 OLD_DEFAULT_NAMES = ("CNC Monitor",)   # earlier defaults, saved in settings.json: shown as the new one
 MAX_NAME_LENGTH = 40
@@ -2167,15 +2168,16 @@ class TuningLog:
 
 
 class PlaningPresets:
-    """Cutting values per material (oak, cherry...) for the /planing page, kept in
-    planing_presets.json next to this file so every device sees the same ones."""
+    """Named values for the /planing page, kept in a JSON file next to this file so every device
+    sees the same ones: the cutting values per material (oak, cherry...) in planing_presets.json,
+    and the planing bits (their diameter) in planing_bits.json."""
 
-    KEYS = ("rpm", "feed", "plunge", "stepdown", "stepover")
     MAX_PRESETS = 100
     MAX_NAME = 40
 
-    def __init__(self, path):
-        self.path = path
+    def __init__(self, path, keys=("rpm", "feed", "plunge", "stepdown", "stepover"), what="material",
+                 what_plural="materials"):
+        self.path, self.keys, self.what, self.what_plural = path, keys, what, what_plural
         self.lock = threading.Lock()
         self.presets = {}
         try:
@@ -2185,22 +2187,21 @@ class PlaningPresets:
         except FileNotFoundError:
             pass
         except (OSError, ValueError, AttributeError) as e:
-            log_files.warning("cannot read %s: %s - starting without planing presets", path, e)
+            log_files.warning("cannot read %s: %s - starting without planing %s", path, e, what_plural)
 
     def list(self):
         with self.lock:
             return {k: dict(v) for k, v in self.presets.items()}
 
-    @classmethod
-    def clean(cls, name, values):
+    def clean(self, name, values):
         """(name, values) checked, or raises ValueError with a message for the page."""
         name = " ".join(str(name or "").split())
-        if not name or len(name) > cls.MAX_NAME:
-            raise ValueError("a material name of 1 to %d characters is needed" % cls.MAX_NAME)
+        if not name or len(name) > self.MAX_NAME:
+            raise ValueError("a %s name of 1 to %d characters is needed" % (self.what, self.MAX_NAME))
         if not isinstance(values, dict):
             raise ValueError("invalid values")
         out = {}
-        for k in cls.KEYS:
+        for k in self.keys:
             v = values.get(k)
             if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v <= 0:
                 raise ValueError("invalid value for %s" % k)
@@ -2209,12 +2210,12 @@ class PlaningPresets:
 
     def save(self, name, values):
         with self.lock:
-            # A name that differs only in case replaces the existing preset (Oak = oak)
+            # A name that differs only in case replaces the existing one (Oak = oak)
             for k in list(self.presets):
                 if k.lower() == name.lower():
                     del self.presets[k]
             if len(self.presets) >= self.MAX_PRESETS:
-                raise ValueError("at most %d materials" % self.MAX_PRESETS)
+                raise ValueError("at most %d %s" % (self.MAX_PRESETS, self.what_plural))
             self.presets[name] = values
             self._write()
 
@@ -2236,6 +2237,7 @@ class PlaningPresets:
 HUB = Hub()
 TUNING = None
 PRESETS = None
+BITS = None
 CAMERA = None
 SYSTEM = None
 UPDATER = None
@@ -2355,6 +2357,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, {"ok": True, "entries": entries, "seq": seq})
         elif path == "/api/planing/presets":
             self._json(200, {"ok": True, "presets": PRESETS.list()})
+        elif path == "/api/planing/bits":
+            self._json(200, {"ok": True, "presets": BITS.list()})
         elif path == "/api/logs":
             self._logs_list()
         elif path == "/api/logs/tail":
@@ -2401,9 +2405,9 @@ class Handler(BaseHTTPRequestHandler):
             if self._require_writer():
                 self._tuning_change()
             return
-        if path == "/api/planing/presets":
+        if path in ("/api/planing/presets", "/api/planing/bits"):
             if self._require_writer():
-                self._presets_change()
+                self._presets_change(PRESETS if path.endswith("presets") else BITS)
             return
         if path == "/api/log":
             if self._require_writer():
@@ -3170,7 +3174,8 @@ class Handler(BaseHTTPRequestHandler):
 
     # ---------- material presets of the /planing page ----------
 
-    def _presets_change(self):
+    def _presets_change(self, store):
+        """Save or delete a material or a bit (store: PRESETS or BITS)."""
         try:
             data = json.loads(self._read_body() or b"{}")
             action = data.get("action")
@@ -3179,16 +3184,16 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             if action == "save":
-                name, values = PlaningPresets.clean(data.get("name"), data.get("values"))
-                PRESETS.save(name, values)
-                log_files.info("planing preset %s saved: %s (from %s)", name, values, self.client_address[0])
+                name, values = store.clean(data.get("name"), data.get("values"))
+                store.save(name, values)
+                log_files.info("planing %s %s saved: %s (from %s)", store.what, name, values, self.client_address[0])
                 result = {"ok": True, "name": name, "message": "Saved %s" % name}
             elif action == "delete":
                 name = str(data.get("name", ""))
-                if not PRESETS.delete(name):
-                    self._json(404, {"ok": False, "message": "no material called %s" % name})
+                if not store.delete(name):
+                    self._json(404, {"ok": False, "message": "no %s called %s" % (store.what, name)})
                     return
-                log_files.info("planing preset %s deleted (from %s)", name, self.client_address[0])
+                log_files.info("planing %s %s deleted (from %s)", store.what, name, self.client_address[0])
                 result = {"ok": True, "message": "Deleted %s" % name}
             else:
                 self._json(400, {"ok": False, "message": "unknown action"})
@@ -3197,10 +3202,10 @@ class Handler(BaseHTTPRequestHandler):
             self._json(400, {"ok": False, "message": str(e)})
             return
         except OSError as e:
-            log_files.error("cannot save the planing presets: %s", e)
+            log_files.error("cannot save the planing %s: %s", store.what_plural, e)
             self._json(500, {"ok": False, "message": "could not save: %s" % e})
             return
-        self._json(200, dict(result, presets=PRESETS.list()))
+        self._json(200, dict(result, presets=store.list()))
 
     def _static(self, path):
         if path in ("", "/"):
@@ -3600,9 +3605,10 @@ def main():
             log_files.warning("folder %s not found, file view disabled", files_dir)
     apply_files_dir()
 
-    global CAMERA, SYSTEM, UPDATER, UPDATES_OFF_REASON, TUNING, PRESETS, OS_PACKAGES, NOTIFY, TIMELAPSE
+    global CAMERA, SYSTEM, UPDATER, UPDATES_OFF_REASON, TUNING, PRESETS, BITS, OS_PACKAGES, NOTIFY, TIMELAPSE
     TUNING = TuningLog(TUNING_FILE)
     PRESETS = PlaningPresets(PRESETS_FILE)
+    BITS = PlaningPresets(BITS_FILE, keys=("d",), what="bit", what_plural="bits")
     threading.Thread(target=watch_bridge, name="watch-bridge", daemon=True).start()
     threading.Thread(target=heartbeat, name="heartbeat", daemon=True).start()
     if SystemStats.available():

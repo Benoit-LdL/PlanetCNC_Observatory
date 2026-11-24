@@ -109,6 +109,8 @@ the right.*
   at first). The 3D views follow.
 - The same top bar and menu on every page; on a phone the menu moves to the
   bottom of the screen.
+- Faint stars and planets behind the cards, drifting slowly as the page
+  scrolls (a parallax; still when the computer is set to reduce motion).
 
 **The Raspberry Pi and the app**
 
@@ -256,7 +258,7 @@ default the server only accepts a bridge from the Pi itself.
 | `tools/setup-sudo.sh` | Optional: lets the System page upgrade OS packages and reboot the Pi (see [step 7](#7-optional-allow-os-upgrades-and-reboot-from-the-dashboard)). |
 | `tools/screenshots.py` | Retakes the README screenshots from the demo (on a PC, not needed on the Pi). |
 | `media/` | The animation and screenshots in this README. |
-| `web/` | The pages (HTML, CSS, JavaScript). `style.css` holds the look of every page, day and night; `theme-boot.js` sets the day / night mode before a page is drawn; `fonts/` are Roboto and Roboto Mono, `sky.svg` the faint stars behind the cards. `tune.js` reads and rewrites programs for the Feeds & steps window; `system-ui.js` holds the E-stop button and the System page (`system.html`, `system.js`); `topbar-boot.js` draws the top bar and the menu (and runs the day / night button) before each page is shown, and `nav.js` keeps them current; `help.js` the **?** help popups in Settings; `settings.html` and `settings.js` the Settings page; `materials.html` and `materials.js` the Materials page; `camera.html` is the camera page on its own; `planing.html`, `planing.js` and `planing-gcode.js` are the Planing page. |
+| `web/` | The pages (HTML, CSS, JavaScript). `style.css` holds the look of every page, day and night; `theme-boot.js` sets the day / night mode before a page is drawn; `fonts/` are Roboto and Roboto Mono, `sky.svg` the faint stars behind the cards (moved by `topbar-boot.js` as the page scrolls). `tune.js` reads and rewrites programs for the Feeds & steps window; `system-ui.js` holds the E-stop button and the System page (`system.html`, `system.js`); `topbar-boot.js` draws the top bar and the menu (and runs the day / night button) before each page is shown, and `nav.js` keeps them current; `help.js` the **?** help popups in Settings; `settings.html` and `settings.js` the Settings page; `materials.html` and `materials.js` the Materials page (materials and planing bits); `camera.html` is the camera page on its own; `planing.html`, `planing.js` and `planing-gcode.js` are the Planing page. |
 | `settings.json` | Created when you change a setting in the dashboard; it also holds the Telegram bot token, so only its owner may read it. Not part of git. |
 | `timelapses/` | The last 20 job timelapses. Not part of git. |
 | `tuning.json` | The Feeds tab's log of adjusted files. Not part of git. |
@@ -766,6 +768,7 @@ settings in the panel on the right.
 | Thickness (rough) | Measured at the highest point. |
 | Z zero | **Top of the stock**: touch off Z on the highest point; the program cuts from Z0 down. **Spoilboard**: Z0 is the spoilboard; the stock top is at Z = thickness, so the program cuts from there down and the page shows the thickness you end up with. |
 | Start above Z0 | For when you're not sure Z was touched off on the highest point: the passes start this much above Z0 and still end at the same depth, so there are more passes and the first ones only skim the high spots (or cut air) instead of one pass biting too deep there. 0 (the default) starts at the top. |
+| Bit | A saved bit fills in its diameter (**Save as…** saves the one in the form, **Delete** removes it; all of them are on the [Materials page](#materials)). **Changed** shows when the diameter no longer matches the saved bit. |
 | Bit diameter | The planing bit, drawn at this size. |
 | Depth to remove | In total. It must be less than the thickness. |
 | Cut direction | Along X or along Y: usually along the grain. |
@@ -823,17 +826,23 @@ the program always happens at the machine. The last values entered are remembere
 ### Materials
 
 **http://&lt;pi-address&gt;:8080/materials** (or **Materials** in the
-menu) shows all the Planing page's materials in one table: name, spindle
-speed, feed, plunge feed, step-down and stepover (% of the bit diameter).
+menu) shows what the Planing page can fill in for you, in two tables:
+
+- **Materials:** name, spindle speed, feed, plunge feed, step-down and stepover
+  (% of the bit diameter).
+- **Planing bits:** name and diameter.
+
+In both:
 
 - **Change** a value or the name in a row: the row turns yellow and its
-  **Save** button lights up. Saving under another name renames the material.
-- **Delete** removes a material (after asking).
-- **Add** a material in the last row: a name and all five values, above 0.
-- **Export…** downloads all of them as `planing-materials.json`: a backup (the
-  materials only live on the Pi), or to move them to another Pi.
-- **Import…** adds the materials from such a file. If some names already
-  exist, it asks once whether to replace them or keep yours.
+  **Save** button lights up. Saving under another name renames it.
+- **Delete** removes one (after asking).
+- **Add** one in the last row: a name and all the values, above 0.
+- **Export** downloads all of them as `planing-materials.json` or
+  `planing-bits.json`: a backup (they only live on the Pi, in
+  `planing_presets.json` and `planing_bits.json`), or to move them to another Pi.
+- **Import** adds them from such a file. If some names already exist, it asks
+  once whether to replace them or keep yours.
 
 A name already used (in any case: Oak = oak) is only replaced after you
 confirm. The Planing page picks up the changes when you go back to it.

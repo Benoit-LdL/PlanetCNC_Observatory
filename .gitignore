@@ -239,3 +239,7 @@ timelapses/
 # Material presets of the /planing page, saved on the Pi
 planing_presets.json
 planing_presets.json.tmp
+
+# Planing bits of the /planing page, saved on the Pi
+planing_bits.json
+planing_bits.json.tmp

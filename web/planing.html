@@ -86,7 +86,12 @@
         </section>
 
         <section class="pl-group" aria-label="Bit and cut">
-        <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6v6H9z"/><path d="M10 9v7l2 5 2-5V9"/><path d="M10 12l4 2"/></svg><span>Bit and cut</span></h3>
+        <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6v6H9z"/><path d="M10 9v7l2 5 2-5V9"/><path d="M10 12l4 2"/></svg><span>Bit and cut</span> <span class="pl-changed" id="bitChanged" hidden>Changed</span></h3>
+        <div class="pl-mat">
+          <select id="bit" aria-label="Bit"></select>
+          <button class="vbtn text" type="button" id="bitSave" title="Save this diameter as a bit">Save as…</button>
+          <button class="vbtn text" type="button" id="bitDelete" title="Delete this bit" disabled>Delete</button>
+        </div>
         <div class="pl-row"><label for="toolD">Bit diameter<span class="unit">mm</span></label><input id="toolD" type="number" step="any" min="0" inputmode="decimal"></div>
         <div class="pl-row"><label for="depth">Depth to remove<span class="unit">mm</span></label><input id="depth" type="number" step="any" min="0" inputmode="decimal"></div>
         <div class="pl-row"><label for="direction">Cut direction</label>
@@ -116,7 +121,7 @@
         <div class="pl-row"><label for="plunge">Plunge feed<span class="unit">mm/min</span></label><input id="plunge" type="number" step="any" min="0" inputmode="decimal"></div>
         <div class="pl-row"><label for="stepdown">Step-down<span class="unit">mm/pass</span></label><input id="stepdown" type="number" step="any" min="0" inputmode="decimal"></div>
         <div class="pl-row"><label for="stepover">Stepover<span class="unit" id="stepoverMm">% of Ø</span></label><input id="stepover" type="number" step="any" min="0" inputmode="decimal"></div>
-        <p class="pl-hint pl-mat-io"><a href="/materials">All materials: change, import, export →</a></p>
+        <p class="pl-hint pl-mat-io"><a href="/materials">All materials and bits: change, import, export →</a></p>
         </section>
 
         <section class="pl-group" aria-label="More settings">

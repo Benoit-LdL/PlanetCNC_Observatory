@@ -6,10 +6,10 @@
 <link rel="icon" type="image/png" sizes="32x32" href="icon-32.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<title>Materials – Observatory</title>
+<title>Materials and bits – Observatory</title>
 <script src="theme-boot.js"></script>
 <link rel="stylesheet" href="style.css">
-<!-- The planing materials: see, change, add, delete, import and export them. See materials.js. -->
+<!-- The planing materials and bits: see, change, add, delete, import and export them. See materials.js. -->
 </head>
 <body>
 <header class="topbar">
@@ -24,43 +24,47 @@
 <script src="topbar-boot.js"></script>
 <main class="page">
   <div class="page-wrap">
-    <section class="card" aria-label="Materials">
+    <section class="card" id="materialsCard" aria-label="Materials">
       <header class="card-h">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 8l9 5 9-5-9-5z"/><path d="m3 13 9 5 9-5"/></svg>
         <h2 id="mtTitle">Materials</h2>
-        <button class="vbtn" type="button" id="importBtn" title="Add the materials from a JSON file made with Export"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>Import</button>
-        <button class="vbtn" type="button" id="exportBtn" title="Download all the materials as a JSON file"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></svg>Export</button>
-        <input type="file" id="importFile" accept=".json,application/json" hidden>
+        <button class="vbtn" type="button" data-role="import" title="Add the materials from a JSON file made with Export"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>Import</button>
+        <button class="vbtn" type="button" data-role="export" title="Download all the materials as a JSON file"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></svg>Export</button>
+        <input type="file" data-role="importFile" accept=".json,application/json" hidden>
       </header>
       <div class="page-body">
         <p class="set-help" data-help-for="mtTitle">The cutting values the Planing page fills in when you pick a material. Change a value and press
           <b>Save</b> on that row; add a new material in the last row. They are kept on the Pi, so every device sees the same ones.</p>
         <div class="mt-wrap">
           <table class="mt">
-            <thead><tr>
-              <th>Name</th>
-              <th>Spindle <span class="unit">rpm</span></th>
-              <th>Feed <span class="unit">mm/min</span></th>
-              <th>Plunge <span class="unit">mm/min</span></th>
-              <th>Step-down <span class="unit">mm</span></th>
-              <th>Stepover <span class="unit">% of Ø</span></th>
-              <th></th>
-            </tr></thead>
-            <tbody id="rows"></tbody>
-            <tfoot>
-              <tr class="add-row" id="addRow">
-                <td><input class="name" data-k="name" placeholder="New material" maxlength="40" aria-label="Name"></td>
-                <td><input data-k="rpm" type="number" step="any" min="0" inputmode="decimal" aria-label="Spindle speed"></td>
-                <td><input data-k="feed" type="number" step="any" min="0" inputmode="decimal" aria-label="Feed"></td>
-                <td><input data-k="plunge" type="number" step="any" min="0" inputmode="decimal" aria-label="Plunge feed"></td>
-                <td><input data-k="stepdown" type="number" step="any" min="0" inputmode="decimal" aria-label="Step-down"></td>
-                <td><input data-k="stepover" type="number" step="any" min="0" inputmode="decimal" aria-label="Stepover"></td>
-                <td class="acts"><button class="vbtn tonal" type="button" id="addBtn">Add</button></td>
-              </tr>
-            </tfoot>
+            <thead><tr data-role="head"></tr></thead>
+            <tbody data-role="rows"></tbody>
+            <tfoot><tr class="add-row" data-role="add"></tr></tfoot>
           </table>
         </div>
-        <div class="mt-msg" id="msg"></div>
+        <div class="mt-msg" data-role="msg"></div>
+      </div>
+    </section>
+
+    <section class="card" id="bitsCard" aria-label="Planing bits">
+      <header class="card-h">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6v6H9z"/><path d="M10 9v7l2 5 2-5V9"/><path d="M10 12l4 2"/></svg>
+        <h2 id="bitTitle">Planing bits</h2>
+        <button class="vbtn" type="button" data-role="import" title="Add the bits from a JSON file made with Export"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>Import</button>
+        <button class="vbtn" type="button" data-role="export" title="Download all the bits as a JSON file"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></svg>Export</button>
+        <input type="file" data-role="importFile" accept=".json,application/json" hidden>
+      </header>
+      <div class="page-body">
+        <p class="set-help" data-help-for="bitTitle">The bits the Planing page offers in Bit and cut: picking one fills in its diameter. Change a value and press
+          <b>Save</b> on that row; add a new bit in the last row. They are kept on the Pi, so every device sees the same ones.</p>
+        <div class="mt-wrap">
+          <table class="mt narrow">
+            <thead><tr data-role="head"></tr></thead>
+            <tbody data-role="rows"></tbody>
+            <tfoot><tr class="add-row" data-role="add"></tr></tfoot>
+          </table>
+        </div>
+        <div class="mt-msg" data-role="msg"></div>
       </div>
     </section>
   </div>
