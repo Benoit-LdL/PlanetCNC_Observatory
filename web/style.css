@@ -917,7 +917,29 @@ table.mt.narrow .acts { width: auto; }   /* a 1% cell would stretch the table to
   .layout, .pl-layout { display: flex; flex-direction: column; padding: 4px 12px 16px; }
   .pl-view { height: 66vh; min-height: 340px; flex: none; }
   .pl-form { overflow: visible; }
-  .dro-panel { overflow: visible; }
+  /* Phone order: camera, 3D view, position, job, program/files, Raspberry Pi last.
+     The left column's cards join the page flow so they can be ordered among the panels. */
+  .dro-panel { display: contents; }
+  .cam-panel { order: 1; }
+  .view-panel { order: 2; }
+  .pos-card { order: 3; }
+  .job-card { order: 4; }
+  .code-panel { order: 5; }
+  #sys { order: 6; }
+  /* Position is only read, not edited: smaller type, less padding */
+  .pos-card { padding-bottom: 8px; }
+  .pos-card .card-head { min-height: 40px; padding: 2px 6px 2px 12px; }
+  .pos-card .card-head h2 { font-size: 14px; line-height: 20px; }
+  .pos-card .tabs { height: 30px; }
+  .pos-card .tabs > .tab { padding: 0 10px; font-size: 12px; }
+  .dro { gap: 2px; padding: 0 8px; }
+  .axis { height: 28px; gap: 8px; padding: 0 10px 0 6px; border-radius: 8px; }
+  .axis .name { width: 20px; height: 20px; font-size: 11px; }
+  .axis .value { font-size: 16px; line-height: 20px; letter-spacing: 0; }
+  .info-grid { gap: 2px; padding: 2px 8px 0; }
+  .info-grid .info { padding: 3px 6px; border-radius: 8px; }
+  .info-grid .info .lbl, .info-grid .info .unit { font-size: 10px; line-height: 12px; min-height: 12px; }
+  .info-grid .info .val { font-size: 13px; line-height: 17px; }
   .view-panel { height: 62vh; min-height: 340px; }
   .code-panel { height: 72vh; min-height: 380px; flex: none; }
   .frow .facts { opacity: 1; }
