@@ -21,6 +21,7 @@ the right.*
 - [Installation](#installation)
 - [Using the dashboard](#using-the-dashboard)
 - [Telegram notifications and timelapse](#telegram-notifications-and-timelapse)
+- [Home Assistant](#home-assistant)
 - [Updating](#updating)
 - [Logs and debugging](#logs-and-debugging)
 - [Server options](#server-options)
@@ -73,6 +74,14 @@ the right.*
   "job ended" message and kept on the Pi.
 - `/status` and `/photo` in the chat. The bot only reports: it can't control
   the machine.
+
+**In Home Assistant, over MQTT**
+
+- The machine as a Home Assistant device, set up automatically: status, job
+  progress, the operation being cut and its progress, time left, tool,
+  spindle and feed.
+- The Pi's health (CPU, memory, temperature, disk, power) and network (IP and
+  MAC address, WiFi network, signal and quality). It only reports.
 
 **Program, console and files**
 
@@ -263,7 +272,7 @@ default the server only accepts a bridge from the Pi itself.
 | `tools/machine_model.py` | Makes the light machine model `web/machine/evo-m.glb` from the complete CAD export (on a PC, not needed on the Pi; see [The machine in the 3D view](#the-machine-in-the-3d-view)). |
 | `media/` | The animation and screenshots in this README. |
 | `web/` | The pages (HTML, CSS, JavaScript). `style.css` holds the look of every page, day and night; `theme-boot.js` sets the day / night mode before a page is drawn; `fonts/` are Roboto and Roboto Mono, `sky.svg` the faint stars behind the cards (moved by `topbar-boot.js` as the page scrolls). `tune.js` reads and rewrites programs for the Feeds & steps window; `system-ui.js` holds the E-stop button and the System page (`system.html`, `system.js`); `topbar-boot.js` draws the top bar and the menu (and runs the day / night button) before each page is shown, and `nav.js` keeps them current; `help.js` the **?** help popups in Settings; `settings.html` and `settings.js` the Settings page; `materials.html` and `materials.js` the Materials page (materials and planing bits); `camera.html` is the camera page on its own; `planing.html`, `planing.js` and `planing-gcode.js` are the Planing page; `machine/evo-m.glb` is the machine drawn in the 3D view. |
-| `settings.json` | Created when you change a setting in the dashboard; it also holds the Telegram bot token, so only its owner may read it. Not part of git. |
+| `settings.json` | Created when you change a setting in the dashboard; it also holds the Telegram bot token and the MQTT password, so only its owner may read it. Not part of git. |
 | `timelapses/` | The last 20 job timelapses. Not part of git. |
 | `tuning.json` | The Feeds tab's log of adjusted files. Not part of git. |
 | `planing_presets.json` | The Planing page's cutting values per material. Not part of git. |
@@ -699,6 +708,8 @@ enough. Everything here is saved on the Pi and applies to everyone.
 - **Telegram** (the bot and the chat), **Telegram messages** (which ones, how
   often, which silently) and **Timelapse:** see
   [Telegram notifications and timelapse](#telegram-notifications-and-timelapse).
+- **MQTT:** sends the machine to Home Assistant; see
+  [Home Assistant](#home-assistant).
 - **Logs:** see [Logs and debugging](#logs-and-debugging).
 
 The explanations are behind the round **?** next to each title: hover over
@@ -1148,6 +1159,106 @@ Good to know:
 | Connected, but no messages | Is a chat chosen (green status line)? **Send test message**. In a group, is the bot still a member? |
 | Messages without photos | Is the camera working in the dashboard? A photo waits at most 8 seconds for the camera; after that the message goes as text. |
 
+## Home Assistant
+
+The machine and the Pi can appear in **Home Assistant** as a device of their
+own, through MQTT: the job's progress on a dashboard card, a notification
+when a job ends, a light that turns red on E-stop. With MQTT discovery the
+device and its entities are set up automatically; there is no YAML to write.
+
+It only reports. Nothing in Home Assistant can move, start, pause or stop the
+machine.
+
+### What you get
+
+A device named like the machine (**Settings → Machine → Name**), with:
+
+| Entity | What it shows |
+|---|---|
+| **Status** | Offline, Idle, Running, Paused or E-stop, as the top bar shows it. |
+| **Job running** | On while a job runs (not while homing or jogging). |
+| **Program** | The loaded program's file name; the full path is an attribute. |
+| **Operation** | The operation being cut, by the name the CAM program wrote before it (Fusion: `(2D Adaptive1)`), during a job. Attributes: its number, how many operations the program has, the line it starts at. |
+| **Progress** | Of the job, in %. Attributes: the line and the line count. |
+| **Operation progress** | Of the current operation, in %. |
+| **Time left** | TNG's estimate, in minutes. |
+| **Job time** | Since the job started, in minutes. |
+| **Tool** | The tool number and TNG's name for it; number and diameter as attributes. |
+| **Spindle speed**, **Feed rate** | rpm, mm/min (converted when the program is in inches). |
+| **CPU use**, **RAM use**, **CPU temperature**, **Disk use**, **Power** | The Pi's health, as the rings at the bottom of the menu. **Power** is the lightning mark in words: Power OK, Under-voltage!, Throttled… |
+| **Last boot** | When the Pi started; Home Assistant shows it as "2 days ago". |
+| **IP address**, **MAC address** | Of the network the Pi uses (its default route), with the interface as an attribute. |
+| **WiFi network**, **WiFi signal**, **WiFi quality** | On WiFi: the network name, the signal in dBm (frequency and bit rate as attributes) and as a percentage (−100 dBm = 0 %, −50 dBm or better = 100 %). Empty on a cable. |
+
+The Pi's entities are under **Diagnostic** on the device page. While TNG isn't
+running, the machine's entities show as unavailable and **Status** as
+Offline; when the server stops, everything is unavailable.
+
+Operation and progress only have a value during a job. Operations are found
+the way the [Feeds & steps](#feeds--steps) window finds them; a program
+without operation comments counts as one operation.
+
+### Setting it up
+
+You need an MQTT broker that Home Assistant uses. Most people have the
+**Mosquitto broker** add-on (**Settings → Add-ons**) with the **MQTT**
+integration, which Home Assistant offers to set up when the add-on starts.
+
+1. In the dashboard, open **Settings → MQTT**.
+2. **Broker:** Home Assistant's address (`192.168.1.10`,
+   `homeassistant.local`). **Port:** `1883`.
+3. **User name** and **Password:** with the Mosquitto add-on, a Home
+   Assistant user (make one under **Settings → People → Users**, e.g.
+   `cnc`), or a login added in the add-on's configuration.
+4. **Save.** Saving turns **Send to Home Assistant** on. After a moment the
+   line at the bottom says **Connected**, or what went wrong.
+5. In Home Assistant, the machine is a new device under **Settings → Devices
+   & services → MQTT**.
+
+The other settings rarely need changing:
+
+| Setting | Default | What it is |
+|---|---|---|
+| **Discovery prefix** | `homeassistant` | Where Home Assistant looks for new devices; only different if changed in its MQTT integration. |
+| **Base topic** | `planetcnc_observatory/<host name>` | The topics the values go to (`<base>/progress`, `<base>/status`…), for other programs that read MQTT. |
+| **Machine values** | Every 5 s | How often progress, time left, job time, spindle and feed are sent while they change. Status, program, operation and tool go as soon as they change. |
+| **Pi and network** | Every 30 s | How often the Pi's health and network are sent. |
+
+Settings are kept in `settings.json`, the password too (only the server's
+user can read it). Turning **Send to Home Assistant** off disconnects and
+leaves the device in Home Assistant, unavailable; delete it there if it
+should go.
+
+The connection is plain MQTT (no TLS), fine on a home network. Every value is
+retained, so Home Assistant has it right away after a restart, and the
+server's status topic is its MQTT last will: if the Pi loses power, Home
+Assistant marks the device unavailable.
+
+### The camera in Home Assistant
+
+The camera isn't sent over MQTT: MQTT can only carry still pictures, not the
+live stream. Add it as an **MJPEG IP Camera**, as described in
+[The camera on its own](#the-camera-on-its-own). It becomes a device of its
+own; put both in the same area to keep them together.
+
+### Ideas
+
+- A **Tile** or **Gauge** card for **Progress**, with **Operation** and
+  **Time left** next to it.
+- A notification when **Job running** goes off, with a camera snapshot.
+- A warning when **Power** isn't "Power OK", or when the Pi runs hot.
+
+### Problems with MQTT
+
+| Symptom | What to do |
+|---|---|
+| "wrong user name or password" / "not authorised" | Check the user in Home Assistant (or the add-on's logins), type the password again and **Save**. |
+| "nothing answers on … port 1883" | Is the broker running (the Mosquitto add-on started)? Is the port right? |
+| "unknown broker address" | The Pi can't resolve that name: use Home Assistant's IP address. |
+| Connected, but no device in Home Assistant | Is the MQTT integration set up in Home Assistant, with discovery on and the same **Discovery prefix**? |
+| **Operation** stays empty | It only has a value during a job, and needs operation comments in the program (Fusion writes them). |
+| WiFi entities empty | The Pi is on a cable. Only the network name empty: install `iw` (`sudo apt install iw`). |
+
 ## Updating
 
 **From the dashboard:** open the **System** page (in the menu).
@@ -1231,6 +1342,7 @@ can be looked at after it happened.
 | `pcnc.update` | Update checks and installs with git's output; OS package checks and upgrades. |
 | `pcnc.files` | Uploads, moves, deletions and adjusted files saved from the Feeds & steps window. |
 | `pcnc.telegram` | The bot connecting, commands from the chat, failed sends, timelapses started and made (with ffmpeg's error if it failed). |
+| `pcnc.mqtt` | Connecting to the MQTT broker and losing it (with the reason), Home Assistant restarting. |
 
 The bridge keeps up to 300 lines while it can't reach the server and sends
 them once the connection is back. Its log covers server outages too.

@@ -536,6 +536,7 @@ span.ptab::after { display: none; }
 .set-row:focus-within label { color: var(--md-primary); }
 .set-row select:disabled { opacity: .5; }
 .set-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.set-form { display: flex; flex-direction: column; gap: 12px; }   /* several fields saved together (Settings > MQTT) */
 .set-hint, .set-help { margin: 0; font-size: 12px; line-height: 16px; color: var(--md-on-surface-variant); }
 .set-hint.ok { color: var(--md-success); }
 .set-hint.err { color: var(--md-error); }

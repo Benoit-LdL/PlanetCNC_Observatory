@@ -24,6 +24,7 @@ its own, without the dashboard: /camera (a full-window page), /api/camera.mjpg
 
 import argparse
 import base64
+import bisect
 import hashlib
 import hmac
 import json
@@ -35,6 +36,7 @@ import os
 import platform
 import queue
 import re
+import select
 import shlex
 import shutil
 import signal
@@ -130,6 +132,7 @@ log_files = LOG.getChild("files")
 log_client = LOG.getChild("browser")
 log_system = LOG.getChild("system")
 log_notify = LOG.getChild("telegram")
+log_mqtt = LOG.getChild("mqtt")
 
 
 class LogManager:
@@ -1962,6 +1965,568 @@ def system_view():
 
 
 # ---------------------------------------------------------------------------
+# Home Assistant over MQTT: with MQTT discovery the machine shows up in Home Assistant as a
+# device by itself, no YAML. Set up in Settings > MQTT.
+#
+# Topics (<base> = Settings' base topic, "planetcnc_observatory/<this Pi's host name>"):
+#     <base>/status                 online / offline: the server (last will)
+#     <base>/bridge                 online / offline: TNG and its bridge
+#     <base>/<entity>               the current value (retained)
+#     <base>/<entity>/attributes    more about it (JSON, retained)
+# It only reports: nothing in Home Assistant can move, start or stop the machine.
+# ---------------------------------------------------------------------------
+
+MQTT_KEEPALIVE = 60
+MQTT_TIMEOUT = 10.0
+MQTT_EVERY = (1, 2, 5, 10, 30, 60, 120, 300)   # choices for the update intervals in Settings
+MQTT_REFUSED = {1: "the broker doesn't speak MQTT 3.1.1", 2: "the broker refused the client id",
+                3: "the broker is unavailable", 4: "wrong user name or password",
+                5: "not authorised: check the user name and password"}
+PROC_NET_ROUTE = "/proc/net/route"
+PROC_NET_WIRELESS = "/proc/net/wireless"
+SYS_NET = "/sys/class/net"
+
+
+class MqttError(Exception):
+    pass
+
+
+class MqttClient:
+    """Just enough MQTT 3.1.1 for Home Assistant, from the standard library: connect with a
+    retained last will, publish (QoS 0), subscribe, keep alive. Used from one thread."""
+
+    def __init__(self, host, port, client_id, user="", password="", will=None):
+        self.buf = b""
+        self.next_id = 1
+        self.last_sent = self.last_recv = time.time()
+        flags, payload = 0x02, self._str(client_id)          # clean session
+        if will:
+            flags |= 0x04 | 0x20                              # a will, retained, QoS 0
+            payload += self._str(will[0]) + self._str(will[1])
+        if user:
+            flags |= 0x80
+            payload += self._str(user)
+            if password:
+                flags |= 0x40
+                payload += self._str(password)
+        self.sock = socket.create_connection((host, port), timeout=MQTT_TIMEOUT)
+        try:
+            self._send(0x10, self._str("MQTT") + bytes([4, flags]) + MQTT_KEEPALIVE.to_bytes(2, "big") + payload)
+            first, body = self.read()
+            if first != 0x20 or len(body) < 2:
+                raise MqttError("no MQTT answer: is that the broker's MQTT port?")
+            if body[1]:
+                raise MqttError(MQTT_REFUSED.get(body[1], "the broker refused the connection (code %d)" % body[1]))
+        except socket.timeout:
+            self.sock.close()
+            raise MqttError("no MQTT answer: is that the broker's MQTT port?") from None
+        except BaseException:
+            self.sock.close()
+            raise
+
+    @staticmethod
+    def _str(text):
+        data = text.encode("utf-8") if isinstance(text, str) else bytes(text)
+        return len(data).to_bytes(2, "big") + data
+
+    def _send(self, first, body=b""):
+        n, length = len(body), bytearray()
+        while True:
+            n, digit = n >> 7, n & 0x7F
+            length.append(digit | (0x80 if n else 0))
+            if not n:
+                break
+        self.sock.sendall(bytes([first]) + bytes(length) + body)
+        self.last_sent = time.time()
+
+    def _recv(self, n):
+        while len(self.buf) < n:
+            chunk = self.sock.recv(65536)
+            if not chunk:
+                raise MqttError("the broker closed the connection")
+            self.buf += chunk
+        data, self.buf = self.buf[:n], self.buf[n:]
+        return data
+
+    def read(self):
+        """The next packet from the broker: (first byte, body)."""
+        first = self._recv(1)[0]
+        length = shift = 0
+        while True:
+            b = self._recv(1)[0]
+            length |= (b & 0x7F) << shift
+            shift += 7
+            if not b & 0x80:
+                break
+            if shift > 21:
+                raise MqttError("garbled packet from the broker")
+        body = self._recv(length)
+        self.last_recv = time.time()
+        return first, body
+
+    def waiting(self, timeout):
+        """Wait up to `timeout` seconds for something from the broker; True when it came."""
+        return bool(self.buf) or bool(select.select([self.sock], [], [], timeout)[0])
+
+    @staticmethod
+    def parse_publish(first, body):
+        """A PUBLISH packet -> (topic, payload)."""
+        n = int.from_bytes(body[:2], "big")
+        start = 2 + n + (2 if first & 0x06 else 0)  # QoS 1 and 2 carry a packet id
+        return body[2:2 + n].decode("utf-8", "replace"), body[start:]
+
+    def publish(self, topic, payload, retain=True):
+        data = payload.encode("utf-8") if isinstance(payload, str) else payload
+        self._send(0x30 | (1 if retain else 0), self._str(topic) + data)
+
+    def subscribe(self, topic):
+        pid, self.next_id = self.next_id, self.next_id % 65535 + 1
+        self._send(0x82, pid.to_bytes(2, "big") + self._str(topic) + b"\x00")
+
+    def keep_alive(self):
+        if time.time() - self.last_recv > MQTT_KEEPALIVE * 1.5:
+            raise MqttError("no answer from the broker for %d s" % (MQTT_KEEPALIVE * 1.5))
+        if time.time() - self.last_sent >= MQTT_KEEPALIVE / 2:
+            self._send(0xC0)  # PINGREQ
+
+    def close(self, clean=True):
+        """clean=False drops the connection, so the broker sends the last will."""
+        try:
+            if clean:
+                self._send(0xE0)  # DISCONNECT
+        except OSError:
+            pass
+        self.sock.close()
+
+
+# The comment block an adjusted file starts with (see web/tune.js): not an operation name.
+TUNE_HEADER_START = "(--- Feeds and steps adjusted on the CNC dashboard"
+TUNE_HEADER_END = "(--- end of adjustments ---)"
+GCODE_WORD = re.compile(r"([A-Z])\s*([-+]?(?:\d+\.?\d*|\.\d+))")
+
+
+def program_operations(text):
+    """The operations of a program, read as the Feeds & steps window does (web/tune.js): CAM
+    programs such as Fusion write each operation's name, e.g. (2D Adaptive1), on a comment line
+    before it. An operation starts at a comment line once the previous one has moved; of
+    several comment lines before the first move, the last one names it. Operations that don't
+    cut (setup, the end of the program) are left out.
+    Returns [(first line, name)], line numbers from 1 as the dashboard counts them."""
+    lines = text.splitlines()
+    skip = range(0)
+    start = next((i for i, l in enumerate(lines[:400]) if l.strip().startswith(TUNE_HEADER_START)), None)
+    if start is not None:
+        end = next((i for i in range(start, min(len(lines), 400)) if lines[i].strip() == TUNE_HEADER_END), None)
+        if end is not None:
+            skip = range(start, end + 1)
+    ops, op, moved, motion = [], None, True, 0
+    for i, line in enumerate(lines):
+        if i in skip:
+            continue
+        comments = [c.strip() for c in re.findall(r"\(([^)]*)\)", line)]
+        code = re.sub(r"\([^)]*\)", " ", line)
+        if ";" in code:
+            code, _, rest = code.partition(";")
+            comments.append(rest.strip())
+        words = GCODE_WORD.findall(code.upper())
+        if not words and any(comments) and not any(
+                re.match(r"T\d+\s+D=", c, re.I) or re.match(r"(extra|original) pass ", c, re.I) for c in comments):
+            name = " ".join(" ".join(c for c in comments if c).replace("(", " ").replace(")", " ").split())
+            if moved:
+                op = {"line": i + 1, "name": name or "Operation %d" % (len(ops) + 1), "cuts": False}
+                ops.append(op)
+                moved = False
+            elif name:
+                op["name"], op["line"] = name, i + 1   # it starts at the comment that names it
+            continue
+        if op is None:
+            op = {"line": i + 1, "name": "Operation 1", "cuts": False}
+            ops.append(op)
+        homing = False
+        for letter, value in words:
+            if letter != "G":
+                continue
+            g = round(float(value) * 10)
+            if g in (0, 10, 20, 30) or (730 <= g <= 890 and g % 10 == 0):
+                motion = g // 10
+            elif g in (280, 300, 530):   # G28 / G30 home, G53 machine coordinates: not part of the cut
+                homing = True
+        if homing or not any(letter in "XYZ" for letter, _ in words):
+            continue
+        moved = True
+        if motion:
+            op["cuts"] = True
+    return [(o["line"], o["name"]) for o in ops if o["cuts"]]
+
+
+def network_info():
+    """The network the Pi reaches the home network through (its default route): interface,
+    address, MAC and, on WiFi, network name, signal and link details."""
+    info = {"interface": None, "ip": None, "mac": None, "ssid": None, "wifi_dbm": None, "wifi_quality": None,
+            "wifi_freq": None, "wifi_bitrate": None}
+    best = None
+    for line in _read_text(PROC_NET_ROUTE).splitlines()[1:]:
+        f = line.split()  # Iface Destination Gateway Flags RefCnt Use Metric ...
+        try:
+            if len(f) >= 7 and f[1] == "00000000" and int(f[3], 16) & 1 and (best is None or int(f[6]) < best[0]):
+                best = int(f[6]), f[0]
+        except ValueError:
+            continue
+    address = lan_address()
+    info["ip"] = None if address == "localhost" else address
+    if not best:
+        return info
+    iface = info["interface"] = best[1]
+    info["mac"] = _read_text(os.path.join(SYS_NET, iface, "address")).strip() or None
+    for line in _read_text(PROC_NET_WIRELESS).splitlines()[2:]:
+        name, _, rest = line.partition(":")
+        if name.strip() == iface:
+            try:
+                dbm = float(rest.split()[2].rstrip("."))  # status, link, level (dBm), noise
+            except (ValueError, IndexError):
+                break
+            info["wifi_dbm"] = round(dbm)
+            # -100 dBm and below = 0 %, -50 dBm and above = 100 %, as most systems show it.
+            info["wifi_quality"] = max(0, min(100, round(2 * (dbm + 100))))
+    if info["wifi_dbm"] is not None:
+        iw = shutil.which("iw", path=os.environ.get("PATH", "") + os.pathsep + "/usr/sbin:/sbin")
+        if iw:
+            try:
+                out = subprocess.run([iw, "dev", iface, "link"], capture_output=True, text=True, timeout=3).stdout
+            except (OSError, subprocess.SubprocessError):
+                out = ""
+            for key, pattern in (("ssid", r"^\s*SSID:\s*(.+)$"), ("wifi_freq", r"^\s*freq:\s*([\d.]+)"),
+                                 ("wifi_bitrate", r"^\s*tx bitrate:\s*([\d.]+)")):
+                m = re.search(pattern, out, re.M)
+                if m:
+                    info[key] = m.group(1).strip() if key == "ssid" else float(m.group(1))
+    return info
+
+
+def power_text(t):
+    """vcgencmd get_throttled flags in words, as the menu's lightning mark says them (web/nav.js)."""
+    if t is None:
+        return None
+    return ("Under-voltage!" if t & 0x1 else "Throttled" if t & 0x6 else "Temperature limit" if t & 0x8
+            else "Under-voltage since boot" if t & 0x10000 else "Throttled since boot" if t & 0xE0000
+            else "Power OK")
+
+
+def boot_time():
+    for line in _read_text(PROC_STAT).splitlines():
+        if line.startswith("btime "):
+            try:
+                return int(line.split()[1])
+            except (ValueError, IndexError):
+                break
+    up = ((SYSTEM.latest if SYSTEM else None) or {}).get("uptime")
+    return None if up is None else int((time.time() - up) // 60 * 60)
+
+
+def _iso(t):
+    return time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(t))
+
+
+def _r(v, digits=1):
+    return None if v is None else round(v, digits) if digits else int(round(v))
+
+
+STATUS_WORDS = ["Offline", "Idle", "Running", "Paused", "E-stop"]
+
+
+class HaEntity:
+    """One Home Assistant entity. group: "now" = sent as soon as it changes, "machine" = at
+    most every Settings' machine interval, "system" = every system interval."""
+
+    def __init__(self, key, component, name, icon, group, machine=False, **extra):
+        self.key, self.component, self.name, self.icon, self.group = key, component, name, icon, group
+        self.machine = machine     # unavailable while TNG (the bridge) is offline
+        self.extra = extra
+
+
+def _sensor(key, name, icon, group, unit=None, device_class=None, state_class="measurement", **kw):
+    extra = dict(kw)
+    if unit:
+        extra.update(unit_of_measurement=unit, state_class=state_class)
+    if device_class:
+        extra["device_class"] = device_class
+    return HaEntity(key, "sensor", name, icon, group, **extra)
+
+
+HA_ENTITIES = [
+    # The machine
+    _sensor("status", "Status", "mdi:state-machine", "now", device_class="enum", options=STATUS_WORDS),
+    HaEntity("job", "binary_sensor", "Job running", "mdi:play-circle-outline", "now", machine=True,
+             device_class="running", payload_on="ON", payload_off="OFF"),
+    _sensor("program", "Program", "mdi:file-code-outline", "now", machine=True),
+    _sensor("operation", "Operation", "mdi:cog-play-outline", "now", machine=True),
+    _sensor("progress", "Progress", "mdi:progress-clock", "machine", "%", machine=True, suggested_display_precision=0),
+    _sensor("operation_progress", "Operation progress", "mdi:progress-wrench", "machine", "%", machine=True,
+            suggested_display_precision=0),
+    _sensor("time_left", "Time left", "mdi:timer-sand", "machine", "min", "duration", machine=True,
+            suggested_display_precision=0),
+    _sensor("job_time", "Job time", "mdi:timer-outline", "machine", "min", "duration", machine=True,
+            suggested_display_precision=0),
+    _sensor("tool", "Tool", "mdi:screwdriver", "now", machine=True),
+    _sensor("spindle", "Spindle speed", "mdi:fan", "machine", "rpm", machine=True, suggested_display_precision=0),
+    # No device class: Home Assistant's "speed" doesn't take mm/min.
+    _sensor("feed", "Feed rate", "mdi:speedometer", "machine", "mm/min", machine=True, suggested_display_precision=0),
+    # The Raspberry Pi, as the rings at the bottom of the menu, and its network
+    _sensor("cpu_use", "CPU use", "mdi:cpu-64-bit", "system", "%", entity_category="diagnostic",
+            suggested_display_precision=0),
+    _sensor("ram_use", "RAM use", "mdi:memory", "system", "%", entity_category="diagnostic",
+            suggested_display_precision=0),
+    _sensor("cpu_temperature", "CPU temperature", "mdi:thermometer", "system", "°C", "temperature",
+            entity_category="diagnostic", suggested_display_precision=0),
+    _sensor("disk_use", "Disk use", "mdi:harddisk", "system", "%", entity_category="diagnostic",
+            suggested_display_precision=0),
+    _sensor("power", "Power", "mdi:flash", "system", entity_category="diagnostic"),
+    _sensor("last_boot", "Last boot", "mdi:clock-start", "system", device_class="timestamp",
+            entity_category="diagnostic"),
+    _sensor("ip_address", "IP address", "mdi:ip-network", "system", entity_category="diagnostic"),
+    _sensor("mac_address", "MAC address", "mdi:network-outline", "system", entity_category="diagnostic"),
+    _sensor("wifi_network", "WiFi network", "mdi:wifi-settings", "system", entity_category="diagnostic"),
+    _sensor("wifi_signal", "WiFi signal", "mdi:wifi", "system", "dBm", "signal_strength",
+            entity_category="diagnostic"),
+    _sensor("wifi_quality", "WiFi quality", "mdi:wifi-strength-3", "system", "%", entity_category="diagnostic"),
+]
+
+
+class HomeAssistant:
+    """Publishes the machine and the Pi to Home Assistant through an MQTT broker (Settings > MQTT).
+    One thread: connects, announces the entities (MQTT discovery), then once a second sends
+    what changed, each value no more often than its group's interval allows."""
+
+    def __init__(self, http_port):
+        self.node = re.sub(r"[^a-z0-9]+", "_", socket.gethostname().lower()).strip("_") or "planetcnc"
+        self.http_port = http_port
+        self.wake = threading.Event()
+        self.restart = False          # the settings changed: reconnect with the new ones
+        self.connected = False
+        self.error = ""
+        self.base = ""
+        self.announced = None         # (device name, base, prefix) the discovery was sent with
+        self.sent = {}                # entity key -> (state, attributes json, time sent)
+        self.bridge_sent = None
+        self.ops = ("", [], [], 0)   # (program id, program_operations(), their first lines, line count)
+        self.network = ({}, 0.0)      # (network_info(), when)
+        threading.Thread(target=self._run, name="mqtt", daemon=True).start()
+
+    # ----- settings -----
+
+    @staticmethod
+    def enabled():
+        return bool(SETTINGS["mqtt_enabled"] and SETTINGS["mqtt_host"])
+
+    def default_base(self):
+        return "planetcnc_observatory/" + self.node
+
+    def base_topic(self):
+        return (SETTINGS["mqtt_base"] or self.default_base()).strip("/")
+
+    def settings_changed(self):
+        self.restart = True
+        self.wake.set()
+
+    def view(self):
+        return {"enabled": bool(SETTINGS["mqtt_enabled"]), "host": SETTINGS["mqtt_host"], "port": SETTINGS["mqtt_port"],
+                "user": SETTINGS["mqtt_user"], "password_set": bool(SETTINGS["mqtt_password"]),
+                "prefix": SETTINGS["mqtt_prefix"], "base": SETTINGS["mqtt_base"], "base_default": self.default_base(),
+                "machine_every": SETTINGS["mqtt_machine_every"], "system_every": SETTINGS["mqtt_system_every"],
+                "every_choices": list(MQTT_EVERY), "connected": self.connected, "error": self.error,
+                "entities": len(HA_ENTITIES)}
+
+    # ----- the connection -----
+
+    def _run(self):
+        backoff = 5
+        while True:
+            self.restart = False
+            if not self.enabled():
+                self.connected, self.error = False, ""
+                self.wake.wait()
+                self.wake.clear()
+                continue
+            try:
+                self._session()
+                backoff = 5
+            except (OSError, MqttError) as e:
+                error = str(e) or e.__class__.__name__
+                if isinstance(e, socket.gaierror):
+                    error = "unknown broker address %s" % SETTINGS["mqtt_host"]
+                elif isinstance(e, ConnectionRefusedError):
+                    error = "nothing answers on %s port %s" % (SETTINGS["mqtt_host"], SETTINGS["mqtt_port"])
+                if self.connected:
+                    HUB.log("warn", "Home Assistant: MQTT connection lost (%s)" % error)
+                if error != self.error:
+                    log_mqtt.warning("%s; trying again in %d s", error, backoff)
+                self.connected, self.error = False, error
+            except Exception:  # noqa: BLE001 - keep trying whatever happens
+                log_mqtt.exception("unexpected error")
+                self.connected, self.error = False, "unexpected error, see the log"
+            if self.restart:
+                continue
+            self.wake.wait(backoff)
+            self.wake.clear()
+            backoff = min(backoff * 2, 300)
+
+    def _session(self):
+        self.base = self.base_topic()
+        status = self.base + "/status"
+        ha_status = SETTINGS["mqtt_prefix"].strip("/") + "/status"
+        client = MqttClient(SETTINGS["mqtt_host"], int(SETTINGS["mqtt_port"]), "planetcnc_observatory_" + self.node,
+                            SETTINGS["mqtt_user"], SETTINGS["mqtt_password"], will=(status, "offline"))
+        try:
+            log_mqtt.info("connected to %s:%s, topics %s/...", SETTINGS["mqtt_host"], SETTINGS["mqtt_port"], self.base)
+            HUB.log("ok", "Home Assistant: connected to the MQTT broker %s" % SETTINGS["mqtt_host"])
+            self.connected, self.error = True, ""
+            client.subscribe(ha_status)
+            self._announce(client)
+            while not self.restart:
+                if client.waiting(1.0):
+                    first, body = client.read()
+                    if first & 0xF0 == 0x30:
+                        topic, payload = MqttClient.parse_publish(first, body)
+                        if topic == ha_status and payload.strip() == b"online":
+                            log_mqtt.info("Home Assistant (re)started: announcing again")
+                            self._announce(client)
+                    continue
+                client.keep_alive()
+                self._publish(client)
+            client.publish(status, "offline")   # stopping cleanly: the broker only sends the will on a lost connection
+            client.close()
+            self.connected = False
+            log_mqtt.info("disconnected (settings changed)")
+        except BaseException:
+            client.close(clean=False)
+            raise
+
+    # ----- what Home Assistant gets -----
+
+    def _device(self):
+        return {"identifiers": ["planetcnc_observatory_" + self.node], "name": SETTINGS["name"],
+                "manufacturer": "PlanetCNC Observatory", "model": "PlanetCNC TNG machine",
+                "sw_version": CONFIG.version or "unknown",
+                "configuration_url": "http://%s:%d/" % (lan_address(), self.http_port)}
+
+    def _announce(self, client):
+        """Send the discovery configs, then every value (Home Assistant may have just started)."""
+        prefix = SETTINGS["mqtt_prefix"].strip("/")
+        device = self._device()
+        for e in HA_ENTITIES:
+            topic = "%s/%s" % (self.base, e.key)
+            config = {"name": e.name, "unique_id": "planetcnc_observatory_%s_%s" % (self.node, e.key),
+                      "icon": e.icon, "state_topic": topic, "device": device,
+                      "availability": [{"topic": self.base + "/status"}]}
+            if e.machine:
+                config["availability"].append({"topic": self.base + "/bridge"})
+                config["availability_mode"] = "all"
+            if e.component == "sensor":
+                config["json_attributes_topic"] = topic + "/attributes"
+            config.update(e.extra)
+            client.publish("%s/%s/%s/%s/config" % (prefix, e.component, self.node, e.key), json.dumps(config))
+        client.publish(self.base + "/status", "online")
+        self.announced = (SETTINGS["name"], self.base, prefix)
+        self.sent, self.bridge_sent = {}, None
+        self._publish(client)
+
+    def _publish(self, client):
+        if self.announced[0] != SETTINGS["name"]:   # the machine was renamed: tell Home Assistant
+            self._announce(client)
+            return
+        now = time.time()
+        every = {"now": 0, "machine": SETTINGS["mqtt_machine_every"], "system": SETTINGS["mqtt_system_every"]}
+        values, bridge = self._values(now)
+        if bridge != self.bridge_sent:
+            client.publish(self.base + "/bridge", bridge)
+            self.bridge_sent = bridge
+        for e in HA_ENTITIES:
+            if e.key not in values:
+                continue
+            state, attrs = values[e.key]
+            payload = "None" if state is None else state if isinstance(state, str) else json.dumps(state)
+            attrs = json.dumps(attrs, sort_keys=True) if attrs is not None else None
+            last = self.sent.get(e.key)
+            if last and (last[:2] == (payload, attrs) or now - last[2] < every[e.group] - 0.5):
+                continue
+            if attrs is not None and (not last or last[1] != attrs):
+                client.publish("%s/%s/attributes" % (self.base, e.key), attrs)
+            client.publish("%s/%s" % (self.base, e.key), payload)
+            self.sent[e.key] = (payload, attrs, now)
+
+    def operation(self, line):
+        """(number, count, name, first line, first line of the next one) of the operation the
+        program is at, or None."""
+        with HUB.cond:
+            pid, text = HUB.program["id"], HUB.program["text"]
+        if self.ops[0] != pid:  # read each program once
+            ops = program_operations(text)
+            self.ops = (pid, ops, [o[0] for o in ops], text.count("\n") + 1)
+        _, ops, starts, count = self.ops
+        k = bisect.bisect_right(starts, line) - 1
+        if k < 0:
+            return None
+        end = starts[k + 1] if k + 1 < len(ops) else count + 1
+        return k + 1, len(ops), ops[k][1], ops[k][0], end
+
+    def _values(self, now):
+        """{entity key: (state, attributes)} and the bridge's availability."""
+        _, s = HUB.snapshot()
+        online, job = s["bridge_online"], bool(s.get("job"))
+        status = ("Offline" if not online else "E-stop" if s.get("estop") else "Paused" if s.get("paused")
+                  else "Running" if s.get("running") else "Idle")
+        line, total = int(s.get("line") or 0), int(s.get("line_count") or 0)
+        op = self.operation(line) if job and total else None
+        left = s.get("time_to_end")
+        inch = 25.4 if s.get("units") == "in" else 1.0
+        tool = int(s.get("tool") or 0)
+        v = {
+            "status": (status, None),
+            "job": ("ON" if job else "OFF", None),
+            "program": (_job_name(s["file"]) if s.get("file") else None, {"path": s.get("file") or ""}),
+            "operation": (op[2] if op else None,
+                          {"number": op[0], "count": op[1], "first_line": op[3]} if op else {}),
+            "progress": (_r(100.0 * line / total) if job and total else None,
+                         {"line": line, "line_count": total} if job and total else {}),
+            "operation_progress": (_r(max(0.0, min(100.0, 100.0 * (line - op[3]) / max(1, op[4] - op[3]))))
+                                   if op else None, None),
+            "time_left": (_r(left / 60.0) if job and left is not None and left >= 0 else None, None),
+            "job_time": (_r((now - s["job_started"]) / 60.0) if job and s.get("job_started") else None, None),
+            "tool": (("T%d" % tool + (" " + s["tool_name"] if s.get("tool_name") else "")) if tool else None,
+                     {"number": tool, "diameter": s.get("tool_diameter") or None}),
+            "spindle": (_r(s.get("spindle") or 0, 0), None),
+            "feed": (_r((s.get("feed") or 0) * inch, 0), None),
+        }
+        sys_ = (SYSTEM.latest if SYSTEM else None) or {}
+        net, when = self.network
+        if now - when >= max(5, SETTINGS["mqtt_system_every"] - 1):
+            try:
+                net = network_info()
+            except Exception:  # noqa: BLE001 - leave the network sensors as they were
+                log_mqtt.exception("reading the network details failed")
+            self.network = (net, now)
+        pct = lambda used, total: _r(100.0 * sys_[used] / sys_[total]) if sys_.get(total) else None  # noqa: E731
+        boot = boot_time()
+        v.update({
+            "cpu_use": (_r(sys_.get("cpu")), None),
+            "ram_use": (pct("mem_used", "mem_total"), {"total_mb": int(sys_["mem_total"] / 2**20)} if sys_.get("mem_total") else {}),
+            "cpu_temperature": (_r(sys_.get("temp")), None),
+            "disk_use": (pct("disk_used", "disk_total"),
+                         {"total_gb": round(sys_["disk_total"] / 2**30, 1)} if sys_.get("disk_total") else {}),
+            "power": (power_text(sys_.get("throttled")),
+                      {"throttled": "0x%x" % sys_["throttled"]} if sys_.get("throttled") is not None else {}),
+            "last_boot": (_iso(boot) if boot else None, None),
+            "ip_address": (net.get("ip"), {"interface": net.get("interface")}),
+            "mac_address": (net.get("mac"), {"interface": net.get("interface")}),
+            "wifi_network": (net.get("ssid"), None),
+            "wifi_signal": (net.get("wifi_dbm"), {k: net.get("wifi_" + k) for k in ("freq", "bitrate")
+                                                  if net.get("wifi_" + k) is not None}),
+            "wifi_quality": (net.get("wifi_quality"), None),
+        })
+        return v, "online" if online else "offline"
+
+
+# ---------------------------------------------------------------------------
 # Settings changed from the dashboard, kept in settings.json next to this file
 # ---------------------------------------------------------------------------
 
@@ -1984,7 +2549,10 @@ SETTINGS = {"name": DEFAULT_NAME, "camera": None, "camera_view": True, "log_debu
             "telegram_token": "", "telegram_chat": "", "notify_progress": 10, "notify_minutes": 0,
             "notify_photos": True, "notify_replace": True,
             "notify_events": {},   # per message kind: {"send": bool, "silent": bool}, where it differs from NOTIFY_EVENTS
-            "timelapse": True, "timelapse_interval": 10}
+            "timelapse": True, "timelapse_interval": 10,
+            # Home Assistant over MQTT (see HomeAssistant); mqtt_base "" = planetcnc_observatory/<host name>
+            "mqtt_enabled": False, "mqtt_host": "", "mqtt_port": 1883, "mqtt_user": "", "mqtt_password": "",
+            "mqtt_prefix": "homeassistant", "mqtt_base": "", "mqtt_machine_every": 5, "mqtt_system_every": 30}
 NOTIFY_PROGRESS_STEPS = (0, 5, 10, 20, 25, 50)
 NOTIFY_MINUTES = (0, 5, 10, 15, 30, 60)   # progress message at least this often (0 = only by percentage)
 TIMELAPSE_INTERVALS = (5, 10, 20, 30, 60)
@@ -2035,7 +2603,7 @@ def save_settings(changes):
     with SETTINGS_LOCK:
         SETTINGS.update(changes)
         tmp = SETTINGS_FILE + ".tmp"
-        # Only this user may read it: it holds the Telegram bot token.
+        # Only this user may read it: it holds the Telegram bot token and the MQTT password.
         with open(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
             json.dump(SETTINGS, f, indent=2)
         try:
@@ -2246,10 +2814,11 @@ UPDATER = None
 OS_PACKAGES = None
 NOTIFY = None
 TIMELAPSE = None
+HA = None
 REJECTED_BRIDGES = set()  # addresses already reported for a wrong token
 CLIENT_LOG_RATE = {}      # browser address -> (minute started, lines received), for CLIENT_LOG_LIMIT
 CLIENT_LOG_LOCK = threading.Lock()
-CONFIG = argparse.Namespace(token="", files_dir="", files_default="", line_offset=0, camera_note="")
+CONFIG = argparse.Namespace(token="", files_dir="", files_default="", line_offset=0, camera_note="", version="")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -2796,7 +3365,8 @@ class Handler(BaseHTTPRequestHandler):
                                   for kind, label, _ in NOTIFY_EVENTS],
                 "timelapse": bool(SETTINGS["timelapse"]),
                 "timelapse_interval": SETTINGS["timelapse_interval"],
-                "timelapses": TIMELAPSE.list() if TIMELAPSE else [], "has_camera": bool(CAMERA)}
+                "timelapses": TIMELAPSE.list() if TIMELAPSE else [], "has_camera": bool(CAMERA),
+                "mqtt": HA.view() if HA else None}
 
     def _settings_change(self):
         try:
@@ -2858,6 +3428,46 @@ class Handler(BaseHTTPRequestHandler):
         for key in ("camera_view", "notify_photos", "notify_replace", "timelapse"):
             if key in data:
                 changes[key] = bool(data[key])
+        if "mqtt_enabled" in data:
+            changes["mqtt_enabled"] = bool(data["mqtt_enabled"])
+        if "mqtt_host" in data:
+            host = str(data["mqtt_host"] or "").strip()
+            if host.startswith(("mqtt://", "tcp://")):
+                host = host.split("://", 1)[1].rstrip("/")
+            if len(host) > 253 or not re.match(r"^[\w.:\[\]-]*$", host):
+                self._json(400, {"ok": False, "message": "broker: a host name or IP address, e.g. 192.168.1.10"})
+                return
+            changes["mqtt_host"] = host
+        if "mqtt_port" in data:
+            try:
+                port = int(data["mqtt_port"])
+            except (TypeError, ValueError):
+                port = 0
+            if not 1 <= port <= 65535:
+                self._json(400, {"ok": False, "message": "port: a number from 1 to 65535 (usually 1883)"})
+                return
+            changes["mqtt_port"] = port
+        if "mqtt_user" in data:
+            changes["mqtt_user"] = str(data["mqtt_user"] or "").strip()[:200]
+        if "mqtt_password" in data:
+            changes["mqtt_password"] = str(data["mqtt_password"] or "")[:200]
+        for key, what in (("mqtt_prefix", "discovery prefix"), ("mqtt_base", "base topic")):
+            if key in data:
+                topic = str(data[key] or "").strip().strip("/")
+                if len(topic) > 120 or any(c in topic for c in "+#") or " " in topic:
+                    self._json(400, {"ok": False, "message": "%s: a topic without spaces, + or #" % what})
+                    return
+                changes[key] = topic or ("homeassistant" if key == "mqtt_prefix" else "")
+        for key in ("mqtt_machine_every", "mqtt_system_every"):
+            if key in data:
+                try:
+                    value = int(data[key])
+                except (TypeError, ValueError):
+                    value = None
+                if value not in MQTT_EVERY:
+                    self._json(400, {"ok": False, "message": "%s must be one of %s" % (key, MQTT_EVERY)})
+                    return
+                changes[key] = value
         if "notify_events" in data:  # {kind: {"send": bool, "silent": bool}}, only the kinds that changed
             asked = data["notify_events"]
             kinds = {kind for kind, _, _ in NOTIFY_EVENTS}
@@ -2874,12 +3484,17 @@ class Handler(BaseHTTPRequestHandler):
             self._json(500, {"ok": False, "message": "could not save settings: %s" % e})
             return
         LOG.info("settings changed from %s: %s", self.client_address[0],
-                 {k: ("***" if k == "telegram_token" and v else v) for k, v in changes.items()})
+                 {k: ("***" if k in ("telegram_token", "mqtt_password") and v else v) for k, v in changes.items()})
         if "telegram_token" in changes and NOTIFY:
             NOTIFY.connect()
             v = NOTIFY.view()
             HUB.log("info" if v["bot"] or not v["token_set"] else "warn", "Telegram: %s" % (
                 "connected as @%s" % v["bot"] if v["bot"] else v["error"] or "off"))
+        if HA and any(k in changes for k in ("mqtt_enabled", "mqtt_host", "mqtt_port", "mqtt_user", "mqtt_password",
+                                              "mqtt_prefix", "mqtt_base")):
+            HA.settings_changed()
+            HUB.log("info", "Home Assistant (MQTT): %s" % ("connecting to %s" % SETTINGS["mqtt_host"] if HA.enabled()
+                                                            else "off"))
         if "camera" in changes and changes["camera"] != CAMERA.choice:
             CAMERA.set_choice(changes["camera"])
             HUB.log("info", "Camera: %s" % changes["camera"])
@@ -3662,6 +4277,7 @@ def main():
                                  text=True, timeout=5).stdout.strip()
     except (OSError, subprocess.SubprocessError):
         version = ""
+    CONFIG.version = version.split(" ", 1)[0]
     LOG.info("starting: version %s, Python %s, pid %d%s", version or "unknown", sys.version.split()[0], os.getpid(),
              ", under systemd" if os.environ.get("INVOCATION_ID") else "")
     LOG.info("logs: %s (at most %d MB, kept %d days%s)", LOGS.dir or "console only", args.log_max_mb,
@@ -3679,7 +4295,7 @@ def main():
             log_files.warning("folder %s not found, file view disabled", files_dir)
     apply_files_dir()
 
-    global CAMERA, SYSTEM, UPDATER, UPDATES_OFF_REASON, TUNING, PRESETS, BITS, OS_PACKAGES, NOTIFY, TIMELAPSE
+    global CAMERA, SYSTEM, UPDATER, UPDATES_OFF_REASON, TUNING, PRESETS, BITS, OS_PACKAGES, NOTIFY, TIMELAPSE, HA
     TUNING = TuningLog(TUNING_FILE)
     PRESETS = PlaningPresets(PRESETS_FILE)
     BITS = PlaningPresets(BITS_FILE, keys=("d",), what="bit", what_plural="bits")
@@ -3712,6 +4328,7 @@ def main():
     TIMELAPSE = Timelapse()
     NOTIFY = Notifier()
     startup_notices()
+    HA = HomeAssistant(args.port)
 
     if args.demo:
         if not SYSTEM:

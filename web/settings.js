@@ -1,5 +1,5 @@
 // The /settings page: the machine name, camera, Files folder, tool in the 3D view, Telegram,
-// timelapse and logs. Everything is saved on the Pi (/api/settings) and applies to everyone.
+// timelapse, MQTT (Home Assistant) and logs. Everything is saved on the Pi (/api/settings) and applies to everyone.
 import { ask } from './dialog.js';
 import { log } from './log.js';
 import { initHelp } from './help.js';
@@ -54,6 +54,7 @@ function renderSettings(d) {
   cams.value = d.tool_cam;
   cams.disabled = !d.tool_shape;
   renderNotify(d);
+  renderMqtt(d.mqtt);
 }
 
 async function settingsLoad() {
@@ -232,6 +233,60 @@ $('tgEvents').addEventListener('change', (e) => {
 });
 $('tlOn').addEventListener('change', (e) => settingsSave({ timelapse: e.target.checked }));
 $('tlInterval').addEventListener('change', (e) => settingsSave({ timelapse_interval: Number(e.target.value) }));
+
+// ---------------------------------------------------------------- MQTT (Home Assistant)
+
+const fmtEvery = (s) => s < 60 ? `Every ${s} s` : s === 60 ? 'Every minute' : `Every ${s / 60} minutes`;
+
+function renderMqtt(m) {
+  $('mqttGroup').hidden = !m;
+  if (!m) return;
+  $('mqttOn').checked = m.enabled;
+  // Don't overwrite what is being typed (the settings are reloaded a moment after each save).
+  const typing = $('mqttForm').contains(document.activeElement);
+  if (!typing) {
+    $('mqttHost').value = m.host || '';
+    $('mqttPort').value = m.port || 1883;
+    $('mqttUser').value = m.user || '';
+    $('mqttPassword').value = '';
+    $('mqttPrefix').value = m.prefix || 'homeassistant';
+    $('mqttBase').value = m.base || '';
+  }
+  $('mqttPassword').placeholder = m.password_set ? 'saved – type a new one to change it' : 'none';
+  $('mqttBase').placeholder = m.base_default;
+  for (const [id, value] of [['mqttMachineEvery', m.machine_every], ['mqttSystemEvery', m.system_every]]) {
+    $(id).innerHTML = m.every_choices.map((s) => `<option value="${s}">${fmtEvery(s)}</option>`).join('');
+    $(id).value = String(value);
+  }
+  const status = !m.enabled ? ['Off.', '']
+    : !m.host ? ['Enter the broker\'s address and press Save.', '']
+    : m.connected ? [`Connected to ${m.host}: ${m.entities} entities on the "${m.base || m.base_default}" topics.`, 'ok']
+    : m.error ? [`Not connected: ${m.error}. Trying again…`, 'err']
+    : [`Connecting to ${m.host}…`, ''];
+  $('mqttStatus').textContent = status[0];
+  $('mqttStatus').className = 'set-hint' + (status[1] ? ' ' + status[1] : '');
+}
+
+$('mqttOn').addEventListener('change', async (e) => {
+  await settingsSave({ mqtt_enabled: e.target.checked });
+  setTimeout(settingsLoad, 2500);   // show whether it connected
+});
+$('mqttForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const changes = {
+    mqtt_host: $('mqttHost').value.trim(), mqtt_port: Number($('mqttPort').value) || 1883,
+    mqtt_user: $('mqttUser').value.trim(), mqtt_prefix: $('mqttPrefix').value.trim(), mqtt_base: $('mqttBase').value.trim(),
+  };
+  const password = $('mqttPassword').value;
+  // An empty password field keeps the saved password, unless the user name was cleared too.
+  if (password || !changes.mqtt_user) changes.mqtt_password = password;
+  if (changes.mqtt_host && !$('mqttOn').checked) changes.mqtt_enabled = true;   // saving a broker turns it on
+  document.activeElement?.blur();
+  const res = await settingsSave(changes);
+  if (res.ok) setTimeout(settingsLoad, 2500);
+});
+$('mqttMachineEvery').addEventListener('change', (e) => settingsSave({ mqtt_machine_every: Number(e.target.value) }));
+$('mqttSystemEvery').addEventListener('change', (e) => settingsSave({ mqtt_system_every: Number(e.target.value) }));
 
 // ---------------------------------------------------------------- logs
 
