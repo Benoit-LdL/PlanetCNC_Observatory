@@ -1189,8 +1189,14 @@ A device named like the machine (**Settings → Machine → Name**), with:
 | **Last boot** | When the Pi started; Home Assistant shows it as "2 days ago". |
 | **IP address**, **MAC address** | Of the network the Pi uses (its default route), with the interface as an attribute. |
 | **WiFi network**, **WiFi signal**, **WiFi quality** | On WiFi: the network name, the signal in dBm (frequency and bit rate as attributes) and as a percentage (−100 dBm = 0 %, −50 dBm or better = 100 %). Empty on a cable. |
+| **Software** | An update entity: the installed and the latest version (commit) of this app, with the new commits' messages as the release notes and a link to the changes on GitHub. It only shows; update from the **System** page. |
+| **Installed version** | The commit the Pi runs; its message, date and branch are attributes. |
+| **Commits behind** | How many commits GitHub has that the Pi doesn't. Attribute `commits`: each new commit's short hash and message, newest first (at most 50). |
 
-The Pi's entities are under **Diagnostic** on the device page. While TNG isn't
+The Pi's entities are under **Diagnostic** on the device page. The software
+entities follow the update check of the **System** page (every 6 hours, and
+each time the page opens) and are left out when the app can't update itself
+(git missing, or the folder isn't a git clone). While TNG isn't
 running, the machine's entities show as unavailable and **Status** as
 Offline; when the server stops, everything is unavailable.
 

@@ -1004,6 +1004,10 @@ class Updater:
             info["dirty"] = [line[3:] for line in
                              self._git("status", "--porcelain", "--untracked-files=no").splitlines()]
             info["can_rollback"] = os.path.isfile(os.path.join(APP_DIR, ".git", "pcnc_previous"))
+            try:
+                info["web_url"] = github_web_url(self._git("remote", "get-url", "origin"))
+            except RuntimeError:
+                info["web_url"] = None
         except (RuntimeError, OSError, subprocess.SubprocessError) as e:
             info["error"] = str(e)
         info["auto_restart"] = bool(os.environ.get("INVOCATION_ID"))  # set when systemd runs us
@@ -2289,7 +2293,34 @@ HA_ENTITIES = [
     _sensor("wifi_signal", "WiFi signal", "mdi:wifi", "system", "dBm", "signal_strength",
             entity_category="diagnostic"),
     _sensor("wifi_quality", "WiFi quality", "mdi:wifi-strength-3", "system", "%", entity_category="diagnostic"),
+    # This app's own version against GitHub (the System page's update check); only when updates work
+    HaEntity("software", "update", "Software", "mdi:update", "app", entity_category="diagnostic"),
+    _sensor("installed_version", "Installed version", "mdi:source-commit", "app", entity_category="diagnostic"),
+    _sensor("commits_behind", "Commits behind", "mdi:source-branch-sync", "app", "commits",
+            entity_category="diagnostic", suggested_display_precision=0),
 ]
+HA_COMMITS_MAX = 50        # the Commits behind sensor lists at most this many new commits as an attribute
+HA_SUMMARY_MAX = 255       # Home Assistant's limit for an update entity's release summary
+
+
+def github_web_url(remote):
+    """https://github.com/owner/repo for a GitHub remote (https or ssh), else None."""
+    m = re.match(r"(?:https?://|ssh://)?(?:[^@/]+@)?github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?/?$", remote or "")
+    return "https://github.com/%s/%s" % m.groups() if m else None
+
+
+def release_summary(commits):
+    """The new commits' subjects, one per line, within Home Assistant's 255 characters."""
+    lines, used = [], 0
+    for k, c in enumerate(commits):
+        line = "- " + c["subject"]
+        more = "\n…and %d more" % (len(commits) - k)
+        if used + len(line) + 1 + (len(more) if k + 1 < len(commits) else 0) > HA_SUMMARY_MAX:
+            lines.append(more.strip())
+            break
+        lines.append(line)
+        used += len(line) + 1
+    return "\n".join(lines)[:HA_SUMMARY_MAX]
 
 
 class HomeAssistant:
@@ -2321,6 +2352,11 @@ class HomeAssistant:
     def default_base(self):
         return "planetcnc_observatory/" + self.node
 
+    @staticmethod
+    def entities():
+        """The entities to announce: the software ones only when this install can update itself."""
+        return [e for e in HA_ENTITIES if e.group != "app" or UPDATER]
+
     def base_topic(self):
         return (SETTINGS["mqtt_base"] or self.default_base()).strip("/")
 
@@ -2334,7 +2370,7 @@ class HomeAssistant:
                 "prefix": SETTINGS["mqtt_prefix"], "base": SETTINGS["mqtt_base"], "base_default": self.default_base(),
                 "machine_every": SETTINGS["mqtt_machine_every"], "system_every": SETTINGS["mqtt_system_every"],
                 "every_choices": list(MQTT_EVERY), "connected": self.connected, "error": self.error,
-                "entities": len(HA_ENTITIES)}
+                "entities": len(self.entities())}
 
     # ----- the connection -----
 
@@ -2413,7 +2449,7 @@ class HomeAssistant:
         """Send the discovery configs, then every value (Home Assistant may have just started)."""
         prefix = SETTINGS["mqtt_prefix"].strip("/")
         device = self._device()
-        for e in HA_ENTITIES:
+        for e in self.entities():
             topic = "%s/%s" % (self.base, e.key)
             config = {"name": e.name, "unique_id": "planetcnc_observatory_%s_%s" % (self.node, e.key),
                       "icon": e.icon, "state_topic": topic, "device": device,
@@ -2435,12 +2471,13 @@ class HomeAssistant:
             self._announce(client)
             return
         now = time.time()
-        every = {"now": 0, "machine": SETTINGS["mqtt_machine_every"], "system": SETTINGS["mqtt_system_every"]}
+        every = {"now": 0, "machine": SETTINGS["mqtt_machine_every"], "system": SETTINGS["mqtt_system_every"],
+                 "app": SETTINGS["mqtt_system_every"]}
         values, bridge = self._values(now)
         if bridge != self.bridge_sent:
             client.publish(self.base + "/bridge", bridge)
             self.bridge_sent = bridge
-        for e in HA_ENTITIES:
+        for e in self.entities():
             if e.key not in values:
                 continue
             state, attrs = values[e.key]
@@ -2523,7 +2560,31 @@ class HomeAssistant:
                                                   if net.get("wifi_" + k) is not None}),
             "wifi_quality": (net.get("wifi_quality"), None),
         })
+        if UPDATER:
+            v.update(self._software())
         return v, "online" if online else "offline"
+
+    @staticmethod
+    def _software():
+        """The installed version, how far GitHub is ahead and its new commits (the System page's check)."""
+        u = UPDATER.status()
+        cur, latest, commits = u.get("current") or {}, u.get("latest") or {}, u.get("commits") or []
+        known = bool(cur) and not u.get("error")
+        checked = _iso(u["checked"]) if u.get("checked") else None
+        web = u.get("web_url")
+        update = {"installed_version": cur.get("sha"), "latest_version": (latest or cur).get("sha") if known else None,
+                  "title": "PlanetCNC Observatory", "release_summary": release_summary(commits) if commits else None,
+                  "release_url": ("%s/compare/%s...%s" % (web, cur["sha"], latest["sha"]) if commits
+                                  else "%s/commit/%s" % (web, cur["sha"])) if web and known else None}
+        return {
+            "software": (update, None),
+            "installed_version": (cur.get("sha"), {"subject": cur.get("subject"), "date": cur.get("date"),
+                                                   "branch": u.get("branch")} if cur else {}),
+            "commits_behind": (len(commits) if known else None,
+                               {"commits": ["%s %s" % (c["sha"], c["subject"]) for c in commits[:HA_COMMITS_MAX]],
+                                "more": max(0, len(commits) - HA_COMMITS_MAX), "latest_version": latest.get("sha"),
+                                "checked": checked, "error": u.get("error") or None} if cur else {}),
+        }
 
 
 # ---------------------------------------------------------------------------
