@@ -38,6 +38,8 @@ the right.*
 - Feed rate, spindle speed, tool number and coordinate system.
 - Status at a glance: running, paused, E-stop, idle or offline; the Pi's
   CPU, memory, temperature and disk as rings in the menu, on every page.
+- The workshop's **air quality** from a SEN55 sensor in Home Assistant (dust,
+  VOC, NOx, temperature, humidity), as rings in the menu above the Pi's.
 - A software **E-stop** button, always in view. It is the only thing the
   dashboard can make the machine do; it only switches E-stop on, and releasing
   it happens at the machine.
@@ -272,7 +274,7 @@ default the server only accepts a bridge from the Pi itself.
 | `tools/machine_model.py` | Makes the light machine model `web/machine/evo-m.glb` from the complete CAD export (on a PC, not needed on the Pi; see [The machine in the 3D view](#the-machine-in-the-3d-view)). |
 | `media/` | The animation and screenshots in this README. |
 | `web/` | The pages (HTML, CSS, JavaScript). `style.css` holds the look of every page, day and night; `theme-boot.js` sets the day / night mode before a page is drawn; `fonts/` are Roboto and Roboto Mono, `sky.svg` the faint stars behind the cards (moved by `topbar-boot.js` as the page scrolls). `tune.js` reads and rewrites programs for the Feeds & steps window; `system-ui.js` holds the E-stop button and the System page (`system.html`, `system.js`); `topbar-boot.js` draws the top bar and the menu (and runs the day / night button) before each page is shown, and `nav.js` keeps them current; `help.js` the **?** help popups in Settings; `settings.html` and `settings.js` the Settings page; `materials.html` and `materials.js` the Materials page (materials and planing bits); `camera.html` is the camera page on its own; `planing.html`, `planing.js` and `planing-gcode.js` are the Planing page; `machine/evo-m.glb` is the machine drawn in the 3D view. |
-| `settings.json` | Created when you change a setting in the dashboard; it also holds the Telegram bot token and the MQTT password, so only its owner may read it. Not part of git. |
+| `settings.json` | Created when you change a setting in the dashboard; it also holds the Telegram bot token, the MQTT password and the Home Assistant token, so only its owner may read it. Not part of git. |
 | `timelapses/` | The last 20 job timelapses. Not part of git. |
 | `tuning.json` | The Feeds tab's log of adjusted files. Not part of git. |
 | `planing_presets.json` | The Planing page's cutting values per material. Not part of git. |
@@ -540,8 +542,9 @@ command in TNG. TNG stops the machine at once.
 - **Job:** the loaded file, the progress (percentage and bar), the **line**, **start time, elapsed time** (since the job started, pauses
   included), **time remaining** (TNG's own estimate when it has one) and the
   time of the last update. The console also says how long a job took when it ends.
-- On a phone, the **Raspberry Pi** card: the Pi's health rings (see below),
-  its uptime and its power status.
+- On a phone, the **Air quality** card (when set up) and the **Raspberry Pi**
+  card: the same rings as in the menu (see below), with the temperature and
+  humidity, the Pi's uptime and its power status.
 
 ### Raspberry Pi health
 
@@ -558,6 +561,26 @@ On a phone they are in the dashboard's Raspberry Pi card instead.
   blinking for **Under-voltage!** right now. A weak supply is a common cause of
   random Pi problems.
 - A click on the rings opens the [System page](#system-page).
+
+### Air quality
+
+With a SEN55 air-quality sensor in Home Assistant (set up in
+[Settings](#settings-page)), the menu shows the air above the Pi's rings, on
+every page, refreshed every 10 seconds. On a phone it is the dashboard's Air
+quality card.
+
+- Four rings: **PM2.5** and **PM10** fine dust (µg/m³), and the **VOC** and
+  **NOx** indexes. Hover over a ring for the details; the PM2.5 ring also
+  gives PM1, the PM10 ring PM4. Under the rings: temperature and humidity.
+- A ring turns amber (high) or red (bad) from PM2.5 25 / 50, PM10 50 / 100
+  (the European air quality index's "poor" and "very poor"), VOC 150 / 250
+  (100 is the room's usual air) and NOx 20 / 150 (1 is clean air).
+- The dot next to **Air**: green Good, amber Elevated, red Poor (or **No
+  data** when Home Assistant doesn't answer, with the reason when you hover).
+  Grey while waiting for the first reading; amber when the last reading is
+  more than a minute old.
+- In a short window (a laptop) the air and Pi rings are smaller, two per row,
+  so everything still fits in the menu.
 
 ### 3D view (middle)
 
@@ -710,6 +733,8 @@ enough. Everything here is saved on the Pi and applies to everyone.
   [Telegram notifications and timelapse](#telegram-notifications-and-timelapse).
 - **MQTT:** sends the machine to Home Assistant; see
   [Home Assistant](#home-assistant).
+- **Air quality:** reads a SEN55 sensor from Home Assistant for the menu; see
+  [Air quality from Home Assistant](#air-quality-from-home-assistant).
 - **Logs:** see [Logs and debugging](#logs-and-debugging).
 
 The explanations are behind the round **?** next to each title: hover over
@@ -1247,6 +1272,34 @@ live stream. Add it as an **MJPEG IP Camera**, as described in
 [The camera on its own](#the-camera-on-its-own). It becomes a device of its
 own; put both in the same area to keep them together.
 
+### Air quality from Home Assistant
+
+The other way round: the dashboard can show a **SEN55** air-quality sensor
+that Home Assistant already has (for example an ESP32 with ESPHome and the
+`sen5x` sensor), in the menu above the Pi's rings (see
+[Air quality](#air-quality)). This uses Home Assistant's REST API, not MQTT,
+and only reads: nothing is changed in Home Assistant, and the sensor's
+buttons (fan cleaning) aren't used.
+
+1. In Home Assistant, click your name (bottom left), open the **Security**
+   tab, and under **Long-lived access tokens** press **Create token**. Copy
+   it: Home Assistant shows it only once.
+2. In the dashboard, open **Settings → Air quality** and fill in:
+
+| Field | Example | |
+| --- | --- | --- |
+| **Address** | `http://homeassistant.local:8123` | How the Pi reaches Home Assistant (its IP address works too). |
+| **Token** | the long-lived access token | Kept in `settings.json`, readable only by the server's user. Leave empty to keep the saved one. |
+| **Sensors** | `sensor.smart_sen55` | The start of the sensors' entity ids. ESPHome names them after the device's `friendly_name` (`Smart SEN55` → `sensor.smart_sen55_…`); Home Assistant shows them under **Settings → Devices** → the sensor. |
+
+3. Press **Save**. The dashboard looks up the sensors (PM1, PM2.5, PM4, PM10,
+   temperature, humidity, VOC, NOx) and lists which it found. **Check** reads
+   them again right away; **Turn off** forgets the token.
+
+A sensor that is renamed in Home Assistant is found again by itself within 5
+minutes. If Home Assistant can't be reached, the menu says **No data** and the
+reason is in Settings and in the log (`pcnc.air`).
+
 ### Ideas
 
 - A **Tile** or **Gauge** card for **Progress**, with **Operation** and
@@ -1349,6 +1402,7 @@ can be looked at after it happened.
 | `pcnc.files` | Uploads, moves, deletions and adjusted files saved from the Feeds & steps window. |
 | `pcnc.telegram` | The bot connecting, commands from the chat, failed sends, timelapses started and made (with ffmpeg's error if it failed). |
 | `pcnc.mqtt` | Connecting to the MQTT broker and losing it (with the reason), Home Assistant restarting. |
+| `pcnc.air` | The air-quality sensors found in Home Assistant, and losing or regaining the connection (with the reason). |
 
 The bridge keeps up to 300 lines while it can't reach the server and sends
 them once the connection is back. Its log covers server outages too.

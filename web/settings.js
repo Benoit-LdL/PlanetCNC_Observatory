@@ -55,6 +55,7 @@ function renderSettings(d) {
   cams.disabled = !d.tool_shape;
   renderNotify(d);
   renderMqtt(d.mqtt);
+  renderAir(d.air);
 }
 
 async function settingsLoad() {
@@ -287,6 +288,67 @@ $('mqttForm').addEventListener('submit', async (e) => {
 });
 $('mqttMachineEvery').addEventListener('change', (e) => settingsSave({ mqtt_machine_every: Number(e.target.value) }));
 $('mqttSystemEvery').addEventListener('change', (e) => settingsSave({ mqtt_system_every: Number(e.target.value) }));
+
+// ---------------------------------------------------------------- air quality (Home Assistant)
+
+const AIR_NAMES = { pm1: 'PM1', pm25: 'PM2.5', pm4: 'PM4', pm10: 'PM10', temp: 'Temperature', hum: 'Humidity', voc: 'VOC', nox: 'NOx' };
+
+function renderAir(a) {
+  $('airGroup').hidden = !a;
+  if (!a) return;
+  // Don't overwrite what is being typed.
+  if (!$('airForm').contains(document.activeElement)) {
+    $('haUrl').value = a.url || '';
+    $('haToken').value = '';
+    $('airPrefix').value = a.prefix || '';
+  }
+  $('haToken').placeholder = a.token_set ? 'saved – paste a new one to change it' : 'long-lived access token';
+  $('airPrefix').placeholder = a.default_prefix;
+  $('airClearBtn').hidden = !a.token_set;
+  const on = !!(a.url && a.token_set);
+  $('airCheckBtn').disabled = !on;
+  $('airEntities').innerHTML = !on || (a.error && !Object.keys(a.entities).length) ? ''
+    : a.keys.map((k) => `<li><span>${AIR_NAMES[k]}</span>` + (a.entities[k]
+      ? `<code title="${esc(a.entities[k])}">${esc(a.entities[k])}</code><b>found</b>`
+      : '<code>–</code><span class="muted">not found</span>') + '</li>').join('');
+  const [text, kind] = !a.url ? ['Off: no Home Assistant address.', '']
+    : !a.token_set ? ['Off: no token.', '']
+    : a.error ? [a.error, 'err']
+    : a.ok ? [`Reading ${Object.keys(a.entities).length} sensors from ${a.url}.`, 'ok']
+    : ['Connecting to Home Assistant…', ''];
+  $('airStatus').textContent = text;
+  $('airStatus').className = 'set-hint' + (kind ? ' ' + kind : '');
+}
+
+async function airCheck() {
+  $('airCheckBtn').disabled = true;
+  setMessage('Reading the sensors…');
+  try {
+    const r = await fetch('/api/air/check', { method: 'POST', headers: { 'X-CNC-Control': '1', 'Content-Type': 'application/json' }, body: '{}' });
+    const res = await r.json().catch(() => ({ ok: false, message: `HTTP ${r.status}` }));
+    if (res.ok) renderSettings(res);
+    setMessage(res.message || (res.ok ? 'Done' : 'Failed'), res.ok && !res.air?.error ? 'ok' : 'err');
+  } catch {
+    setMessage('Server unreachable', 'err');
+  }
+  $('airCheckBtn').disabled = false;
+}
+
+$('airForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const changes = { ha_url: $('haUrl').value.trim(), air_prefix: $('airPrefix').value.trim() };
+  const token = $('haToken').value.trim();
+  if (token) changes.ha_token = token;   // empty: keep the saved token
+  document.activeElement?.blur();
+  const res = await settingsSave(changes);
+  if (res.ok && res.air?.url && res.air?.token_set) airCheck();
+});
+$('airClearBtn').addEventListener('click', async () => {
+  if (await ask({ title: 'Turn off the air quality?', text: 'The Home Assistant token is forgotten and the air quality disappears from the menu.', ok: 'Turn off', danger: true })) {
+    settingsSave({ ha_token: '' });
+  }
+});
+$('airCheckBtn').addEventListener('click', airCheck);
 
 // ---------------------------------------------------------------- logs
 

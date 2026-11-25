@@ -10,7 +10,7 @@
 <script src="theme-boot.js"></script>
 <link rel="stylesheet" href="style.css">
 <!-- The Settings page: the machine name, camera, Files folder, 3D view, Telegram, timelapse,
-     MQTT (Home Assistant) and logs. See settings.js. -->
+     MQTT (Home Assistant), air quality and logs. See settings.js. -->
 </head>
 <body>
 <header class="topbar">
@@ -197,6 +197,41 @@
       </div>
       <p class="set-help" data-help-for="mqttMachineEvery">How often values that change all the time are sent: progress, time left, spindle and feed (machine values), and the Pi's health and network. Status, program, operation and tool are sent as soon as they change.</p>
       <p class="set-hint" id="mqttStatus"></p>
+    </section>
+    <section class="set-group card set-card" id="airGroup">
+      <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 12h15a3 3 0 1 1-3 3"/><path d="M3 16h7"/></svg>Air quality</h3>
+      <p class="set-help">Shows a SEN55 air-quality sensor that Home Assistant already knows (for example on an ESP32
+        with ESPHome) in the menu, above the Raspberry Pi: fine dust (PM2.5, PM10; PM1 and PM4 when you point at
+        them), the VOC and NOx indexes, temperature and humidity. Read from Home Assistant every 10 seconds; it only
+        reads, nothing is changed in Home Assistant.</p>
+      <p class="set-help">Set up: <b>Address</b> is how this Pi reaches Home Assistant, e.g.
+        <code>http://homeassistant.local:8123</code>. For the <b>token</b>, in Home Assistant click your name
+        (bottom left), open the <b>Security</b> tab and under <b>Long-lived access tokens</b> press
+        <b>Create token</b>.</p>
+      <form class="set-form" id="airForm" autocomplete="off">
+        <div class="set-row">
+          <label for="haUrl">Address</label>
+          <input id="haUrl" spellcheck="false" inputmode="url" placeholder="http://homeassistant.local:8123">
+        </div>
+        <div class="set-row">
+          <label for="haToken">Token</label>
+          <input id="haToken" type="password" spellcheck="false" autocomplete="new-password" placeholder="long-lived access token">
+        </div>
+        <div class="set-row">
+          <label for="airPrefix">Sensors</label>
+          <input id="airPrefix" spellcheck="false" placeholder="sensor.smart_sen55">
+        </div>
+        <p class="set-help" data-help-for="airPrefix">The start of the sensors' entity ids: <code>sensor.smart_sen55</code> for an ESPHome device with <code>friendly_name: Smart SEN55</code> (Home Assistant shows them under Settings → Devices → the sensor). The PM, VOC, NOx, temperature and humidity sensors are found from it.</p>
+        <div class="set-btns">
+          <button class="vbtn" type="submit">Save</button>
+        </div>
+      </form>
+      <ul class="tg-chats air-ents" id="airEntities"></ul>
+      <p class="set-hint" id="airStatus"></p>
+      <div class="set-btns flush">
+        <button class="vbtn" id="airCheckBtn" type="button" title="Read the sensors now">Check</button>
+        <button class="vbtn" id="airClearBtn" type="button" title="Forget the token: the air quality disappears from the menu" hidden>Turn off</button>
+      </div>
     </section>
     <section class="set-group card set-card">
       <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M9 11h7M9 15h7M9 7h3"/></svg>Logs</h3>

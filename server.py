@@ -133,6 +133,7 @@ log_client = LOG.getChild("browser")
 log_system = LOG.getChild("system")
 log_notify = LOG.getChild("telegram")
 log_mqtt = LOG.getChild("mqtt")
+log_air = LOG.getChild("air")
 
 
 class LogManager:
@@ -534,6 +535,7 @@ class Hub:
         s["log_debug"] = LOGS.debug_enabled()
         s["files_enabled"] = bool(CONFIG.files_dir)
         s["system"] = SYSTEM.latest if SYSTEM else None
+        s["air"] = AIR.view() if AIR else None
         s["console_seq"] = HUB.console_seq
         s["tuning_seq"] = TUNING.seq if TUNING else 0
         s["file_rel"] = files_rel(s.get("file"))
@@ -1969,6 +1971,146 @@ def system_view():
 
 
 # ---------------------------------------------------------------------------
+# Air quality: a Sensirion SEN55 (ESPHome) read from Home Assistant's REST API
+# ---------------------------------------------------------------------------
+
+AIR_POLL = 10.0          # the SEN55 reports every 10 s
+AIR_RETRY = 30.0         # after an error
+AIR_RESOLVE_EVERY = 300  # look for missing sensors again this often
+AIR_STALE = 60.0         # values older than this are shown as old
+AIR_DEFAULT_PREFIX = "sensor.smart_sen55"
+# Which sensor is which, from the end of its entity id (after "<prefix>_"). ESPHome names them from
+# the sensor names, e.g. " PM <2.5µm Weight concentration" -> sensor.smart_sen55_pm_2_5um_weight_concentration.
+AIR_MATCH = (("pm1", r"pm_?1(?:_0)?(?:um|_|$)"), ("pm25", r"pm_?2_?5"), ("pm4", r"pm_?4(?:_0)?(?:um|_|$)"),
+             ("pm10", r"pm_?10(?:_0)?(?:um|_|$)"), ("temp", r"temp"), ("hum", r"hum"),
+             ("voc", r"voc"), ("nox", r"nox"))
+
+
+class AirQuality:
+    """Polls the air-quality sensors in Home Assistant; `view()` is sent with every state update.
+    Reading only: nothing is ever sent to Home Assistant but GET requests."""
+
+    def __init__(self):
+        self.entities = {}     # "pm25" -> entity id
+        self.values = {}       # "pm25" -> {"v": float or None, "unit": str}
+        self.updated = 0.0     # time of the last successful reading
+        self.error = ""
+        self.resolved = 0.0    # time of the last search for the entities
+        self.gen = 0           # +1 on each settings change, so a poll that was running then is dropped
+        self.lock = threading.Lock()   # one poll at a time
+        self.wake = threading.Event()
+        threading.Thread(target=self._run, name="air", daemon=True).start()
+
+    @staticmethod
+    def configured():
+        return bool(SETTINGS["ha_url"] and SETTINGS["ha_token"])
+
+    def reconfigure(self):
+        """The URL, token or prefix changed: start over."""
+        self.gen += 1
+        self.entities, self.values, self.updated, self.error, self.resolved = {}, {}, 0.0, "", 0.0
+        self.wake.set()
+
+    def _get(self, path):
+        req = urllib.request.Request(SETTINGS["ha_url"] + path, headers={
+            "Authorization": "Bearer " + SETTINGS["ha_token"], "Accept": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=8) as r:
+                return json.loads(r.read() or b"null")
+        except urllib.error.HTTPError as e:
+            if e.code == 401:
+                raise RuntimeError("Home Assistant refused the token (401)")
+            raise RuntimeError("Home Assistant answered HTTP %d" % e.code) from e
+        except (urllib.error.URLError, OSError) as e:
+            raise RuntimeError("cannot reach Home Assistant: %s" % getattr(e, "reason", e))
+        except ValueError:
+            raise RuntimeError("Home Assistant sent something that isn't JSON - is the address right?")
+
+    def _resolve(self):
+        prefix = SETTINGS["air_prefix"] + "_"
+        states = self._get("/api/states")
+        if not isinstance(states, list):
+            raise RuntimeError("unexpected answer from Home Assistant")
+        found = {}
+        for eid in sorted(st.get("entity_id", "") for st in states if isinstance(st, dict)):
+            if eid.startswith(prefix):
+                rest = eid[len(prefix):]
+                for key, pattern in AIR_MATCH:
+                    if key not in found and re.match(pattern, rest):
+                        found[key] = eid
+                        break
+        self.resolved = time.time()
+        if not found:
+            raise RuntimeError("no sensors whose id starts with %s" % prefix)
+        if found != self.entities:
+            log_air.info("sensors: %s", ", ".join("%s=%s" % kv for kv in sorted(found.items())))
+        self.entities = found
+
+    def poll(self):
+        """Read every sensor once. Returns True when it worked."""
+        with self.lock:
+            gen = self.gen
+            if not self.configured():
+                self.values, self.error = {}, ""
+                return False
+            try:
+                if not self.entities or (len(self.entities) < len(AIR_MATCH)
+                                         and time.time() - self.resolved > AIR_RESOLVE_EVERY):
+                    self._resolve()
+                values = {}
+                for key, eid in self.entities.items():
+                    try:
+                        st = self._get("/api/states/" + quote(eid))
+                    except RuntimeError as e:
+                        if "HTTP 404" in str(e):   # renamed or removed: search again next time
+                            self.resolved = 0.0
+                            continue
+                        raise
+                    try:
+                        v = float(st.get("state"))
+                        v = v if math.isfinite(v) else None
+                    except (TypeError, ValueError):
+                        v = None   # "unavailable", "unknown"
+                    values[key] = {"v": v, "unit": (st.get("attributes") or {}).get("unit_of_measurement", "")}
+                if gen != self.gen:
+                    return False
+                self.values, self.updated = values, time.time()
+                if self.error:
+                    log_air.info("Home Assistant: reading again")
+                self.error = ""
+                return True
+            except RuntimeError as e:
+                if gen != self.gen:
+                    return False
+                if str(e) != self.error:
+                    log_air.warning("%s", e)
+                self.error = str(e)
+                return False
+
+    def _run(self):
+        while True:
+            try:
+                ok = self.poll()
+            except Exception:  # never let a hiccup stop the polling
+                log_air.exception("air quality poll failed")
+                ok = False
+            self.wake.wait(AIR_POLL if ok or not self.configured() else AIR_RETRY)
+            self.wake.clear()
+
+    def view(self):
+        """For the dashboard; None when it isn't set up."""
+        if not self.configured():
+            return None
+        return {"values": self.values, "age": time.time() - self.updated if self.updated else None,
+                "stale": not self.updated or time.time() - self.updated > AIR_STALE, "error": self.error}
+
+    def settings_view(self):
+        return {"url": SETTINGS["ha_url"], "token_set": bool(SETTINGS["ha_token"]), "prefix": SETTINGS["air_prefix"],
+                "default_prefix": AIR_DEFAULT_PREFIX, "entities": self.entities, "error": self.error,
+                "ok": bool(self.updated) and not self.error, "keys": [k for k, _ in AIR_MATCH]}
+
+
+# ---------------------------------------------------------------------------
 # Home Assistant over MQTT: with MQTT discovery the machine shows up in Home Assistant as a
 # device by itself, no YAML. Set up in Settings > MQTT.
 #
@@ -2613,7 +2755,9 @@ SETTINGS = {"name": DEFAULT_NAME, "camera": None, "camera_view": True, "log_debu
             "timelapse": True, "timelapse_interval": 10,
             # Home Assistant over MQTT (see HomeAssistant); mqtt_base "" = planetcnc_observatory/<host name>
             "mqtt_enabled": False, "mqtt_host": "", "mqtt_port": 1883, "mqtt_user": "", "mqtt_password": "",
-            "mqtt_prefix": "homeassistant", "mqtt_base": "", "mqtt_machine_every": 5, "mqtt_system_every": 30}
+            "mqtt_prefix": "homeassistant", "mqtt_base": "", "mqtt_machine_every": 5, "mqtt_system_every": 30,
+            # Air quality read from Home Assistant's REST API (see AirQuality)
+            "ha_url": "", "ha_token": "", "air_prefix": AIR_DEFAULT_PREFIX}
 NOTIFY_PROGRESS_STEPS = (0, 5, 10, 20, 25, 50)
 NOTIFY_MINUTES = (0, 5, 10, 15, 30, 60)   # progress message at least this often (0 = only by percentage)
 TIMELAPSE_INTERVALS = (5, 10, 20, 30, 60)
@@ -2664,7 +2808,7 @@ def save_settings(changes):
     with SETTINGS_LOCK:
         SETTINGS.update(changes)
         tmp = SETTINGS_FILE + ".tmp"
-        # Only this user may read it: it holds the Telegram bot token and the MQTT password.
+        # Only this user may read it: it holds the Telegram bot token, the MQTT password and the Home Assistant token.
         with open(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
             json.dump(SETTINGS, f, indent=2)
         try:
@@ -2876,6 +3020,7 @@ OS_PACKAGES = None
 NOTIFY = None
 TIMELAPSE = None
 HA = None
+AIR = None
 REJECTED_BRIDGES = set()  # addresses already reported for a wrong token
 CLIENT_LOG_RATE = {}      # browser address -> (minute started, lines received), for CLIENT_LOG_LIMIT
 CLIENT_LOG_LOCK = threading.Lock()
@@ -3009,6 +3154,12 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/estop":
             if self._require_writer():
                 self._estop()
+            return
+        if path == "/api/air/check":
+            if self._require_writer():
+                AIR.poll()
+                self._json(200, dict(self._settings_view(), message=(
+                    "Home Assistant: %d sensors read" % len(AIR.values) if not AIR.error else AIR.error)))
             return
         if path == "/api/tng/open":
             if self._require_writer():
@@ -3427,7 +3578,7 @@ class Handler(BaseHTTPRequestHandler):
                 "timelapse": bool(SETTINGS["timelapse"]),
                 "timelapse_interval": SETTINGS["timelapse_interval"],
                 "timelapses": TIMELAPSE.list() if TIMELAPSE else [], "has_camera": bool(CAMERA),
-                "mqtt": HA.view() if HA else None}
+                "mqtt": HA.view() if HA else None, "air": AIR.settings_view() if AIR else None}
 
     def _settings_change(self):
         try:
@@ -3529,6 +3680,27 @@ class Handler(BaseHTTPRequestHandler):
                     self._json(400, {"ok": False, "message": "%s must be one of %s" % (key, MQTT_EVERY)})
                     return
                 changes[key] = value
+        if "ha_url" in data:
+            url = str(data["ha_url"] or "").strip().rstrip("/")
+            if url and not re.match(r"^https?://[^\s/]+(/\S*)?$", url):
+                self._json(400, {"ok": False, "message": "the address starts with http:// or https://, "
+                                                         "e.g. http://homeassistant.local:8123"})
+                return
+            changes["ha_url"] = url
+        if "ha_token" in data:
+            token = str(data["ha_token"] or "").strip()
+            if token and not re.match(r"^[\w.-]{20,}$", token):
+                self._json(400, {"ok": False, "message": "that doesn't look like a long-lived access token"})
+                return
+            changes["ha_token"] = token
+        if "air_prefix" in data:
+            prefix = str(data["air_prefix"] or "").strip().lower().rstrip("_") or AIR_DEFAULT_PREFIX
+            if "." not in prefix:
+                prefix = "sensor." + prefix
+            if not re.match(r"^[a-z_]+\.[a-z0-9_]+$", prefix):
+                self._json(400, {"ok": False, "message": "an entity id is like sensor.smart_sen55"})
+                return
+            changes["air_prefix"] = prefix
         if "notify_events" in data:  # {kind: {"send": bool, "silent": bool}}, only the kinds that changed
             asked = data["notify_events"]
             kinds = {kind for kind, _, _ in NOTIFY_EVENTS}
@@ -3545,7 +3717,7 @@ class Handler(BaseHTTPRequestHandler):
             self._json(500, {"ok": False, "message": "could not save settings: %s" % e})
             return
         LOG.info("settings changed from %s: %s", self.client_address[0],
-                 {k: ("***" if k in ("telegram_token", "mqtt_password") and v else v) for k, v in changes.items()})
+                 {k: ("***" if k in ("telegram_token", "mqtt_password", "ha_token") and v else v) for k, v in changes.items()})
         if "telegram_token" in changes and NOTIFY:
             NOTIFY.connect()
             v = NOTIFY.view()
@@ -3556,6 +3728,10 @@ class Handler(BaseHTTPRequestHandler):
             HA.settings_changed()
             HUB.log("info", "Home Assistant (MQTT): %s" % ("connecting to %s" % SETTINGS["mqtt_host"] if HA.enabled()
                                                             else "off"))
+        if AIR and changes.keys() & {"ha_url", "ha_token", "air_prefix"}:
+            AIR.reconfigure()
+            HUB.log("info", "Air quality: %s" % ("reading %s from %s" % (SETTINGS["air_prefix"], SETTINGS["ha_url"])
+                                                 if AIR.configured() else "off"))
         if "camera" in changes and changes["camera"] != CAMERA.choice:
             CAMERA.set_choice(changes["camera"])
             HUB.log("info", "Camera: %s" % changes["camera"])
@@ -4356,7 +4532,7 @@ def main():
             log_files.warning("folder %s not found, file view disabled", files_dir)
     apply_files_dir()
 
-    global CAMERA, SYSTEM, UPDATER, UPDATES_OFF_REASON, TUNING, PRESETS, BITS, OS_PACKAGES, NOTIFY, TIMELAPSE, HA
+    global CAMERA, SYSTEM, UPDATER, UPDATES_OFF_REASON, TUNING, PRESETS, BITS, OS_PACKAGES, NOTIFY, TIMELAPSE, HA, AIR
     TUNING = TuningLog(TUNING_FILE)
     PRESETS = PlaningPresets(PRESETS_FILE)
     BITS = PlaningPresets(BITS_FILE, keys=("d",), what="bit", what_plural="bits")
@@ -4390,6 +4566,7 @@ def main():
     NOTIFY = Notifier()
     startup_notices()
     HA = HomeAssistant(args.port)
+    AIR = AirQuality()
 
     if args.demo:
         if not SYSTEM:
