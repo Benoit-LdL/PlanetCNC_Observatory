@@ -2141,7 +2141,7 @@ class MqttClient:
     def __init__(self, host, port, client_id, user="", password="", will=None):
         self.buf = b""
         self.next_id = 1
-        self.last_sent = self.last_recv = time.time()
+        self.last_sent = self.last_recv = self.last_ping = time.time()
         flags, payload = 0x02, self._str(client_id)          # clean session
         if will:
             flags |= 0x04 | 0x20                              # a will, retained, QoS 0
@@ -2227,10 +2227,18 @@ class MqttClient:
         self._send(0x82, pid.to_bytes(2, "big") + self._str(topic) + b"\x00")
 
     def keep_alive(self):
-        if time.time() - self.last_recv > MQTT_KEEPALIVE * 1.5:
+        """Ping the broker when it's due; MqttError when the broker stopped answering. Pings go out when
+        nothing was sent for half the keepalive (the broker must hear from us), and also when nothing came
+        in for that long: publishes (QoS 0) get no answer, so while values are sent all the time only the
+        answer to a ping shows the broker is still there. Without that second rule the connection was
+        dropped as dead every 1.5 x keepalive while values kept going out."""
+        now = time.time()
+        if now - self.last_recv > MQTT_KEEPALIVE * 1.5:
             raise MqttError("no answer from the broker for %d s" % (MQTT_KEEPALIVE * 1.5))
-        if time.time() - self.last_sent >= MQTT_KEEPALIVE / 2:
+        quiet = now - self.last_recv >= MQTT_KEEPALIVE / 2 and now - self.last_ping >= MQTT_KEEPALIVE / 2
+        if now - self.last_sent >= MQTT_KEEPALIVE / 2 or quiet:
             self._send(0xC0)  # PINGREQ
+            self.last_ping = now
 
     def close(self, clean=True):
         """clean=False drops the connection, so the broker sends the last will."""
