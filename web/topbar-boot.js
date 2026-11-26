@@ -253,7 +253,6 @@
       var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
       root.setAttribute('data-theme', next);
       try { localStorage.setItem('theme', next); } catch (e) { /* not remembered */ }
-      if (window.setFavicon) window.setFavicon(next);   // the tab icon follows (theme-boot.js)
       label();
       document.dispatchEvent(new CustomEvent('themechange', { detail: next }));   // the 3D views recolour
     });

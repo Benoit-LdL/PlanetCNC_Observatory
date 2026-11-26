@@ -481,8 +481,7 @@ pages (Edge, Chrome and Safari cross-fade the page below it; in other browsers
 the page simply loads).
 
 - The **day / night** button at the top left. Each browser remembers its
-  choice; at first it follows the computer's own setting. The logo and the
-  browser tab's icon follow it: space-coloured by day, moon-coloured at night.
+  choice; at first it follows the computer's own setting.
 - The logo, **Observatory** and the machine's name (set in Settings); a click
   goes to the dashboard. On a phone only the logo shows.
 - The status:
