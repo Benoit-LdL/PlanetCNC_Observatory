@@ -5,6 +5,7 @@ import { log } from './log.js';
 import { initTune, openTune, tuneLogLoad } from './tune-ui.js';
 import { initSystem, systemOnState } from './system-ui.js';
 import { navOnState } from './nav.js';
+import { sentence, UNREACHABLE } from './msg.js';
 
 const $ = (id) => document.getElementById(id);
 const ROW_H = 20;          // must match .row height in style.css
@@ -413,7 +414,7 @@ $('camView').addEventListener('dblclick', () => { if (camEnabled) $('camFullBtn'
 document.addEventListener('fullscreenchange', () => {
   const full = document.fullscreenElement === camPanel;
   $('camFullBtn').textContent = full ? 'Exit full screen' : 'Full';
-  $('camFullBtn').title = full ? 'Back to the dashboard (Esc)' : 'Fullscreen';
+  $('camFullBtn').title = full ? 'Back to the dashboard (Esc)' : 'Full screen';
   camToggle.hidden = full;
 });
 // Don't keep a video stream running from the Pi for a background tab.
@@ -531,9 +532,10 @@ const fmtSize = (n) => n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(0)
 const fmtDate = (t) => new Date(t * 1000).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
 const joinPath = (dir, name) => (dir ? dir + '/' : '') + name;
 
-function filesMessage(text, kind = '') {
+/** What an action did, as a sentence; `plain` for the folder's status line ("3 items · drop files to upload"). */
+function filesMessage(text, kind = '', plain = false) {
   if (kind === 'err') log.warn('files:', text);
-  $('filesMsg').textContent = text;
+  $('filesMsg').textContent = plain ? text : sentence(text);
   $('filesMsg').className = 'files-msg' + (kind ? ' ' + kind : '');
 }
 
@@ -572,7 +574,21 @@ function tuneSync(s) {
   if (activeTab === 'feeds') tuneLogLoad(false, s.tuning_seq);
 }
 
+/** Why a program can't be loaded in TNG now ('' = it can); the same reasons as on the Planing page. */
+let tngLoad = 'TNG is not connected';
+function syncLoadButtons() {
+  for (const b of $('filesList').querySelectorAll('[data-load]')) {
+    b.disabled = !!tngLoad;
+    b.title = tngLoad || 'Load in TNG (it does not start it)';
+  }
+}
+
 function filesUpdate(s) {
+  const why = !s.bridge_online ? 'TNG is not connected' : s.running ? 'The machine is running: load it when it has stopped' : '';
+  if (why !== tngLoad) {
+    tngLoad = why;
+    syncLoadButtons();
+  }
   const enabled = !!s.files_enabled;
   if (enabled !== filesEnabled) {
     filesEnabled = enabled;
@@ -585,11 +601,11 @@ async function filesLoad(path) {
   try {
     d = await (await fetch('/api/files?path=' + encodeURIComponent(path), { cache: 'no-store' })).json();
   } catch {
-    d = { ok: false, message: 'Server unreachable' };
+    d = { ok: false, message: UNREACHABLE };
   }
   if (!d.ok) {
     if (path) return filesLoad('');  // folder vanished: back to the top
-    filesMessage(d.message || 'Cannot read folder', 'err');
+    filesMessage(`Could not open the folder: ${d.message || 'failed'}`, 'err');
     return;
   }
   filesPath = d.path;
@@ -624,8 +640,9 @@ async function filesLoad(path) {
       <span class="fsize">${fmtSize(e.size)}</span><span class="facts">${acts}</span></div>`;
   });
   $('filesList').innerHTML = rows.join('') || '<div class="files-empty">Empty folder – drop files here</div>';
+  syncLoadButtons();
   if (!$('filesMsg').classList.contains('err')) {
-    filesMessage(`${d.entries.length} item${d.entries.length === 1 ? '' : 's'} · drop files to upload`);
+    filesMessage(`${d.entries.length} item${d.entries.length === 1 ? '' : 's'} · drop files to upload`, '', true);
   }
 }
 
@@ -640,7 +657,7 @@ function uploadOne(url, file, onProgress) {
     x.onload = () => {
       try { resolve(JSON.parse(x.responseText)); } catch { resolve({ ok: false, message: `HTTP ${x.status}` }); }
     };
-    x.onerror = () => resolve({ ok: false, message: 'Server unreachable' });
+    x.onerror = () => resolve({ ok: false, message: UNREACHABLE });
     x.send(file);
   });
 }
@@ -663,7 +680,7 @@ async function filesUpload(fileList) {
       progress(0);
       res = await uploadOne(url(true), f, progress);
     }
-    if (!res.ok) { error = res.message || 'Upload failed'; break; }
+    if (!res.ok) { error = `Could not upload ${f.name}: ${res.message || 'failed'}`; break; }
     done++;
   }
   filesBusy = false;
@@ -690,9 +707,9 @@ $('filesMkdirBtn').addEventListener('click', async () => {
     });
     res = await r.json().catch(() => ({ ok: false, message: `HTTP ${r.status}` }));
   } catch {
-    res = { ok: false, message: 'Server unreachable' };
+    res = { ok: false, message: UNREACHABLE };
   }
-  filesMessage(res.message || (res.ok ? 'Folder made' : 'Could not make the folder'), res.ok ? 'ok' : 'err');
+  filesMessage(res.ok ? res.message || 'Folder made.' : `Could not make the folder: ${res.message || 'failed'}`, res.ok ? 'ok' : 'err');
   await filesLoad(filesPath);
 });
 $('filesUploadInput').addEventListener('change', (e) => {
@@ -718,10 +735,10 @@ filesPanel.addEventListener('click', async (e) => {
       });
       res = await r.json().catch(() => ({ ok: false, message: `HTTP ${r.status}` }));
     } catch {
-      res = { ok: false, message: 'Server unreachable' };
+      res = { ok: false, message: UNREACHABLE };
     }
-    b.disabled = false;
-    filesMessage(res.ok && res.loaded ? `Loaded ${name} in TNG – start it at the machine`
+    syncLoadButtons();
+    filesMessage(res.ok && res.loaded ? `Loaded ${name} in TNG: start it at the machine.`
       : res.ok ? `${res.message}: check TNG` : `Could not load ${name} in TNG: ${res.message || 'failed'}`,
     res.ok && res.loaded ? 'ok' : 'err');
   }
@@ -739,9 +756,9 @@ filesPanel.addEventListener('click', async (e) => {
       });
       res = await r.json().catch(() => ({ ok: false, message: `HTTP ${r.status}` }));
     } catch {
-      res = { ok: false, message: 'Server unreachable' };
+      res = { ok: false, message: UNREACHABLE };
     }
-    filesMessage(res.message || (res.ok ? 'Renamed' : 'Rename failed'), res.ok ? 'ok' : 'err');
+    filesMessage(res.ok ? res.message || 'Renamed.' : `Could not rename: ${res.message || 'failed'}`, res.ok ? 'ok' : 'err');
     await filesLoad(filesPath);
   }
   else if (b.dataset.preview) {
@@ -752,7 +769,7 @@ filesPanel.addEventListener('click', async (e) => {
       openPreview(path.split('/').pop(), await r.text());
       filesMessage('Previewing ' + path.split('/').pop());
     } catch (err) {
-      filesMessage('Cannot open: ' + err.message, 'err');
+      filesMessage(`Could not open it: ${err.message}`, 'err');
     }
   } else if (b.dataset.delete) {
     const path = b.dataset.delete;
@@ -766,9 +783,9 @@ filesPanel.addEventListener('click', async (e) => {
       });
       res = await r.json().catch(() => ({ ok: false, message: `HTTP ${r.status}` }));
     } catch {
-      res = { ok: false, message: 'Server unreachable' };
+      res = { ok: false, message: UNREACHABLE };
     }
-    filesMessage(res.message || (res.ok ? 'Deleted' : 'Delete failed'), res.ok ? 'ok' : 'err');
+    filesMessage(res.ok ? res.message || 'Deleted.' : `Could not delete: ${res.message || 'failed'}`, res.ok ? 'ok' : 'err');
     await filesLoad(filesPath);
   }
 });
@@ -828,7 +845,7 @@ filesPanel.addEventListener('drop', async (e) => {
       });
       return await r.json().catch(() => ({ ok: false, message: `HTTP ${r.status}` }));
     } catch {
-      return { ok: false, message: 'Server unreachable' };
+      return { ok: false, message: UNREACHABLE };
     }
   };
   let res = await send(false);
@@ -837,7 +854,7 @@ filesPanel.addEventListener('drop', async (e) => {
     res = await send(true);
   }
   await filesLoad(filesPath);
-  filesMessage(res.message || (res.ok ? 'Moved' : 'Move failed'), res.ok ? 'ok' : 'err');
+  filesMessage(res.ok ? res.message || 'Moved.' : `Could not move: ${res.message || 'failed'}`, res.ok ? 'ok' : 'err');
 });
 
 // Drag & drop onto the right panel, whichever tab it shows. dragenter/dragleave also fire

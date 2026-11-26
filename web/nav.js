@@ -77,12 +77,12 @@ function renderPi(pi) {
 }
 
 // Air quality (a SEN55 read from Home Assistant, state.air). Each ring: the sensor, its full scale,
-// amber from, red from. Dust in µg/m³ after the European air quality index (PM2.5 "poor" from 25,
-// "very poor" from 50; PM10 from 50 and 100). VOC and NOx are Sensirion indexes from 1 to 500:
-// VOC 100 is the room's usual air, NOx 1 is clean air; both rise with pollution.
+// amber from, red from. Dust in µg/m³: amber from the WHO 2021 24-hour guideline (PM2.5 15, PM10 45),
+// red from 50 and 100, far above it. VOC and NOx are Sensirion indexes from 1 to 500: VOC 100 is the
+// room's usual air, NOx 1 is clean air; both rise with pollution.
 const AIR_RINGS = [
-  ['pm25', 'PM2.5', 100, 25, 50, 'pm1', 'PM1'],
-  ['pm10', 'PM10', 150, 50, 100, 'pm4', 'PM4'],
+  ['pm25', 'PM2.5', 100, 15, 50, 'pm1', 'PM1'],
+  ['pm10', 'PM10', 150, 45, 100, 'pm4', 'PM4'],
   ['voc', 'VOC', 500, 150, 250],
   ['nox', 'NOx', 500, 20, 150],
 ];
@@ -103,8 +103,11 @@ export function airHealth(air) {
     const unit = key.startsWith('pm') ? ' µg/m³' : '';
     let tip = `${label} ${fmtAir(key, v)}${v == null ? ' (no value)' : unit} – ${AIR_TIPS[key]}`;
     if (lvl) tip += lvl === 2 ? ' – bad' : ' – high';
-    if (alsoKey && vals[alsoKey]) tip += `\n${alsoLabel} ${fmtAir(alsoKey, vals[alsoKey].v)}${unit}`;
-    return { key, label, frac: v == null ? 0 : v / full, value: fmtAir(key, v), unit: '', level: ['', 'warn', 'err'][lvl], tip };
+    const also = alsoKey && vals[alsoKey] ? `${alsoLabel} ${fmtAir(alsoKey, vals[alsoKey].v)}${unit}` : '';
+    if (also) tip += `\n${also}`;
+    // v, also, warnAt and errAt: for the popup that explains the value (topbar-boot.js)
+    return { key, label, frac: v == null ? 0 : v / full, value: fmtAir(key, v), unit: '', level: ['', 'warn', 'err'][lvl], tip,
+             v, also, warnAt, errAt };
   });
   const t = vals.temp?.v, h = vals.hum?.v;
   // On two lines in the menu (it is narrow), on one in the phone card's title
@@ -115,7 +118,8 @@ export function airHealth(air) {
     : { level: ['', 'warn', 'err'][worst], text: ['Good', 'Elevated', 'Poor'][worst] };
   const title = `Air quality: ${status.text}` + (t != null ? `\nTemperature ${t.toFixed(1)} °C` : '')
     + (h != null ? `\nHumidity ${Math.round(h)} %` : '');
-  return { gauges, status, climate, title };
+  return { gauges, status, climate, title,
+           temp: t != null ? t.toFixed(1) + '°' : null, hum: h != null ? Math.round(h) + ' %' : null };
 }
 
 /** The air rings everywhere they are, and the dashboard's Air card (shown on a phone only). */
@@ -129,7 +133,7 @@ function renderAir(air) {
       st.dataset.level = air.status.level;
       st.textContent = air.status.text.split(':')[0];
       st.title = air.status.text;
-      document.getElementById('airCardClimate').textContent = air.climate.replace('\n', ' · ');
+      document.getElementById('airCardClimate').innerHTML = window.climateHtml(air, ' · ');
     }
   }
   saveTopbar({ air });

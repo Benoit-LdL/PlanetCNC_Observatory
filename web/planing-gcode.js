@@ -4,26 +4,38 @@
 // Layout of one Z level, cutting along X (along Y is the same with X and Y swapped):
 //
 //      W+c    ─────────────────────────────►   the last line's centre is c past the far edge
-//             ◄─────────────────────────────
-//      -c     ─────────────────────────────►   the first line's centre is c past the near edge
+//            ╭─────────────────────────────╯
+//      -c    ╰─────────────────────────────►   the first line's centre is c past the near edge
 //            |<-c->|      stock      |<-c->|
 //
 // The bit's centre runs past every edge of the stock by the clearance c, along the cut and
-// across it. c must be less than the radius, so the bit still covers the edges. The step to the
-// next line happens there, with the bit partly on the stock (a sideways move at the cut depth);
-// each pass starts with the bit fully beside the stock, so the plunges happen in the air.
-// With clearTurn, the lines run on until the whole bit is c clear of the stock (centre r + c
-// past the edge), so the steps to the next line happen in the air too.
+// across it. c must be less than the radius, so the bit still covers the edges. From the end of
+// a line the bit turns round to the next one in a half circle (G2/G3) at the cut depth, bulging
+// out past the line ends by half the gap between lines: no sharp corners, so the machine doesn't
+// stop and jerk at each end. Each pass starts with the bit fully beside the stock, so the plunges
+// happen in the air. With clearTurn, the lines run on until the whole bit is c clear of the stock
+// (centre r + c past the edge), so the turns happen in the air too.
 //
 // With cutWay 'plus' or 'minus' every line is cut the same way (towards + or - along the cut):
 // at the end of a line the bit lifts to the safe height, goes back beside the stock in a rapid,
 // comes down there in the air and starts the next line - slower, but each line cuts the same
 // way, which shows whether a tramming or tool-mark problem depends on the direction of travel.
+//
+// The Z zero picks the job:
+//   'top' - plane the rough face: Z0 on the stock's highest point, remove `depth` from there.
+//           `thickness` is only for drawing the stock (a rough guess will do).
+//   'bed' - bring stock that's already flat to a thickness: Z0 on the spoilboard, the top at
+//           Z = `current`, the last pass at Z = `target`.
 
 export const RAPID_ESTIMATE = 5000;   // mm/min, only for the run-time estimate
+const ARC_CHORDS = 16;                // a half-circle turn, in the simulation
+const PARK_GAP = 10;                  // mm between the stock's right edge and the bit, at the end
+const PARK_MARGIN = 1;                // mm inside the machine's travel limits when parking
 
+// No default for the spoilboard mode's thicknesses: they set where the bit cuts, so a made-up
+// value could cut the stock too thin.
 export const DEFAULTS = {
-  length: 600, width: 200, thickness: 30, zMode: 'top', startAbove: 0,
+  length: 600, width: 200, thickness: 15, zMode: 'top', startAbove: 0, current: null, target: null,
   toolD: 50, depth: 3, stepdown: 1, stepover: 40, direction: 'x', cutWay: 'both',
   rpm: 18000, feed: 3000, plunge: 900,
   safe: 5, clearance: 5, clearTurn: false, dwell: 3,
@@ -49,7 +61,7 @@ export function linePositions(span, c, step) {
  * @returns {{errors: string[], warnings: string[], text?: string, moves?: object[], info?: object}}
  *   moves: [{x, y, z, rapid, feed, dwell, t0, t1, pass}] from the start point, with times in seconds.
  */
-export function planPlaning(input, { date = new Date() } = {}) {
+export function planPlaning(input, { date = new Date(), travel = null } = {}) {
   const p = { ...DEFAULTS, ...input };
   const errors = [];
   const warnings = [];
@@ -57,9 +69,15 @@ export function planPlaning(input, { date = new Date() } = {}) {
   const pos = (v) => v > 0;
   need('length', 'Length', pos, 'enter a size above 0');
   need('width', 'Width', pos, 'enter a size above 0');
-  need('thickness', 'Thickness', pos, 'enter a thickness above 0');
+  const bed = p.zMode === 'bed';
+  if (bed) {
+    need('current', 'Current thickness', pos, 'measure the stock and enter its thickness');
+    need('target', 'Target thickness', pos, 'enter the thickness you want, above 0');
+  } else {
+    need('thickness', 'Thickness (rough)', pos, 'enter a thickness above 0 (a rough guess will do)');
+    need('depth', 'Depth to remove', pos, 'enter a depth above 0');
+  }
   need('toolD', 'Bit diameter', pos, 'enter a diameter above 0');
-  need('depth', 'Depth to remove', pos, 'enter a depth above 0');
   need('stepdown', 'Step-down', pos, 'enter a depth per pass above 0');
   need('stepover', 'Stepover', (v) => v >= 5 && v <= 100, 'between 5 and 100 % of the diameter');
   need('rpm', 'Spindle speed', pos, 'enter a speed above 0');
@@ -72,11 +90,33 @@ export function planPlaning(input, { date = new Date() } = {}) {
   if (!['top', 'bed'].includes(p.zMode)) errors.push('Z zero: choose the top of the stock or the spoilboard');
   if (!['x', 'y'].includes(p.direction)) errors.push('Direction: choose along X or along Y');
   if (!['both', 'plus', 'minus'].includes(p.cutWay)) errors.push('Cut: choose both ways, only towards + or only towards -');
-  if (!errors.length && p.depth >= p.thickness) errors.push('Depth to remove: must be less than the stock thickness');
+  if (!errors.length && bed && p.target >= p.current) errors.push('Target thickness: must be less than the current thickness');
+  if (!errors.length && !bed && p.depth >= p.thickness) errors.push('Depth to remove: must be less than the stock thickness');
   if (!errors.length && p.clearance >= p.toolD / 2) errors.push(`Run past the edges: must be less than the bit radius (${fmt(p.toolD / 2)} mm), or the edges are not cut`);
   if (errors.length) return { errors, warnings };
+  if (bed) {
+    // The rest works from the thickness and the depth, as for the top of the stock
+    p.thickness = p.current;
+    p.depth = p.current - p.target;
+  }
 
   const r = p.toolD / 2;
+  // Where the program ends: right of the stock, kept inside the machine's travel when it's known
+  const park = [p.length + r + PARK_GAP, 0];
+  let parkNote = `right of the stock, the bit ${PARK_GAP} mm clear of it`;
+  if (travel) {
+    const inside = (v, k) => Math.min(Math.max(v, travel.min[k] + PARK_MARGIN), travel.max[k] - PARK_MARGIN);
+    const want = park[0];
+    park[0] = inside(park[0], 0);
+    park[1] = inside(park[1], 1);
+    if (park[0] < want) {
+      parkNote = 'as far right as the machine\'s travel allows';
+      if (park[0] < p.length + r) {
+        warnings.push(`Not enough travel right of the stock to park the bit clear of it: the program ends at X${fmt(park[0])}, ` +
+                      `with the bit ${fmt(p.length + r - park[0])} mm over the stock (at the safe height).`);
+      }
+    }
+  }
   const step = p.toolD * p.stepover / 100;
   const top = p.zMode === 'top' ? 0 : p.thickness;
   const bottom = top - p.thickness;
@@ -118,22 +158,39 @@ export function planPlaning(input, { date = new Date() } = {}) {
   const out = [];
   const G = (s) => out.push(s);
   const xy = (q) => `X${fmt(q[0])} Y${fmt(q[1])}`;
+  // Half circle from the end of one line to the start of the next (q), at the cut depth. It
+  // carries on the way the bit was going (`dir` along the cut, +1 or -1), so it bulges out past
+  // the line ends and leaves and joins the lines without a corner.
+  const turn180 = (q, dir, pass) => {
+    const ctr = [(cur[0] + q[0]) / 2, (cur[1] + q[1]) / 2];
+    const v = [ctr[0] - cur[0], ctr[1] - cur[1]];           // start to centre
+    const t = pt(dir, 0);                                     // the way the bit was going
+    const ccw = t[0] * v[1] - t[1] * v[0] > 0;                // centre on the left: turn left
+    G(`${ccw ? 'G3' : 'G2'} ${xy(q)} I${fmt(v[0])} J${fmt(v[1])}`);
+    const a0 = Math.atan2(-v[1], -v[0]);                      // centre to start
+    const R = Math.hypot(v[0], v[1]), z = cur[2];
+    for (let i = 1; i <= ARC_CHORDS; i++) {
+      const a = a0 + (ccw ? 1 : -1) * Math.PI * i / ARC_CHORDS;
+      go(i === ARC_CHORDS ? q : [ctr[0] + R * Math.cos(a), ctr[1] + R * Math.sin(a)], z, false, p.feed, pass);
+    }
+  };
 
   const L = fmt(p.length), W = fmt(p.width), T = fmt(p.thickness);
-  G(`(Planing${p.material ? ': ' + p.material : ''} - stock ${L} x ${W} x ${T} mm)`);
+  G(`(Planing${p.material ? ': ' + p.material : ''} - stock ${L} x ${W}${bed ? ` x ${T}` : ''} mm)`);
   G(`(Made with PlanetCNC Observatory, ${date.toISOString().slice(0, 16).replace('T', ' ')} UTC)`);
-  G(p.zMode === 'top'
-    ? '(Z zero: highest point of the stock top)'
-    : `(Z zero: spoilboard - stock top at Z${fmt(top)}, ${fmt(p.thickness - p.depth)} mm thick when done)`);
+  G(bed
+    ? `(Z zero: spoilboard - stock top at Z${fmt(top)}, cut to ${fmt(p.target)} mm thick)`
+    : '(Z zero: highest point of the stock top)');
   G('(X0 Y0: front-left corner of the stock)');
   if (p.startAbove > 0) G(`(Starts ${fmt(p.startAbove)} mm above the stock top, at Z${fmt(startZ)}, in case Z was not set on its highest point)`);
   G(`(Removes ${fmt(p.depth)} mm in ${passes} pass${passes > 1 ? 'es' : ''} of ${fmt(passDepth)} mm${p.startAbove > 0 ? ` from Z${fmt(startZ)}` : ''}, cutting along ${axis})`);
   if (oneWay) G(`(Every line cut towards ${from ? '-' : '+'}${axis} only: lift and rapid back between lines)`);
   G(`(T1 D=${fmt(p.toolD)} CR=0 - ZMIN=${fmt(finalTop)} - FLAT END MILL)`);
   G(`(Stepover ${fmt(step)} mm = ${fmt(p.stepover)} %, ${lines.length} line${lines.length > 1 ? 's' : ''} per pass)`);
-  G(`(Lines run ${fmt(p.clearance)} mm past the edges${p.clearTurn ? ', turning round with the bit clear of the stock' : ''})`);
+  G(`(Lines run ${fmt(p.clearance)} mm past the edges${oneWay ? '' : ', turning round in half circles'}${p.clearTurn ? ' with the bit clear of the stock' : ''})`);
   G(`(Spindle ${fmt(p.rpm)} rpm, feed ${fmt(p.feed)} mm/min, plunge ${fmt(p.plunge)} mm/min)`);
-  G('G21 G90 G94 G17');
+  G(`(Ends at the safe height ${parkNote}: X${fmt(park[0])} Y${fmt(park[1])})`);
+  G('G21 G90 G94 G17 G91.1');   // G91.1: arc centres (I J) relative to the arc's start
   // Spindle up to speed before the first move, wherever the bit is parked
   G(`M3 S${fmt(p.rpm)}`);
   if (p.dwell > 0) {
@@ -185,11 +242,7 @@ export function planPlaning(input, { date = new Date() } = {}) {
     go(null, z, false, p.plunge, k + 1);
     let first = true;
     for (const c of order) {
-      if (!first) {
-        const q = pt(ends[side], c);
-        G(`G1 ${xy(q)}`);
-        go(q, null, false, p.feed, k + 1);
-      }
+      if (!first) turn180(pt(ends[side], c), side ? 1 : -1, k + 1);
       side = 1 - side;
       const q = pt(ends[side], c);
       G(`G1 ${xy(q)}${first ? ' F' + fmt(p.feed) : ''}`);
@@ -200,8 +253,10 @@ export function planPlaning(input, { date = new Date() } = {}) {
   if (cur[2] !== safeZ) G(`G0 Z${fmt(safeZ)}`);
   go(null, safeZ, true, 0, passes);
   G('M5');
-  G('G0 X0 Y0');
-  go([0, 0], null, true, 0, passes);
+  // Park to the right of the stock (it usually sits in the front-left corner of the bed), with
+  // the bit clear of it, instead of over X0 Y0 where it's in the way of taking the stock off
+  G(`G0 ${xy(park)}`);
+  go(park, null, true, 0, passes);
   G('M30');
 
   // Times, for the simulation and the estimate
@@ -215,15 +270,19 @@ export function planPlaning(input, { date = new Date() } = {}) {
     prev = [m.x, m.y, m.z];
   }
 
-  const a0 = air[0], a1 = air[1];
-  const c0 = Math.min(...lines), c1 = Math.max(...lines);
-  const [x0, y0] = pt(a0, c0), [x1, y1] = pt(a1, c1);
+  // Where the bit's centre goes, from the moves themselves (the turns bulge past the line ends)
+  const lo = [start[0], start[1]], hi = [start[0], start[1]];
+  for (const m of moves) {
+    lo[0] = Math.min(lo[0], m.x); lo[1] = Math.min(lo[1], m.y);
+    hi[0] = Math.max(hi[0], m.x); hi[1] = Math.max(hi[1], m.y);
+  }
   return {
     errors, warnings, moves, text: out.join('\n') + '\n',
     info: {
       start, top, bottom, finalTop, startZ, safeZ, passes, passDepth, step, lines: lines.length, time: t,
+      depth: p.depth, target: bed ? p.target : null,
       // Where the bit's centre goes (the machine's travel limits apply to it)
-      bounds: { min: [Math.min(x0, x1, 0), Math.min(y0, y1, 0), finalTop], max: [Math.max(x0, x1, 0), Math.max(y0, y1, 0), safeZ] },
+      bounds: { min: [lo[0], lo[1], finalTop], max: [hi[0], hi[1], safeZ] },
     },
   };
 }

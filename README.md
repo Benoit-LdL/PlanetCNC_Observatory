@@ -73,7 +73,7 @@ the right.*
   which line), each with a camera photo. Also when TNG drops out during a job,
   and Pi warnings (under-voltage, heat).
 - A **timelapse** of every job from the camera: a short video, sent with the
-  "job ended" message and kept on the Pi.
+  "job ended" message.
 - `/status` and `/photo` in the chat. The bot only reports: it can't control
   the machine.
 
@@ -106,7 +106,9 @@ the right.*
 
 - A **Planing** page that makes the program to flatten the top of rough
   stock: enter the stock size, the bit, the depth to remove, step-down,
-  stepover, cut direction (along the grain), spindle speed and feeds.
+  stepover, cut direction (along the grain), spindle speed and feeds. With
+  Z zero on the spoilboard, it instead cuts stock that's already flat to a
+  target thickness.
 - The stock and the bit drawn at their real size in the machine's travel,
   with a warning when the path doesn't fit.
 - A simulation of the cut: play, pause, speed and scrub through it, with the
@@ -495,8 +497,8 @@ the page simply loads).
 - The red **E-STOP** button, see [E-stop](#e-stop).
 
 The menu sits on the left (at the bottom on a phone): **Dashboard**,
-**Planing** (the [Planing page](#planing-rough-stock)), **Materials** (the
-[Materials page](#materials)) and **System** (the [System page](#system-page)).
+**Planing** (the [Planing page](#planing-rough-stock)), **Stock & Bit** (the
+[Materials page](#materials)), **Settings** and **System** (the [System page](#system-page)).
 The page you are on is highlighted. A green dot on **System** means an update
 of the app or of the OS is available.
 
@@ -570,10 +572,19 @@ every page, refreshed every 10 seconds. On a phone it is the dashboard's Air
 quality card.
 
 - Four rings: **PM2.5** and **PM10** fine dust (µg/m³), and the **VOC** and
-  **NOx** indexes. Hover over a ring for the details; the PM2.5 ring also
-  gives PM1, the PM10 ring PM4. Under the rings: temperature and humidity.
-- A ring turns amber (high) or red (bad) from PM2.5 25 / 50, PM10 50 / 100
-  (the European air quality index's "poor" and "very poor"), VOC 150 / 250
+  **NOx** indexes. Under the rings: temperature and humidity.
+- Hover over a ring (tap it on a phone) for what its value means:
+  - **VOC** and **NOx**: what the index compares against (VOC 100 = the
+    room's average of the last 24 hours, NOx 1 = clean air), typical sources,
+    and a table of ranges with the current one highlighted. These ranges are a
+    rule of thumb, not health limits: the indexes learn the room (give them
+    about a day after a first start) and show events, such as when to open a
+    window.
+  - **PM2.5** and **PM10**: the WHO 2021 guidelines (PM2.5 15 µg/m³ over
+    24 hours and 5 over a year; PM10 45 and 15), which are averages, not limits
+    for one reading. The PM2.5 popup also gives PM1, the PM10 popup PM4.
+- A ring turns amber (high) or red (bad) from PM2.5 15 / 50 and PM10 45 / 100
+  (amber from the WHO 2021 24-hour guideline, red far above it), VOC 150 / 250
   (100 is the room's usual air) and NOx 20 / 150 (1 is clean air).
 - The dot next to **Air**: green Good, amber Elevated, red Poor (or **No
   data** when Home Assistant doesn't answer, with the reason when you hover).
@@ -728,8 +739,8 @@ enough. Everything here is saved on the Pi and applies to everyone.
   real-size tool on or off (off: always the standard marker). **CAM program**
   says whose tool comments to read; only **Fusion 360** for now. The choice
   applies to every open dashboard right away.
-- **Telegram** (the bot and the chat), **Telegram messages** (which ones, how
-  often, which silently) and **Timelapse:** see
+- **Telegram:** the bot and the chat, then its **Messages** (which ones, how
+  often, which silently) and the **Timelapse**; see
   [Telegram notifications and timelapse](#telegram-notifications-and-timelapse).
 - **MQTT:** sends the machine to Home Assistant; see
   [Home Assistant](#home-assistant).
@@ -821,7 +832,8 @@ with the tool from Fusion's tool comments:
   in the new file, for TNG's start-from-line.
 
 **Save** writes `name_adj1.nc` (or the next free number, or a name you type)
-next to the original, never over an existing file. The new file starts with a
+next to the original, never over the original itself; if a name you type is
+already taken, it asks before replacing that file. The new file starts with a
 comment block listing every value as "in Fusion -> in this file", so it also
 says what changed when opened elsewhere. Adjusting an adjusted file again
 keeps comparing to the values from Fusion. **Preview** shows the new program
@@ -842,12 +854,14 @@ settings in the panel on the right.
 | Field | What it is |
 |---|---|
 | Length (X), Width (Y) | The stock's size. **X0 Y0 is its front-left corner.** |
-| Thickness (rough) | Measured at the highest point. |
-| Z zero | **Top of the stock**: touch off Z on the highest point; the program cuts from Z0 down. **Spoilboard**: Z0 is the spoilboard; the stock top is at Z = thickness, so the program cuts from there down and the page shows the thickness you end up with. |
+| Z zero | Picks the job, and the fields below change with it. **Top of the stock** planes the rough face: touch off Z on the highest point; the program cuts from Z0 down. **Spoilboard** brings stock that's already flat to a thickness: Z0 is the spoilboard and the stock top is at Z = its current thickness. |
+| Thickness (rough) | Top of the stock only. Just for drawing the stock and checking the depth fits in it, so a rough guess will do (15 mm by default). |
+| Depth to remove | Top of the stock only. In total, from Z0 down; less than the thickness. |
+| Current thickness | Spoilboard only. Measured at the highest point: the first pass starts there. No default. |
+| Target thickness | Spoilboard only. The thickness you want: the last pass is at Z = target, and the program removes current − target. No default. |
 | Start above Z0 | For when you're not sure Z was touched off on the highest point: the passes start this much above Z0 and still end at the same depth, so there are more passes and the first ones only skim the high spots (or cut air) instead of one pass biting too deep there. 0 (the default) starts at the top. |
 | Bit | A saved bit fills in its diameter (**Save as…** saves the one in the form, **Delete** removes it; all of them are on the [Materials page](#materials)). **Changed** shows when the diameter no longer matches the saved bit. |
 | Bit diameter | The planing bit, drawn at this size. |
-| Depth to remove | In total. It must be less than the thickness. |
 | Cut direction | Along X or along Y: usually along the grain. |
 | Cut | **Both ways** (zigzag, the default and fastest), or **+X only** / **−X only** (+Y / −Y when cutting along Y): every line is cut in the same direction, and between lines the bit lifts to the safe height, goes back beside the stock in a rapid and comes down there. Slower, but it shows whether a tramming problem or tool marks depend on the direction of travel. |
 | Material | A saved set of the values below (see below). |
@@ -860,16 +874,25 @@ settings in the panel on the right.
 direction, one Z level after the other. The bit's centre runs past every edge
 of the stock by the *run past the edges* amount (less than the bit radius),
 both at the ends of the lines and on the first and last line, so the edges are
-planed as well. The step to the next line happens there, with the bit partly on
-the stock; with **Turn round clear of the stock** on, the lines run on until
-the whole bit has left the stock by that amount, so the step happens in the
+planed as well. From the end of a line the bit turns round to the next one in
+a half circle (`G2`/`G3`), bulging out past the line ends by half the gap
+between lines: no sharp corners, so the machine doesn't stop and jerk at each
+end and higher feeds stay smooth. The turn happens with the bit partly on the
+stock; with **Turn round clear of the stock** on, the lines run on until
+the whole bit has left the stock by that amount, so the turn happens in the
 air instead (longer lines, a bit slower). Each level starts with the bit fully
 beside the stock, so the plunges happen in the air, never in the wood. Each
 pass runs the lines back from
 where the last one ended. With **Cut** set to one direction only, the bit
 instead lifts at the end of every line and comes back in a rapid, so each
 line is cut the same way. It starts with `M3` and a `G4` pause for the spindle
-to spin up, before any move (so don't leave the bit touching the stock), and ends with `M5` and the bit above X0 Y0 at the safe height.
+to spin up, before any move (so don't leave the bit touching the stock), and ends with `M5` and the bit parked at the safe height right of the stock (at
+Y0, the bit's edge 10 mm past the stock's right end), out of the way of taking
+the stock off: it's assumed to sit in the front-left corner of the bed. When
+the machine's travel is known (TNG connected), the end position is kept 1 mm
+inside it, measured from the current work zero, so set X0 Y0 on the stock
+before saving. If there isn't room to clear the stock, the program parks as far
+right as it can and the page says so.
 There is no tool change: the bit must already be in the spindle and Z touched
 off. The file starts with comments listing the values, and a Fusion-style tool
 comment so the dashboard draws the bit when the program is loaded.
@@ -887,17 +910,18 @@ with rapids at 5000 mm/min.
 
 **Materials.** **Save as…** stores the spindle speed, feeds, step-down and
 stepover under a name (Oak, Cherry, …); picking it later fills them in. The
-stock size, bit and depth are entered each time. "changed" next to the title
+stock size, bit and depth (or thicknesses) are entered each time. "changed" next to the title
 means the form no longer matches the saved material. Materials are kept on
 the Pi in `planing_presets.json`, so every device sees the same ones. To see
 them all, change, rename, import or export them, use the
-[Materials page](#materials) (the link under the material list, or the
-**Materials** tab).
+[Materials page](#materials) (the link under the material list, or
+**Stock & Bit** in the menu).
 
 **Save** writes the program to the top of the Files folder (set in Settings),
-named after the material, size and depth, e.g. `plane_oak_600x200_3mm.nc`; you
+named after the material, size and depth, e.g. `plane_oak_600x200_3mm.nc`
+(`…_to22mm.nc` with Z zero on the spoilboard); you
 can type another name. If the file exists, it asks before replacing it.
-**Send to TNG** opens it in TNG, ready to run, without saving it in the Files
+**Load in TNG** opens it in TNG, ready to run, without saving it in the Files
 folder: it goes to a working file in `sent/` next to the server (only the
 latest one is kept), named as in the name field. It is greyed out while the
 machine runs or TNG isn't connected. Starting
@@ -905,7 +929,7 @@ the program always happens at the machine. The last values entered are remembere
 
 ### Materials
 
-**http://&lt;pi-address&gt;:8080/materials** (or **Materials** in the
+**http://&lt;pi-address&gt;:8080/materials** (or **Stock & Bit** in the
 menu) shows what the Planing page can fill in for you, in two tables:
 
 - **Materials:** name, spindle speed, feed, plunge feed, step-down and stepover
@@ -1102,7 +1126,7 @@ with the machine's status and a camera photo arrives in Telegram.
 | **One progress message** | Each progress message replaces the previous one, and the last goes when the job ends, so a job leaves only its start and its end (and any pause or E-stop) in the chat. Off: every progress message stays. | on |
 | **A camera photo with each message** | Messages come as a photo with the text under it. | on |
 | **Messages** | A table with, for each kind of message above (job started, progress, paused, resumed, E-stop, job finished or stopped, TNG not reachable, Raspberry Pi warnings, updates / start-up / shut-down of the Pi), a **Send** box (unticked: that message is never sent) and a **Silent** box (no sound or vibration). | all sent; progress and resumed silent |
-| **Make a timelapse of each job** | See [Timelapse](#timelapse). | on |
+| **A timelapse video of each job** | See [Timelapse](#timelapse). | on |
 | **Photo** (timelapse) | How often a timelapse photo is taken. | every 10 s |
 
 **Several people.** To get the messages with more people, use a Telegram group:
@@ -1121,26 +1145,23 @@ tell it its chat id.
 
 - Another chat: **Refresh**, then **Use** the other one.
 - Another bot: paste the new token and **Save**.
-- No more messages: **Remove bot** forgets the token and the chat. The
-  timelapse keeps working.
+- No more messages: **Remove bot** forgets the token and the chat. No more
+  timelapses either: they only go to Telegram.
 - If the token may have leaked: in BotFather send `/revoke` and choose your
   bot; the old token stops working. Paste the new one in the dashboard.
 
 ### Timelapse
 
-With **Make a timelapse of each job** ticked (and a camera), the Pi takes a
-camera photo every few seconds while a job runs, plus one when it ends. Then
-ffmpeg turns them into a video of about 20 seconds, at most 960 pixels wide:
+With **A timelapse video of each job** ticked (in the Telegram settings, with a
+camera), the Pi takes a camera photo every few seconds while a job runs, plus
+one when it ends. Then ffmpeg turns them into a video of about 20 seconds, at
+most 960 pixels wide, that comes with the "job finished" or "job stopped"
+message in Telegram, where it plays by itself, in a loop, like a GIF.
 
-- it comes with the "job finished" or "job stopped" message in Telegram, where
-  it plays by itself, in a loop, like a GIF;
-- it's listed under **Settings → Timelapse**, newest first, to download (the
-  name is the date, time and file name, e.g.
-  `2026-11-08_1846_kumiko_v6.mp4`);
-- the last 20 are kept in `timelapses/` next to `server.py`; older ones are
-  deleted.
-
-This works with or without Telegram.
+The timelapse is only for Telegram: without a bot and a chat set up, none is
+made. The last 20 also stay in `timelapses/` next to `server.py` (named after
+the date, time and file, e.g. `2026-11-08_1846_kumiko_v6.mp4`), for one
+that was too big to send to Telegram (over 50 MB); older ones are deleted.
 
 How it handles long jobs: once a job has 600 photos, every other one is
 deleted and photos are taken half as often. So a job of any length uses at most
@@ -1242,7 +1263,8 @@ integration, which Home Assistant offers to set up when the add-on starts.
    Assistant user (make one under **Settings → People → Users**, e.g.
    `cnc`), or a login added in the add-on's configuration.
 4. **Save.** Saving turns **Send to Home Assistant** on. After a moment the
-   line at the bottom says **Connected**, or what went wrong.
+   line under the form says **Connected**, or what went wrong; **Check** shows
+   it again. **Remove password** forgets a saved password.
 5. In Home Assistant, the machine is a new device under **Settings → Devices
    & services → MQTT**.
 

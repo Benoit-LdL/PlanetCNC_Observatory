@@ -6,6 +6,7 @@
 import { log } from './log.js';
 import { ask, tell } from './dialog.js';
 import { saveTopbar } from './nav.js';
+import { sentence, fetchJson, UNREACHABLE } from './msg.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (t) => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -30,14 +31,7 @@ const fmtUp = (sec) => {
   return d ? `${d} d ${h} h` : h ? `${h} h ${m} min` : `${m} min`;
 };
 
-async function post(path, body = {}) {
-  try {
-    const r = await fetch(path, { method: 'POST', headers: writeHeaders, body: JSON.stringify(body) });
-    return await r.json().catch(() => ({ ok: false, message: `HTTP ${r.status}` }));
-  } catch {
-    return { ok: false, message: 'Server unreachable' };
-  }
-}
+const post = (path, body = {}) => fetchJson(path, { method: 'POST', headers: writeHeaders, body: JSON.stringify(body) });
 
 // ---------------------------------------------------------------- E-stop
 
@@ -162,7 +156,7 @@ function setBadge(id, kind, label, { title = '', disabled = false } = {}) {
 
 /** The small line under a row's version: what went wrong, or what is happening. */
 function setStatus(id, text, kind = '') {
-  $(id).textContent = text;
+  $(id).textContent = sentence(text);
   $(id).className = 'urow-msg' + (kind ? ' ' + kind : '');
 }
 
@@ -211,7 +205,8 @@ function renderApp(info, running) {
     `<li><code>${esc(m.sha)}</code><span>${esc(m.subject)}</span><small>${esc(m.author)} · ${fmtDay(m.date)}</small></li>`).join('');
   $('updRollbackBtn').hidden = !info.can_rollback;
   $('updRollbackBtn').disabled = running || info.busy || !!appBusy || restarting;
-  $('updRollbackBtn').title = running ? 'Not while a program runs' : '';
+  $('updRollbackBtn').title = running ? 'Not while a program runs' : info.busy || appBusy || restarting ? 'Wait for the update to finish'
+    : 'Go back to the version installed before the last update';
 
   if (restarting || appBusy) setBadge('appAct', 'busy', appBusy || 'Updating');
   else if (checkingApp) setBadge('appAct', 'checking', 'Checking');
@@ -327,7 +322,7 @@ async function load() {
     sys = await (await fetch('/api/system', { cache: 'no-store' })).json();
     render();
   } catch {
-    setStatus('updStatus', 'Server unreachable', 'err');
+    setStatus('updStatus', UNREACHABLE, 'err');
   }
   clearTimeout(pollTimer);
   if (!document.hidden) pollTimer = setTimeout(load, sys?.os?.busy ? 1500 : 5000);

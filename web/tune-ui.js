@@ -4,6 +4,7 @@
 import { analyze, apply, fmtNum, splitPlan, defaultTop, summarize } from './tune.js';
 import { ask } from './dialog.js';
 import { log } from './log.js';
+import { sentence, fetchJson, UNREACHABLE } from './msg.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (t) => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -17,6 +18,8 @@ export function initTune(h) {
   hooks = h;
   $('tuneClose').addEventListener('click', () => $('tuneDlg').close());
   $('tuneSave').addEventListener('click', save);
+  // Enter in the name saves, as in every other form
+  $('tuneName').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !$('tuneSave').disabled) save(); });
   $('tunePreview').addEventListener('click', () => {
     if (!cur) return;
     hooks.openPreview($('tuneName').value || cur.name, build().text);
@@ -225,7 +228,7 @@ async function freeName(folder, name) {
 }
 
 function message(text, kind = '') {
-  $('tuneMsg').innerHTML = text;
+  $('tuneMsg').innerHTML = sentence(text);
   $('tuneMsg').className = 'tune-msg' + (kind ? ' ' + kind : '');
 }
 
@@ -243,17 +246,24 @@ async function save() {
     result = build();
   } catch (e) {
     log.error('feeds: building the new program failed:', e);
-    message('Could not build the new program: ' + esc(e.message), 'err');
+    message(`Could not build the new program: ${esc(e.message)}`, 'err');
     return;
   }
   $('tuneSave').disabled = true;
   message('Saving…');
   try {
-    const url = `/api/files/upload?path=${encodeURIComponent(cur.folder)}&name=${encodeURIComponent(name)}`;
-    const r = await fetch(url, { method: 'POST', headers: { 'X-CNC-Control': '1', 'Content-Type': 'application/octet-stream' },
-                                 body: result.text });
-    const res = await r.json().catch(() => ({ ok: false, message: `HTTP ${r.status}` }));
-    if (!res.ok) throw new Error(res.exists ? `${name} already exists: choose another name` : res.message);
+    const upload = (overwrite) => fetchJson(`/api/files/upload?path=${encodeURIComponent(cur.folder)}&name=${encodeURIComponent(name)}`
+      + (overwrite ? '&overwrite=1' : ''),
+      { method: 'POST', headers: { 'X-CNC-Control': '1', 'Content-Type': 'application/octet-stream' }, body: result.text });
+    let res = await upload(false);
+    if (!res.ok && res.exists) {
+      if (!await ask({ title: 'Replace the file?', text: `${name} already exists in this folder.`, ok: 'Replace', danger: true })) {
+        message('');
+        return;
+      }
+      res = await upload(true);
+    }
+    if (!res.ok) throw new Error(res.message || 'failed');
     const path = (cur.folder ? cur.folder + '/' : '') + name;
     const ops = result.summary.map((s) => ({ ...s, startLine: result.opLines[s.op - 1] || 0 }));
     const r2 = await fetch('/api/tuning', { method: 'POST', headers: writeHeaders, body: JSON.stringify({
@@ -268,7 +278,7 @@ async function save() {
     hooks.filesReload?.();
     $('tuneName').value = await freeName(cur.folder, cur.name);
   } catch (e) {
-    message('Not saved: ' + esc(e.message), 'err');
+    message(`Could not save: ${esc(e.message)}`, 'err');
   } finally {
     $('tuneSave').disabled = false;
   }
@@ -286,14 +296,19 @@ export async function tuneLogLoad(force = false, seq = null) {
     logEntries = d.entries || [];
     logSeq = d.seq;
   } catch {
-    $('tuneList').innerHTML = '<p class="tune-err">Server unreachable</p>';
+    $('tuneList').innerHTML = `<p class="tune-err">${UNREACHABLE}</p>`;
     return;
   }
   renderLog();
 }
 
+const BIN = '<svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>';
 const fmtWhen = (t) => new Date(t * 1000).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
-const fmtDur = (s) => { s = Math.round(s); return `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
+const fmtDur = (s) => {
+  s = Math.round(s);
+  const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60;
+  return (h ? `${h}:${String(m).padStart(2, '0')}` : m) + ':' + String(s % 60).padStart(2, '0');
+};
 
 function changedValues(op) {
   return (op.values || []).filter((v) => !sameVal(v.fusion, v.now));
@@ -344,7 +359,7 @@ function renderLog() {
     }).join('');
     html += `<div class="tune-card ${e.status}${isLoaded ? ' loaded' : ''}" data-id="${esc(e.id)}">
       <div class="tune-card-head"><b>${esc(e.name)}</b>${isLoaded ? '<span class="tag">loaded in TNG</span>' : ''}
-        <button class="ficon del" data-del="${esc(e.id)}" title="Remove from the log (the file stays)">✕</button></div>
+        <button class="ficon del" data-del="${esc(e.id)}" title="Remove from the log (the file stays)">${BIN}</button></div>
       <div class="muted">${fmtWhen(e.time)} · from ${esc(e.source)}${e.base && e.base !== e.source ? ` (Fusion file ${esc(e.base)})` : ''}</div>
       <ul class="tune-ops">${ops || '<li class="muted">No values changed</li>'}</ul>
       ${runs ? `<ul class="tune-runs">${runs}</ul>` : '<div class="muted">Not run yet</div>'}
@@ -354,18 +369,21 @@ function renderLog() {
         <button class="vbtn${!e.status ? ' active' : ''}" data-status="">Not sure yet</button>
       </div>
       <input class="tune-note-in" data-note="1" maxlength="1000" placeholder="Note (sound, chips, finish…)" value="${esc(e.note)}">
+      <p class="tune-card-msg" aria-live="polite"></p>
     </div>`;
   }
   $('tuneList').innerHTML = html;
 }
 
-async function post(body) {
-  try {
-    const r = await fetch('/api/tuning', { method: 'POST', headers: writeHeaders, body: JSON.stringify(body) });
-    return await r.json().catch(() => ({ ok: false, message: `HTTP ${r.status}` }));
-  } catch {
-    return { ok: false, message: 'Server unreachable' };
-  }
+const post = (body) => fetchJson('/api/tuning', { method: 'POST', headers: writeHeaders, body: JSON.stringify(body) });
+
+/** What a change to a log entry did, at the bottom of its card (an OK goes away after a while). */
+function cardMessage(id, text, kind) {
+  const el = $('tuneList').querySelector(`.tune-card[data-id="${CSS.escape(id)}"] .tune-card-msg`);
+  if (!el) return;
+  el.textContent = sentence(text);
+  el.className = 'tune-card-msg ' + kind;
+  if (kind === 'ok') setTimeout(() => { if (el.textContent === sentence(text)) el.textContent = ''; }, 4000);
 }
 
 async function onLogClick(ev) {
@@ -373,18 +391,24 @@ async function onLogClick(ev) {
   if (!b) return;
   const card = b.closest('.tune-card');
   if (b.dataset.del) {
-    if (!await ask({ title: 'Remove the entry?', text: 'It is removed from the Feeds log. The file itself stays on the Pi.',
+    if (!await ask({ title: 'Remove the entry?', text: 'It is removed from the Feeds log; this cannot be undone. The file itself stays on the Pi.',
       ok: 'Remove', danger: true })) return;
-    await post({ action: 'delete', id: b.dataset.del });
+    const res = await post({ action: 'delete', id: b.dataset.del });
+    if (!res.ok) { cardMessage(b.dataset.del, `Could not remove it: ${res.message || 'failed'}`, 'err'); return; }
+    tuneLogLoad(true);
   } else if (b.dataset.status !== undefined && card) {
-    await post({ action: 'update', id: card.dataset.id, status: b.dataset.status });
-  } else return;
-  tuneLogLoad(true);
+    const id = card.dataset.id;
+    const res = await post({ action: 'update', id, status: b.dataset.status });
+    if (res.ok) await tuneLogLoad(true);
+    cardMessage(id, res.ok ? 'Saved.' : `Could not save: ${res.message || 'failed'}`, res.ok ? 'ok' : 'err');
+  }
 }
 
 async function onLogChange(ev) {
   const t = ev.target;
   if (!t.dataset.note) return;
-  const res = await post({ action: 'update', id: t.closest('.tune-card').dataset.id, note: t.value });
+  const id = t.closest('.tune-card').dataset.id;
+  const res = await post({ action: 'update', id, note: t.value });
   if (!res.ok) log.warn('feeds: note not saved:', res.message);
+  cardMessage(id, res.ok ? 'Note saved.' : `Could not save the note: ${res.message || 'failed'}`, res.ok ? 'ok' : 'err');
 }

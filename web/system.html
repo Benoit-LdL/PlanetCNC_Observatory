@@ -29,7 +29,7 @@
     <section class="card" aria-label="Updates">
       <header class="card-h">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
-        <h2>Updates</h2>
+        <h2 id="updTitle">Updates</h2>
         <span class="card-sub" id="updChecked"></span>
         <button class="icon-btn primary-ic" id="updCheckBtn" title="Check for updates now" aria-label="Check for updates now"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg></button>
       </header>
@@ -92,7 +92,7 @@
           </div>
         </div>
       </div>
-      <p class="card-note">Checked each time this page opens, and by the Pi itself every 6 hours.</p>
+      <p class="set-help" data-help-for="updTitle">Checked each time this page opens, and by the Pi itself every 6 hours.</p>
     </section>
 
     <section class="card pi-card" aria-label="Raspberry Pi">
@@ -106,10 +106,10 @@
       <div class="power" id="powerBlock" hidden>
         <div class="power-head">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></svg>
-          <h3>Power</h3>
+          <h3 id="powerTitle">Power</h3>
           <span class="card-sub">Not while a program runs</span>
         </div>
-        <p>TNG closes with the Pi, so the machine can do nothing until TNG runs again.</p>
+        <p class="set-help" data-help-for="powerTitle">TNG closes with the Pi, so the machine can do nothing until TNG runs again.</p>
         <p class="sys-note" id="powerSudo" hidden>Needs <code>~/PlanetCNC_Observatory/tools/setup-sudo.sh</code> on the Pi once (see README).</p>
         <div class="upd-btns">
           <button class="vbtn" id="rebootBtn" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 2.64-6.36L3 8"/><path d="M3 3v5h5"/></svg>Reboot</button>

@@ -1534,11 +1534,6 @@ class Timelapse:
             return []
         return sorted(files, key=lambda f: f["mtime"], reverse=True)
 
-    def path(self, name):
-        name = os.path.basename(str(name or ""))
-        path = os.path.join(TIMELAPSE_DIR, name)
-        return path if name.endswith((".mp4", ".gif")) and os.path.isfile(path) else None
-
     def recording(self):
         return self.rec is not None
 
@@ -1632,7 +1627,8 @@ class Notifier:
         while True:
             kind, data = self.q.get()
             try:
-                if kind == "job_start" and TIMELAPSE:
+                # The timelapse only goes to Telegram: none without a bot and a chat
+                if kind == "job_start" and TIMELAPSE and self.configured():
                     TIMELAPSE.start(data.get("file"))
                 video = TIMELAPSE.stop() if kind == "job_end" and TIMELAPSE else None
                 if self.configured():
@@ -1787,7 +1783,8 @@ class Notifier:
 
     def _send_file(self, method, field, path, caption, quiet=False):
         if os.path.getsize(path) > TELEGRAM_MAX_UPLOAD:
-            self.send(caption + "\n(The timelapse is too big for Telegram; download it from the dashboard.)", quiet=quiet)
+            self.send(caption + "\n(The timelapse is too big for Telegram; it's kept on the Pi, in the timelapses folder.)",
+                      quiet=quiet)
             return
         with open(path, "rb") as f:
             data = f.read()
@@ -3112,8 +3109,6 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, UPDATER.status() if UPDATER else {"git": False, "message": UPDATES_OFF_REASON})
         elif path == "/api/system":
             self._json(200, system_view())
-        elif path == "/api/timelapses/download":
-            self._timelapse_download()
         elif path == "/api/settings":
             self._json(200, self._settings_view())
         elif path == "/api/console":
@@ -3496,22 +3491,6 @@ class Handler(BaseHTTPRequestHandler):
                 return False
             time.sleep(0.25)
 
-    def _timelapse_download(self):
-        path = TIMELAPSE.path(self._query("name")) if TIMELAPSE else None
-        if not path:
-            self._json(404, {"ok": False, "message": "no such timelapse"})
-            return
-        size = os.path.getsize(path)
-        self.send_response(200)
-        self.send_header("Content-Type", mimetypes.guess_type(path)[0] or "application/octet-stream")
-        self.send_header("Content-Length", str(size))
-        self.send_header("Content-Disposition", "attachment; filename*=UTF-8''%s" % quote(os.path.basename(path)))
-        self.end_headers()
-        if self.command == "HEAD":
-            return
-        with open(path, "rb") as f:
-            shutil.copyfileobj(f, self.wfile, 256 * 1024)
-
     # ---------- System window: OS packages, reboot / shut down ----------
 
     def _system_action(self, action):
@@ -3577,7 +3556,7 @@ class Handler(BaseHTTPRequestHandler):
                                   for kind, label, _ in NOTIFY_EVENTS],
                 "timelapse": bool(SETTINGS["timelapse"]),
                 "timelapse_interval": SETTINGS["timelapse_interval"],
-                "timelapses": TIMELAPSE.list() if TIMELAPSE else [], "has_camera": bool(CAMERA),
+                "has_camera": bool(CAMERA),
                 "mqtt": HA.view() if HA else None, "air": AIR.settings_view() if AIR else None}
 
     def _settings_change(self):

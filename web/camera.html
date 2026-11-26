@@ -40,7 +40,7 @@
   <img id="cam" alt="Machine camera">
   <div id="bar">
     <span><i id="dot"></i><span id="name">Camera</span></span>
-    <span id="hint">Double-click for fullscreen</span>
+    <span id="hint">Double-click for full screen</span>
     <a href="/" title="Open the dashboard">Dashboard</a>
   </div>
 </div>
@@ -98,7 +98,7 @@
       else if (Date.now() - opened > 4000) setState('nosignal', 'No camera signal');
       else setState('connecting', 'Connecting…');
     } catch {
-      if (Date.now() - opened > 4000) setState('nosignal', 'Server not reachable – retrying…');
+      if (Date.now() - opened > 4000) setState('nosignal', 'Server unreachable – retrying…');
     }
     setTimeout(poll, document.visibilityState === 'visible' ? 2000 : 10000);
   }
@@ -115,7 +115,7 @@
     quiet = setTimeout(() => document.body.classList.add('quiet'), 4000);
   }
   ['mousemove', 'touchstart', 'keydown'].forEach((ev) => document.addEventListener(ev, wake, { passive: true }));
-  if (!matchMedia('(hover: hover)').matches) $('hint').textContent = 'Double-tap for fullscreen';
+  if (!matchMedia('(hover: hover)').matches) $('hint').textContent = 'Double-tap for full screen';
 
   wake();
   start();

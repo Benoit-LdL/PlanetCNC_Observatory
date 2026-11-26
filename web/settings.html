@@ -27,10 +27,14 @@
   <div class="set-page" id="settings">
     <section class="set-group card set-card">
       <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V9l8-5 8 5v11"/><path d="M9 20v-6h6v6"/></svg>Machine</h3>
-      <form class="set-row" id="nameForm" autocomplete="off">
-        <label for="nameInput">Name</label>
-        <input id="nameInput" maxlength="40" placeholder="PlanetCNC">
-        <button class="vbtn" type="submit">Save</button>
+      <form class="set-form" id="nameForm" autocomplete="off">
+        <div class="set-row">
+          <label for="nameInput">Name</label>
+          <input id="nameInput" maxlength="40" placeholder="PlanetCNC">
+        </div>
+        <div class="set-btns">
+          <button class="vbtn primary" type="submit">Save</button>
+        </div>
       </form>
       <p class="set-help">The name is shown in the top bar and the browser tab, for everyone who opens the dashboard.</p>
     </section>
@@ -51,17 +55,19 @@
     </section>
     <section class="set-group card set-card">
       <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Files</h3>
-      <form class="set-row" id="filesDirForm" autocomplete="off">
-        <label for="filesDirInput">Folder</label>
-        <input id="filesDirInput" spellcheck="false" placeholder="/home/pi/gcode">
-        <button class="vbtn" type="submit">Save</button>
+      <form class="set-form" id="filesDirForm" autocomplete="off">
+        <div class="set-row">
+          <label for="filesDirInput">Folder</label>
+          <input id="filesDirInput" spellcheck="false" placeholder="/home/pi/gcode">
+        </div>
+        <div class="set-btns">
+          <button class="vbtn primary" type="submit">Save</button>
+          <button class="vbtn tonal" id="filesDirBrowseBtn" type="button" title="Choose a folder on the Pi"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Browse…</button>
+          <button class="vbtn" id="filesDirResetBtn" type="button">Default</button>
+        </div>
       </form>
-      <div class="set-btns">
-        <button class="vbtn tonal" id="filesDirBrowseBtn" type="button" title="Choose a folder on the Pi"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Browse…</button>
-        <button class="vbtn" id="filesDirResetBtn" type="button" title="Back to the folder given when the server starts (--files-dir)">Default</button>
-      </div>
-      <p class="set-help">The folder shown in the Files tab; the Planing page saves its programs there. <b>Browse…</b> picks a folder on the Pi (a USB stick too).</p>
-      <p class="set-help" id="filesDirHint"></p>
+      <p class="set-help">The folder shown in the Files tab; the Planing page saves its programs there. <b>Browse…</b> picks a folder on the Pi (a USB stick too) and saves it; <b>Default</b> goes back to the folder given when the server starts (<code>--files-dir</code>).</p>
+      <p class="set-hint" id="filesDirHint"></p>
     </section>
     <section class="set-group card set-card">
       <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 3h4v6l-2 3-2-3z"/><path d="M12 12v9"/><path d="M9 21h6"/></svg>Tool in the 3D view</h3>
@@ -78,29 +84,29 @@
         Telegram bot. It only reports: it can't control the machine.</p>
       <p class="set-help">Set up: in Telegram, talk to <b>@BotFather</b>, send <code>/newbot</code> and paste the
         token it gives here. Then send <code>/start</code> to your new bot, press <b>Refresh</b> and choose your chat.</p>
-      <form class="set-row" id="tgTokenForm" autocomplete="off">
-        <label for="tgToken">Token</label>
-        <input id="tgToken" type="password" spellcheck="false" autocomplete="off" placeholder="123456:ABC-…">
-        <button class="vbtn" type="submit">Save</button>
-      </form>
-      <div class="set-btns" id="tgTokenBtns" hidden>
-        <button class="vbtn" id="tgTokenClear" type="button" title="Remove the bot token: no more messages">Remove bot</button>
-      </div>
-      <form class="set-row" id="tgChatForm" autocomplete="off">
-        <label for="tgChat">Chat</label>
-        <input id="tgChat" spellcheck="false" inputmode="numeric" placeholder="chat id">
-        <button class="vbtn" type="submit">Save</button>
+      <form class="set-form" id="tgForm" autocomplete="off">
+        <div class="set-row">
+          <label for="tgToken">Token</label>
+          <input id="tgToken" type="password" spellcheck="false" autocomplete="new-password" placeholder="123456:ABC-…">
+        </div>
+        <div class="set-row">
+          <label for="tgChat">Chat</label>
+          <input id="tgChat" spellcheck="false" inputmode="numeric" placeholder="chat id">
+        </div>
+        <div class="set-btns">
+          <button class="vbtn primary" type="submit">Save</button>
+        </div>
       </form>
       <ul class="tg-chats" id="tgChats"></ul>
       <p class="set-hint" id="tgStatus"></p>
       <div class="set-btns flush">
         <button class="vbtn" id="tgTestBtn" type="button">Send test message</button>
         <button class="vbtn" id="tgRefreshBtn" type="button" title="Look again for chats that wrote to the bot">Refresh</button>
+        <button class="vbtn" id="tgClearBtn" type="button" title="Forget the bot token and the chat: no more messages" hidden>Remove bot</button>
       </div>
-    </section>
-    <section class="set-group card set-card">
-      <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H8l-4 4z"/><path d="M8 9h8M8 12h5"/></svg>Telegram messages</h3>
-      <p class="set-help">Which messages the bot sends, how often it reports progress, and which messages arrive without sound.</p>
+      <h4 class="set-sub" id="tgMsgHead">Messages</h4>
+      <p class="set-help" data-help-for="tgMsgHead">Which messages the bot sends, how often it reports progress, and
+        which arrive without sound. A silent message arrives without sound or vibration; Telegram still shows it as unread.</p>
       <div class="set-row">
         <label for="tgProgress">Progress</label>
         <select id="tgProgress">
@@ -127,24 +133,23 @@
       <label class="set-check"><input type="checkbox" id="tgReplace"> One progress message: each new one replaces the last</label>
       <label class="set-check"><input type="checkbox" id="tgPhotos"> A camera photo with each message</label>
       <div class="tg-events" id="tgEvents" role="table" aria-label="Which messages are sent, and which without sound"></div>
-      <p class="set-help">A silent message arrives without sound or vibration; Telegram still shows it as unread.</p>
-    </section>
-    <section class="set-group card set-card" id="tlGroup">
-      <h3><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Timelapse</h3>
-      <label class="set-check"><input type="checkbox" id="tlOn"> Make a timelapse of each job with the camera</label>
-      <div class="set-row">
-        <label for="tlInterval">Photo</label>
-        <select id="tlInterval">
-          <option value="5">Every 5 s</option>
-          <option value="10">Every 10 s</option>
-          <option value="20">Every 20 s</option>
-          <option value="30">Every 30 s</option>
-          <option value="60">Every minute</option>
-        </select>
+      <div class="set-form" id="tlGroup">
+        <h4 class="set-sub">Timelapse</h4>
+        <label class="set-check" for="tlOn"><input type="checkbox" id="tlOn"> <span class="help-at">A timelapse video of each job</span></label>
+        <div class="set-row">
+          <label for="tlInterval">Photo</label>
+          <select id="tlInterval">
+            <option value="5">Every 5 s</option>
+            <option value="10">Every 10 s</option>
+            <option value="20">Every 20 s</option>
+            <option value="30">Every 30 s</option>
+            <option value="60">Every minute</option>
+          </select>
+        </div>
+        <p class="set-help" data-help-for="tlOn">The camera keeps running during the job. At the end the photos become
+          a short video (about 20 s), sent with the "Job finished" message. Long jobs take photos less often as they
+          go. Only made when the bot and the chat are set up.</p>
       </div>
-      <p class="set-help" id="tlHint">The camera keeps running during the job. At the end the photos become a short
-        video (about 20 s), sent to Telegram; the last 20 stay on the Pi. Long jobs take photos less often as they go.</p>
-      <ul class="log-files" id="tlFiles"></ul>
     </section>
     <section class="set-group card set-card" id="mqttGroup">
       <h3><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2"/><path d="M8.5 15.5a5 5 0 0 1 0-7M15.5 8.5a5 5 0 0 1 0 7"/><path d="M5.6 18.4a9 9 0 0 1 0-12.8M18.4 5.6a9 9 0 0 1 0 12.8"/></svg>MQTT</h3>
@@ -171,7 +176,7 @@
         </div>
         <div class="set-row">
           <label for="mqttPassword">Password</label>
-          <input id="mqttPassword" type="password" spellcheck="false" autocomplete="new-password">
+          <input id="mqttPassword" type="password" spellcheck="false" autocomplete="new-password" placeholder="the user's password">
         </div>
         <div class="set-row">
           <label for="mqttPrefix">Discovery prefix</label>
@@ -184,9 +189,16 @@
         </div>
         <p class="set-help" data-help-for="mqttBase">The topics the values are sent on: <code>&lt;base topic&gt;/progress</code>, <code>&lt;base topic&gt;/status</code>… Leave it empty for the default.</p>
         <div class="set-btns">
-          <button class="vbtn" type="submit">Save</button>
+          <button class="vbtn primary" type="submit">Save</button>
+          <button class="vbtn" id="mqttPassClear" type="button" title="Forget the saved password" hidden>Remove password</button>
         </div>
       </form>
+      <p class="set-hint" id="mqttStatus"></p>
+      <div class="set-btns flush">
+        <button class="vbtn" id="mqttCheckBtn" type="button" title="Show whether it is connected now">Check</button>
+      </div>
+      <h4 class="set-sub" id="mqttEveryHead">How often</h4>
+      <p class="set-help" data-help-for="mqttEveryHead">How often values that change all the time are sent: progress, time left, spindle and feed (machine values), and the Pi's health and network. Status, program, operation and tool are sent as soon as they change.</p>
       <div class="set-row">
         <label for="mqttMachineEvery">Machine values</label>
         <select id="mqttMachineEvery"></select>
@@ -195,8 +207,6 @@
         <label for="mqttSystemEvery">Pi and network</label>
         <select id="mqttSystemEvery"></select>
       </div>
-      <p class="set-help" data-help-for="mqttMachineEvery">How often values that change all the time are sent: progress, time left, spindle and feed (machine values), and the Pi's health and network. Status, program, operation and tool are sent as soon as they change.</p>
-      <p class="set-hint" id="mqttStatus"></p>
     </section>
     <section class="set-group card set-card" id="airGroup">
       <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 12h15a3 3 0 1 1-3 3"/><path d="M3 16h7"/></svg>Air quality</h3>
@@ -223,7 +233,7 @@
         </div>
         <p class="set-help" data-help-for="airPrefix">The start of the sensors' entity ids: <code>sensor.smart_sen55</code> for an ESPHome device with <code>friendly_name: Smart SEN55</code> (Home Assistant shows them under Settings → Devices → the sensor). The PM, VOC, NOx, temperature and humidity sensors are found from it.</p>
         <div class="set-btns">
-          <button class="vbtn" type="submit">Save</button>
+          <button class="vbtn primary" type="submit">Save</button>
         </div>
       </form>
       <ul class="tg-chats air-ents" id="airEntities"></ul>
@@ -240,7 +250,8 @@
       <p class="set-hint" id="logInfo"></p>
       <ul class="log-files" id="logFiles"></ul>
       <div class="set-row">
-        <select id="logFilter" aria-label="Which lines">
+        <label for="logFilter">Show</label>
+        <select id="logFilter">
           <option value="">Everything</option>
           <option value="warn">Warnings and errors</option>
         </select>

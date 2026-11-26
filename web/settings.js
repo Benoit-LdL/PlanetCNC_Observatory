@@ -5,6 +5,7 @@ import { log } from './log.js';
 import { initHelp } from './help.js';
 import { followState } from './nav.js';
 import { initSystem, systemOnState } from './system-ui.js';
+import { sentence, UNREACHABLE } from './msg.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (t) => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -15,9 +16,33 @@ const fmtDate = (t) => new Date(t * 1000).toLocaleString([], { dateStyle: 'short
 
 let filesDir = '';
 
-function setMessage(text, kind = '') {
-  $('setMsg').textContent = text;
-  $('setMsg').className = 'set-msg' + (kind ? ' ' + kind : '');
+// What an action did goes in its card, right below the control that was used (the last one clicked,
+// changed or submitted), as on the other pages; an OK message goes away after a while, an error stays
+// until the next action. Without such a control (the page can't reach the server) it goes at the bottom.
+let anchor = null;
+let msgTimer = 0;
+for (const type of ['pointerdown', 'change', 'keydown']) {
+  document.addEventListener(type, (e) => {
+    const card = e.target.closest?.('.set-card');
+    if (card && !e.target.closest('.set-msg')) anchor = e.target;
+  }, true);
+}
+document.addEventListener('submit', (e) => { anchor = e.submitter || e.target.querySelector('[type=submit]'); }, true);
+
+function setMessage(text, kind = '', at = anchor) {
+  const box = $('setMsg');
+  clearTimeout(msgTimer);
+  box.textContent = sentence(text);
+  box.className = 'set-msg' + (kind ? ' ' + kind : '');
+  const card = at?.closest?.('.set-card');
+  if (card && text) {
+    // Below the control's own block: its row, its buttons, its switch, its table
+    const block = at.closest('.set-btns, .set-row, .set-check, .tg-events, .tg-chats') || at;
+    if (block.nextElementSibling !== box) block.after(box);
+  } else if (box.parentElement !== $('settings').parentElement) {
+    $('settings').after(box);
+  }
+  if (kind === 'ok') msgTimer = setTimeout(() => { box.textContent = ''; }, 6000);
 }
 
 function renderSettings(d) {
@@ -46,8 +71,10 @@ function renderSettings(d) {
   filesDir = d.files_dir || '';
   if (document.activeElement !== $('filesDirInput')) $('filesDirInput').value = filesDir;
   $('filesDirResetBtn').disabled = !d.files_dir_set;
-  $('filesDirHint').textContent = 'Shown in the dashboard\'s Files tab; kept when the Pi restarts. '
-    + (d.files_dir_set ? `Default: ${d.files_default || 'none'}.` : 'This is the default (--files-dir).');
+  $('filesDirResetBtn').title = d.files_dir_set ? `Back to the folder given when the server starts: ${d.files_default || 'none'}`
+    : 'This is already the default folder (--files-dir)';
+  $('filesDirHint').textContent = d.files_dir_set ? `Chosen here; kept when the Pi restarts. Default: ${d.files_default || 'none'}.`
+    : 'The default folder (--files-dir).';
   $('toolShape').checked = !!d.tool_shape;
   const cams = $('toolCamSelect');
   cams.innerHTML = (d.tool_cams || []).map((c) => `<option value="${esc(c.id)}">${esc(c.label)}</option>`).join('');
@@ -58,11 +85,15 @@ function renderSettings(d) {
   renderAir(d.air);
 }
 
+/** Load and show the settings; returns them (null when the server can't be reached). */
 async function settingsLoad() {
   try {
-    renderSettings(await (await fetch('/api/settings', { cache: 'no-store' })).json());
+    const d = await (await fetch('/api/settings', { cache: 'no-store' })).json();
+    renderSettings(d);
+    return d;
   } catch {
-    setMessage('Server unreachable', 'err');
+    setMessage(UNREACHABLE, 'err', null);
+    return null;
   }
 }
 
@@ -75,10 +106,10 @@ async function settingsSave(changes) {
     });
     res = await r.json().catch(() => ({ ok: false, message: `HTTP ${r.status}` }));
   } catch {
-    res = { ok: false, message: 'Server unreachable' };
+    res = { ok: false, message: UNREACHABLE };
   }
   if (res.ok) renderSettings(res);
-  setMessage(res.message || (res.ok ? 'Saved' : 'Failed'), res.ok ? 'ok' : 'err');
+  setMessage(res.ok ? res.message || 'Saved.' : `Could not save: ${res.message || 'failed'}`, res.ok ? 'ok' : 'err');
   if (!res.ok) log.warn(`saving settings ${JSON.stringify(changes)} failed: ${res.message}`);
   return res;
 }
@@ -88,7 +119,10 @@ $('nameForm').addEventListener('submit', (e) => {
   settingsSave({ name: $('nameInput').value });
 });
 $('camSelect').addEventListener('change', (e) => settingsSave({ camera: e.target.value }));
-$('camRescanBtn').addEventListener('click', () => settingsLoad());
+$('camRescanBtn').addEventListener('click', async () => {
+  await settingsLoad();
+  setMessage($('camHint').textContent.split('. ')[0], 'ok');   // "2 cameras found"
+});
 $('camViewOn').addEventListener('change', (e) => settingsSave({ camera_view: e.target.checked }));
 $('toolShape').addEventListener('change', (e) => settingsSave({ tool_shape: e.target.checked }));
 $('toolCamSelect').addEventListener('change', (e) => settingsSave({ tool_cam: e.target.value }));
@@ -110,9 +144,9 @@ async function folderShow(path) {
   try {
     d = await (await fetch('/api/folders' + (path ? '?path=' + encodeURIComponent(path) : ''), { cache: 'no-store' })).json();
   } catch {
-    d = { ok: false, message: 'Server unreachable' };
+    d = { ok: false, message: UNREACHABLE };
   }
-  $('folderMsg').textContent = d.ok ? '' : d.message || 'Cannot open that folder';
+  $('folderMsg').textContent = d.ok ? '' : sentence(d.message || 'Cannot open that folder');
   if (!d.ok) return;
   folderAt = d.path;
   $('folderPath').textContent = d.path;
@@ -139,6 +173,7 @@ folderDlg.addEventListener('click', (e) => {
 $('folderCancel').addEventListener('click', () => folderDlg.close());
 $('folderUse').addEventListener('click', () => {
   folderDlg.close();
+  anchor = $('filesDirBrowseBtn');   // the message goes in the Files card, not in the closed dialog
   $('filesDirInput').value = folderAt;
   filesDirSave(folderAt);
 });
@@ -149,22 +184,26 @@ $('filesDirResetBtn').addEventListener('click', () => filesDirSave(''));
 function renderNotify(d) {
   const t = d.telegram;
   if (t) {
-    $('tgToken').value = '';
+    // Don't overwrite what is being typed (as in the other forms: MQTT, air quality).
+    if (!$('tgForm').contains(document.activeElement)) {
+      $('tgToken').value = '';
+      $('tgChat').value = t.chat || '';
+    }
     $('tgToken').placeholder = t.token_set ? 'saved – paste a new one to change it' : '123456:ABC-…';
-    $('tgTokenBtns').hidden = !t.token_set;
-    if (document.activeElement !== $('tgChat')) $('tgChat').value = t.chat || '';
+    $('tgClearBtn').hidden = !t.token_set;
     $('tgChats').innerHTML = t.chats.map((c) =>
       `<li><span>${esc(c.name)}</span><code>${esc(c.id)}</code>` +
       (c.id === t.chat ? '<b>in use</b>' : `<button class="vbtn" type="button" data-chat="${esc(c.id)}">Use</button>`) +
       '</li>').join('');
     const status = !t.token_set ? ['Off: no bot token.', '']
-      : t.error ? [`Telegram: ${t.error}`, 'err']
+      : t.error ? [`Not connected: ${t.error}.`, 'err']
       : !t.bot ? ['Connecting to Telegram…', '']
       : !t.chat ? [`Connected as @${t.bot}. Send /start to it in Telegram, then press Refresh and choose your chat.`, '']
       : [`Connected as @${t.bot}; messages go to chat ${t.chat}.`, 'ok'];
     $('tgStatus').textContent = status[0];
     $('tgStatus').className = 'set-hint' + (status[1] ? ' ' + status[1] : '');
     $('tgTestBtn').disabled = !(t.token_set && t.chat);
+    $('tgTestBtn').title = !t.token_set ? 'Save a bot token first' : !t.chat ? 'Choose a chat first' : 'Send a test message to the chat';
   }
   $('tgProgress').value = String(d.notify_progress);
   $('tgMinutes').value = String(d.notify_minutes || 0);
@@ -176,39 +215,40 @@ function renderNotify(d) {
   $('tlOn').checked = !!d.timelapse;
   $('tlInterval').value = String(d.timelapse_interval);
   $('tlInterval').disabled = !d.timelapse;
-  $('tlFiles').innerHTML = (d.timelapses || []).map((f) =>
-    `<li><a href="/api/timelapses/download?name=${encodeURIComponent(f.name)}" download>${esc(f.name)}</a>` +
-    `<span>${fmtSize(f.size)}</span><span>${fmtDate(f.mtime)}</span></li>`).join('');
 }
 
-$('tgTokenForm').addEventListener('submit', (e) => {
+// Saved together with Save, like the other forms (MQTT, air quality)
+$('tgForm').addEventListener('submit', (e) => {
   e.preventDefault();
+  const changes = { telegram_chat: $('tgChat').value.trim() };
   const token = $('tgToken').value.trim();
-  if (token) settingsSave({ telegram_token: token });
+  if (token) changes.telegram_token = token;   // empty: keep the saved token
+  document.activeElement?.blur();
+  settingsSave(changes);
 });
-$('tgTokenClear').addEventListener('click', async () => {
-  if (await ask({ title: 'Remove the bot?', text: 'The bot token is removed: no more Telegram messages are sent.', ok: 'Remove', danger: true })) {
+$('tgClearBtn').addEventListener('click', async () => {
+  if (await ask({ title: 'Remove the bot?', text: 'The bot token and the chat are forgotten: no more Telegram messages or timelapses.', ok: 'Remove', danger: true })) {
     settingsSave({ telegram_token: '', telegram_chat: '' });
   }
-});
-$('tgChatForm').addEventListener('submit', (e) => {
-  e.preventDefault();
-  settingsSave({ telegram_chat: $('tgChat').value.trim() });
 });
 $('tgChats').addEventListener('click', (e) => {
   const id = e.target.closest('[data-chat]')?.dataset.chat;
   if (id) settingsSave({ telegram_chat: id });
 });
-$('tgRefreshBtn').addEventListener('click', () => { settingsLoad(); setMessage(''); });
+$('tgRefreshBtn').addEventListener('click', async () => {
+  const d = await settingsLoad();
+  const n = d?.telegram?.chats?.length;
+  if (n !== undefined) setMessage(n ? `${n} chat${n === 1 ? '' : 's'} wrote to the bot.` : 'No chat wrote to the bot yet: send it /start in Telegram.', n ? 'ok' : '');
+});
 $('tgTestBtn').addEventListener('click', async () => {
   $('tgTestBtn').disabled = true;
   setMessage('Sending…');
   try {
     const r = await fetch('/api/telegram/test', { method: 'POST', headers: { 'X-CNC-Control': '1', 'Content-Type': 'application/json' }, body: '{}' });
     const res = await r.json().catch(() => ({ ok: false, message: `HTTP ${r.status}` }));
-    setMessage(res.message || (res.ok ? 'Sent' : 'Failed'), res.ok ? 'ok' : 'err');
+    setMessage(res.message || (res.ok ? 'Sent.' : 'Failed.'), res.ok ? 'ok' : 'err');
   } catch {
-    setMessage('Server unreachable', 'err');
+    setMessage(UNREACHABLE, 'err');
   }
   $('tgTestBtn').disabled = false;
 });
@@ -237,7 +277,9 @@ $('tlInterval').addEventListener('change', (e) => settingsSave({ timelapse_inter
 
 // ---------------------------------------------------------------- MQTT (Home Assistant)
 
-const fmtEvery = (s) => s < 60 ? `Every ${s} s` : s === 60 ? 'Every minute' : `Every ${s / 60} minutes`;
+// The same words as the other interval lists (Telegram, timelapse): Every second, Every 5 s, Every minute, Every hour
+const fmtEvery = (s) => s === 1 ? 'Every second' : s < 60 ? `Every ${s} s` : s === 60 ? 'Every minute'
+  : s === 3600 ? 'Every hour' : `Every ${s / 60} minutes`;
 
 function renderMqtt(m) {
   $('mqttGroup').hidden = !m;
@@ -253,19 +295,24 @@ function renderMqtt(m) {
     $('mqttPrefix').value = m.prefix || 'homeassistant';
     $('mqttBase').value = m.base || '';
   }
-  $('mqttPassword').placeholder = m.password_set ? 'saved – type a new one to change it' : 'none';
+  $('mqttPassword').placeholder = m.password_set ? 'saved – paste a new one to change it' : 'the user\'s password';
+  $('mqttPassClear').hidden = !m.password_set;
   $('mqttBase').placeholder = m.base_default;
   for (const [id, value] of [['mqttMachineEvery', m.machine_every], ['mqttSystemEvery', m.system_every]]) {
     $(id).innerHTML = m.every_choices.map((s) => `<option value="${s}">${fmtEvery(s)}</option>`).join('');
     $(id).value = String(value);
   }
-  const status = !m.enabled ? ['Off.', '']
-    : !m.host ? ['Enter the broker\'s address and press Save.', '']
+  const status = !m.enabled ? ['Off: "Send to Home Assistant" is not ticked.', '']
+    : !m.host ? ['Off: no broker address.', '']
     : m.connected ? [`Connected to ${m.host}: ${m.entities} entities on the "${m.base || m.base_default}" topics.`, 'ok']
     : m.error ? [`Not connected: ${m.error}. Trying again…`, 'err']
     : [`Connecting to ${m.host}…`, ''];
   $('mqttStatus').textContent = status[0];
   $('mqttStatus').className = 'set-hint' + (status[1] ? ' ' + status[1] : '');
+  $('mqttCheckBtn').disabled = !(m.enabled && m.host);
+  $('mqttCheckBtn').title = !m.enabled ? 'Tick "Send to Home Assistant" first' : !m.host ? 'Save the broker\'s address first'
+    : 'Show whether it is connected now';
+  return status;
 }
 
 $('mqttOn').addEventListener('change', async (e) => {
@@ -285,6 +332,17 @@ $('mqttForm').addEventListener('submit', async (e) => {
   document.activeElement?.blur();
   const res = await settingsSave(changes);
   if (res.ok) setTimeout(settingsLoad, 2500);
+});
+$('mqttPassClear').addEventListener('click', async () => {
+  if (await ask({ title: 'Remove the password?', text: 'The saved MQTT password is forgotten.', ok: 'Remove', danger: true })) {
+    settingsSave({ mqtt_password: '' });
+  }
+});
+$('mqttCheckBtn').addEventListener('click', async () => {
+  const d = await settingsLoad();
+  if (!d?.mqtt) return;
+  const [text, kind] = renderMqtt(d.mqtt);
+  setMessage(text, kind || '');
 });
 $('mqttMachineEvery').addEventListener('change', (e) => settingsSave({ mqtt_machine_every: Number(e.target.value) }));
 $('mqttSystemEvery').addEventListener('change', (e) => settingsSave({ mqtt_system_every: Number(e.target.value) }));
@@ -307,13 +365,14 @@ function renderAir(a) {
   $('airClearBtn').hidden = !a.token_set;
   const on = !!(a.url && a.token_set);
   $('airCheckBtn').disabled = !on;
+  $('airCheckBtn').title = !a.url ? 'Save the Home Assistant address first' : !a.token_set ? 'Save a token first' : 'Read the sensors now';
   $('airEntities').innerHTML = !on || (a.error && !Object.keys(a.entities).length) ? ''
     : a.keys.map((k) => `<li><span>${AIR_NAMES[k]}</span>` + (a.entities[k]
       ? `<code title="${esc(a.entities[k])}">${esc(a.entities[k])}</code><b>found</b>`
       : '<code>–</code><span class="muted">not found</span>') + '</li>').join('');
   const [text, kind] = !a.url ? ['Off: no Home Assistant address.', '']
     : !a.token_set ? ['Off: no token.', '']
-    : a.error ? [a.error, 'err']
+    : a.error ? [sentence(`Not reading the sensors: ${a.error}`), 'err']
     : a.ok ? [`Reading ${Object.keys(a.entities).length} sensors from ${a.url}.`, 'ok']
     : ['Connecting to Home Assistant…', ''];
   $('airStatus').textContent = text;
@@ -327,9 +386,9 @@ async function airCheck() {
     const r = await fetch('/api/air/check', { method: 'POST', headers: { 'X-CNC-Control': '1', 'Content-Type': 'application/json' }, body: '{}' });
     const res = await r.json().catch(() => ({ ok: false, message: `HTTP ${r.status}` }));
     if (res.ok) renderSettings(res);
-    setMessage(res.message || (res.ok ? 'Done' : 'Failed'), res.ok && !res.air?.error ? 'ok' : 'err');
+    setMessage(res.message || (res.ok ? 'Done.' : 'Failed.'), res.ok && !res.air?.error ? 'ok' : 'err');
   } catch {
-    setMessage('Server unreachable', 'err');
+    setMessage(UNREACHABLE, 'err');
   }
   $('airCheckBtn').disabled = false;
 }
@@ -357,7 +416,7 @@ async function logsLoad() {
   try {
     d = await (await fetch('/api/logs', { cache: 'no-store' })).json();
   } catch {
-    $('logInfo').textContent = 'Server unreachable';
+    $('logInfo').textContent = UNREACHABLE;
     return;
   }
   $('logDebug').checked = d.debug;
@@ -365,7 +424,7 @@ async function logsLoad() {
   $('logInfo').textContent = !d.dir ? 'No log files: the server was started with --log-dir none.'
     : `${fmtSize(d.total)} of at most ${fmtSize(d.max)} used. Files older than ${d.keep_days} days are deleted. ` +
       `Folder on the Pi: ${d.dir}`;
-  $('logFiles').innerHTML = d.files.map((f) =>
+  $('logFiles').innerHTML = !d.files.length && d.dir ? '<li class="muted">No log files yet.</li>' : d.files.map((f) =>
     `<li><a href="/api/logs/download?name=${encodeURIComponent(f.name)}" download>${esc(f.name)}</a>` +
     `<span>${fmtSize(f.size)}</span><span>${fmtDate(f.mtime)}</span></li>`).join('');
 }
@@ -378,7 +437,7 @@ async function logsShow() {
     const r = await fetch('/api/logs/tail?lines=400&level=' + $('logFilter').value, { cache: 'no-store' });
     view.textContent = (await r.text()) || '(nothing yet)';
   } catch {
-    view.textContent = 'Server unreachable';
+    view.textContent = UNREACHABLE;
   }
   view.scrollTop = view.scrollHeight;
 }
@@ -393,7 +452,7 @@ $('logDebug').addEventListener('change', async (e) => {
       body: JSON.stringify({ debug }),
     });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    setMessage(debug ? 'Detailed logging on' : 'Detailed logging off', 'ok');
+    setMessage(debug ? 'Detailed logging on.' : 'Detailed logging off.', 'ok');
   } catch (err) {
     e.target.checked = !debug;
     setMessage('Could not change logging: ' + err.message, 'err');

@@ -33,17 +33,17 @@
   <section class="panel pl-view" aria-label="Simulation">
     <div class="view-toolbar">
       <div class="seg" role="group" aria-label="View">
-        <button class="vbtn active" data-view="3d">3D</button>
-        <button class="vbtn" data-view="top">Top</button>
-        <button class="vbtn" data-view="front">Front</button>
-        <button class="vbtn" data-view="right">Right</button>
+        <button class="vbtn active" data-view="3d" title="3D view">3D</button>
+        <button class="vbtn" data-view="top" title="Top (XY)">Top</button>
+        <button class="vbtn" data-view="front" title="Front (XZ)">Front</button>
+        <button class="vbtn" data-view="right" title="Right (YZ)">Right</button>
       </div>
       <span class="sep"></span>
       <button class="vbtn toggle active" id="pathBtn" title="Show / hide the toolpath lines">Toolpath</button>
       <button class="vbtn toggle active" id="machineBtn" title="Show the machine: the frame, and the gantry and the spindle following the tool">Machine</button>
-      <button class="icon-btn outlined" id="fitBtn" title="Fit the stock, the bed and the machine" aria-label="Fit the view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4"/></svg></button>
     </div>
     <div class="viewport" id="viewport">
+      <div class="viewport-tools"><button class="icon-btn" id="fitBtn" title="Fit: the stock, the bed and the machine" aria-label="Fit the view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4"/></svg></button></div>
       <div class="legend">
         <span><i class="stock-swatch"></i>Rough</span>
         <span><i class="planed-swatch"></i>Planed</span>
@@ -74,16 +74,25 @@
         <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9l9-4 9 4-9 4z"/><path d="M3 9v6l9 4 9-4V9"/><path d="M12 13v6"/></svg><span>Stock</span></h3>
         <div class="pl-row"><label for="length">Length (X)<span class="unit">mm</span></label><input id="length" type="number" step="any" min="0" inputmode="decimal"></div>
         <div class="pl-row"><label for="width">Width (Y)<span class="unit">mm</span></label><input id="width" type="number" step="any" min="0" inputmode="decimal"></div>
-        <div class="pl-row"><label for="thickness">Thickness (rough)<span class="unit">mm</span></label><input id="thickness" type="number" step="any" min="0" inputmode="decimal"></div>
         <div class="pl-row"><label for="zMode">Z zero</label>
           <select id="zMode">
             <option value="top">Top of the stock</option>
             <option value="bed">Spoilboard</option>
           </select></div>
         <p class="set-help" data-help-for="zMode" id="zHint"></p>
+        <!-- Top of the stock: plane the rough face, so many mm off the top -->
+        <div class="pl-row" data-mode="top"><label for="thickness">Thickness (rough)<span class="unit">mm</span></label><input id="thickness" type="number" step="any" min="0" inputmode="decimal"></div>
+        <p class="set-help" data-help-for="thickness">Only for drawing the stock and checking that the depth fits in it: the cut starts from Z0 whatever the thickness. Leave 15 mm if you don't know it.</p>
+        <div class="pl-row" data-mode="top"><label for="depth">Depth to remove<span class="unit">mm</span></label><input id="depth" type="number" step="any" min="0" inputmode="decimal"></div>
+        <p class="set-help" data-help-for="depth">In total, from the highest point of the stock (Z0) down.</p>
+        <!-- Spoilboard: bring stock that's already flat down to a thickness -->
+        <div class="pl-row" data-mode="bed"><label for="current">Current thickness<span class="unit">mm</span></label><input id="current" type="number" step="any" min="0" inputmode="decimal"></div>
+        <p class="set-help" data-help-for="current">Measured at the highest point. This is where the stock top is (Z = current thickness), so the first pass starts there.</p>
+        <div class="pl-row" data-mode="bed"><label for="target">Target thickness<span class="unit">mm</span></label><input id="target" type="number" step="any" min="0" inputmode="decimal"></div>
+        <p class="set-help" data-help-for="target">The thickness you want: the last pass is at Z = target thickness, and the program removes current − target.</p>
         <div class="pl-row"><label for="startAbove">Start above Z0<span class="unit">mm</span></label><input id="startAbove" type="number" step="any" min="0" inputmode="decimal"></div>
         <p class="set-help" data-help-for="startAbove">Not sure Z was set on the highest point? The passes start this much higher (same final depth, more passes), so the first ones don't bite too deep into a high spot. 0 = start at the top.</p>
-        <p class="pl-hint">X0 Y0 is the front-left corner of the stock.</p>
+        <p class="set-help" data-help-for="length">X0 Y0 is the front-left corner of the stock.</p>
         </section>
 
         <section class="pl-group" aria-label="Bit and cut">
@@ -91,16 +100,16 @@
         <div class="pl-mat">
           <select id="bit" aria-label="Bit"></select>
           <button class="vbtn text" type="button" id="bitSave" title="Save this diameter as a bit">Save as…</button>
-          <button class="vbtn text" type="button" id="bitDelete" title="Delete this bit" disabled>Delete</button>
+          <button class="vbtn text danger" type="button" id="bitDelete" disabled>Delete</button>
         </div>
+        <p class="pl-msg" id="bitMsg" aria-live="polite"></p>
         <div class="pl-row"><label for="toolD">Bit diameter<span class="unit">mm</span></label><input id="toolD" type="number" step="any" min="0" inputmode="decimal"></div>
-        <div class="pl-row"><label for="depth">Depth to remove<span class="unit">mm</span></label><input id="depth" type="number" step="any" min="0" inputmode="decimal"></div>
         <div class="pl-row"><label for="direction">Cut direction</label>
           <select id="direction">
             <option value="x">Along X</option>
             <option value="y">Along Y</option>
           </select></div>
-        <p class="pl-hint">Usually along the grain.</p>
+        <p class="set-help" data-help-for="direction">Usually along the grain.</p>
         <div class="pl-row"><label for="cutWay">Cut</label>
           <select id="cutWay">
             <option value="both">Both ways</option>
@@ -115,8 +124,9 @@
         <div class="pl-mat">
           <select id="material" aria-label="Material"></select>
           <button class="vbtn text" type="button" id="matSave" title="Save these cutting values for a material">Save as…</button>
-          <button class="vbtn text" type="button" id="matDelete" title="Delete this material" disabled>Delete</button>
+          <button class="vbtn text danger" type="button" id="matDelete" disabled>Delete</button>
         </div>
+        <p class="pl-msg" id="matMsg" aria-live="polite"></p>
         <div class="pl-row"><label for="rpm">Spindle speed<span class="unit">rpm</span></label><input id="rpm" type="number" step="any" min="0" inputmode="decimal"></div>
         <div class="pl-row"><label for="feed">Feed<span class="unit">mm/min</span></label><input id="feed" type="number" step="any" min="0" inputmode="decimal"></div>
         <div class="pl-row"><label for="plunge">Plunge feed<span class="unit">mm/min</span></label><input id="plunge" type="number" step="any" min="0" inputmode="decimal"></div>
@@ -131,8 +141,8 @@
         <div class="pl-row"><label for="clearance">Run past the edges by<span class="unit">mm</span></label><input id="clearance" type="number" step="any" min="0" inputmode="decimal"></div>
           <label class="pl-check" for="clearTurn"><input id="clearTurn" type="checkbox"><span class="help-at">Turn round clear of the stock</span></label>
         <div class="pl-row"><label for="dwell">Spindle spin-up<span class="unit">s</span></label><input id="dwell" type="number" step="any" min="0" inputmode="decimal"></div>
-          <p class="set-help" data-help-for="clearance">How far the bit's centre goes past every edge of the stock, at the ends of the lines and on the first and last line. Less than the bit radius. Plunges always happen beside the stock.</p>
-          <p class="set-help" data-help-for="clearTurn">The lines run on until the whole bit has left the stock by the "run past the edges" amount, so the step to the next line happens in the air (longer lines, a bit slower).</p>
+          <p class="set-help" data-help-for="clearance">How far the bit's centre goes past every edge of the stock, at the ends of the lines and on the first and last line. Less than the bit radius. Plunges always happen beside the stock. With "Both ways", the bit turns round to the next line in a half circle that reaches another half line gap further out.</p>
+          <p class="set-help" data-help-for="clearTurn">The lines run on until the whole bit has left the stock by the "run past the edges" amount, so the turn to the next line happens in the air (longer lines, a bit slower).</p>
           <p class="set-help" data-help-for="dwell">How long the program waits after starting the spindle (<code>M3</code>, then <code>G4</code>), before the first move, so the bit is at full speed before it goes anywhere. 0 = no wait.</p>
         </section>
       </form>
@@ -148,7 +158,7 @@
         <input id="fileName" aria-label="File name" spellcheck="false">
         <button class="vbtn primary" type="button" id="saveBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h11l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M7 3v5h8M7 21v-7h10v7"/></svg>Save</button>
       </div>
-      <button class="vbtn tonal pl-load" type="button" id="loadBtn" title="Open the program in TNG without saving it (it does not start it)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m0 12-4-4m4 4 4-4"/><rect x="3" y="15" width="18" height="6" rx="2"/></svg>Send to TNG</button>
+      <button class="vbtn tonal pl-load" type="button" id="loadBtn" title="Load the program in TNG without saving it (it does not start it)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m0 12-4-4m4 4 4-4"/><rect x="3" y="15" width="18" height="6" rx="2"/></svg>Load in TNG</button>
       <p class="pl-hint" id="folderHint"></p>
       <div class="pl-msg" id="saveMsg" aria-live="polite"></div>
     </div>

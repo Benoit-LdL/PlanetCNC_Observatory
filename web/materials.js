@@ -8,6 +8,7 @@ import { ask } from './dialog.js';
 import { followState } from './nav.js';
 import { initSystem, systemOnState } from './system-ui.js';
 import { initHelp } from './help.js';
+import { sentence, fetchJson, UNREACHABLE } from './msg.js';
 
 const writeHeaders = { 'X-CNC-Control': '1', 'Content-Type': 'application/json' };
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -21,7 +22,7 @@ function libraryTable(card, cfg) {
   let items = {};
 
   const message = (text, kind = '') => {
-    $('msg').textContent = text;
+    $('msg').textContent = sentence(text);
     $('msg').className = 'mt-msg' + (kind ? ' ' + kind : '');
   };
   const numInput = (k, label, v = '') =>
@@ -39,14 +40,13 @@ function libraryTable(card, cfg) {
       const d = await (await fetch(cfg.api, { cache: 'no-store' })).json();
       items = d.presets || {};
     } catch {
-      message('Cannot reach the server.', 'err');
+      message(UNREACHABLE, 'err');
     }
     render();
   }
 
   async function call(body) {
-    const r = await fetch(cfg.api, { method: 'POST', headers: writeHeaders, body: JSON.stringify(body) });
-    const res = await r.json().catch(() => ({ ok: false, message: `HTTP ${r.status}` }));
+    const res = await fetchJson(cfg.api, { method: 'POST', headers: writeHeaders, body: JSON.stringify(body) });
     if (!res.ok) throw new Error(res.message || 'failed');
     if (res.presets) items = res.presets;
     return res;
@@ -93,13 +93,18 @@ function libraryTable(card, cfg) {
     tr.querySelector('[data-save]').disabled = !changed || !ok;
   });
 
+  $('rows').addEventListener('keydown', (e) => {
+    const save = e.key === 'Enter' && e.target.closest('tr[data-name]')?.querySelector('[data-save]');
+    if (save && !save.disabled) save.click();
+  });
+
   $('rows').addEventListener('click', async (e) => {
     const b = e.target.closest('button');
     const tr = b?.closest('tr[data-name]');
     if (!tr) return;
     const old = tr.dataset.name;
     if (b.dataset.delete !== undefined) {
-      if (!await ask({ title: `Delete the ${cfg.what}?`, text: `${old} is deleted, for every device.`, ok: 'Delete', danger: true })) return;
+      if (!await ask({ title: `Delete the ${cfg.what}?`, text: `${old} is deleted, for every device; this cannot be undone.`, ok: 'Delete', danger: true })) return;
       try {
         await call({ action: 'delete', name: old });
         message(`Deleted ${old}.`, 'ok');
@@ -177,7 +182,7 @@ function libraryTable(card, cfg) {
     const clashes = list.filter(([n]) => Object.keys(items).some((p) => same(p, n.trim()))).map(([n]) => n);
     const replace = !clashes.length || await ask({ title: `Some ${cfg.whats} already exist`,
       text: `${clashes.join(', ')}.\n\nReplace them with the imported values, or keep the ones you have?`,
-      ok: 'Replace them', cancel: 'Keep mine' });
+      ok: 'Replace them', cancel: 'Keep mine', danger: true });
     let added = 0, failed = 0;
     for (const [name, v] of list) {
       if (!replace && clashes.includes(name)) continue;
@@ -196,18 +201,18 @@ function libraryTable(card, cfg) {
 const materials = libraryTable(document.getElementById('materialsCard'), {
   api: '/api/planing/presets', what: 'material', whats: 'materials', file: 'planing-materials.json',
   empty: 'No materials yet: add one below, or import a file.',
-  keys: [['rpm', 'Spindle', 'rpm'], ['feed', 'Feed', 'mm/min'], ['plunge', 'Plunge', 'mm/min'],
-         ['stepdown', 'Step-down', 'mm'], ['stepover', 'Stepover', '% of Ø']],
+  keys: [['rpm', 'Spindle speed', 'rpm'], ['feed', 'Feed', 'mm/min'], ['plunge', 'Plunge feed', 'mm/min'],
+         ['stepdown', 'Step-down', 'mm/pass'], ['stepover', 'Stepover', '% of Ø']],
 });
 const bits = libraryTable(document.getElementById('bitsCard'), {
   api: '/api/planing/bits', what: 'bit', whats: 'bits', file: 'planing-bits.json',
   empty: 'No bits yet: add one below, or import a file.',
-  keys: [['d', 'Diameter', 'mm']],
+  keys: [['d', 'Bit diameter', 'mm']],
 });
 
 initSystem();   // the E-stop button
 initHelp();
-followState(systemOnState, 'Materials');
+followState(systemOnState, 'Stock & Bit');   // as in the menu
 
 materials.load();
 bits.load();

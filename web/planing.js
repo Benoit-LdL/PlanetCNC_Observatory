@@ -12,9 +12,10 @@ import { log } from './log.js';
 import { initHelp } from './help.js';
 import { navOnState } from './nav.js';
 import { initSystem, systemOnState } from './system-ui.js';
+import { sentence, fetchJson, UNREACHABLE } from './msg.js';
 
 const $ = (id) => document.getElementById(id);
-const FIELDS = ['length', 'width', 'thickness', 'zMode', 'startAbove', 'toolD', 'depth', 'direction', 'cutWay',
+const FIELDS = ['length', 'width', 'thickness', 'zMode', 'startAbove', 'current', 'target', 'toolD', 'depth', 'direction', 'cutWay',
                 'rpm', 'feed', 'plunge', 'stepdown', 'stepover', 'safe', 'clearance', 'clearTurn', 'dwell'];
 const PRESET_KEYS = ['rpm', 'feed', 'plunge', 'stepdown', 'stepover'];   // what a material stores
 const TEXT_FIELDS = new Set(['zMode', 'direction', 'cutWay']);
@@ -327,14 +328,17 @@ function update() {
   const p = readForm();
   lastParams = p;
   remember(p);
-  const result = planPlaning(p);
+  const result = planPlaning(p, { travel: bed });   // the end position stays inside the travel
   plan = result;
 
+  // Each Z zero asks for its own numbers (the other mode's stay in the form for switching back)
+  const spoil = p.zMode === 'bed';   // Z zero on the spoilboard (not `bed`: that's the machine's travel)
+  document.querySelectorAll('#form [data-mode]').forEach((el) => { el.hidden = el.dataset.mode !== p.zMode; });
   for (const f of FIELDS) $(f).classList.toggle('bad', !TEXT_FIELDS.has(f) && !CHECK_FIELDS.has(f) && !(Number.isFinite(p[f]) && p[f] >= 0));
   $('stepoverMm').textContent = Number.isFinite(p.toolD * p.stepover) ? `% of Ø = ${fmt(p.toolD * p.stepover / 100)} mm` : '% of Ø';
-  $('zHint').textContent = p.zMode === 'top'
-    ? 'Touch off Z on the highest point of the stock.'
-    : 'Z0 on the spoilboard: the stock top is at Z = thickness, so measure the thickness at the highest point.';
+  $('zHint').textContent = spoil
+    ? 'To bring stock that is already flat to a thickness. Touch off Z on the spoilboard and measure the stock\'s current thickness at its highest point.'
+    : 'To plane the rough top of the stock. Touch off Z on its highest point; the program removes the depth from there.';
   const ax = p.direction === 'y' ? 'Y' : 'X';
   $('cutWay').options[1].textContent = `+${ax} only`;
   $('cutWay').options[2].textContent = `−${ax} only`;
@@ -356,7 +360,8 @@ function update() {
     ...(p.startAbove > 0 ? [['First pass from', `Z${fmt(info.startZ)}, ${fmt(p.startAbove)} mm above Z0`]] : []),
     ['Lines per pass', `${info.lines}, ${fmt(info.step)} mm apart at most${p.cutWay === 'both' ? '' : `, all cut towards ${p.cutWay === 'plus' ? '+' : '−'}${p.direction === 'y' ? 'Y' : 'X'}`}`],
     ['Last pass at', `Z${fmt(info.finalTop)}`],
-    ['Thickness after', `${fmt(p.thickness - p.depth)} mm`],
+    spoil ? ['Removes', `${fmt(info.depth)} mm, ${fmt(p.current)} → ${fmt(p.target)} mm thick`]
+          : ['Removes', `${fmt(info.depth)} mm from the top`],
     ['Bit centre travels', `X ${fmt(info.bounds.min[0])} … ${fmt(info.bounds.max[0])}, Y ${fmt(info.bounds.min[1])} … ${fmt(info.bounds.max[1])}`],
     ['Run time', `about ${duration(info.time)}`],
   ];
@@ -433,12 +438,10 @@ async function pollState() {
       filesEnabled = !!s.files_enabled;
       showFolder();
     }
-    if (changed && plan && !plan.errors.length) {
-      // Only the notes depend on the bed: no need to restart the simulation
-      $('notes').innerHTML = [...plan.warnings, ...bedNotes(plan.info)].map((x) => `<li>${esc(x)}</li>`).join('');
-    }
+    // The end position is kept inside the travel (from the current work zero): build the program again
+    if (changed && plan) schedule();
   } catch {
-    tngLoad = 'The server is not reachable';
+    tngLoad = UNREACHABLE;
     syncButtons();
     systemOnState({});   // server not reachable: OFFLINE, and no E-stop from here; try again
   }
@@ -452,8 +455,14 @@ async function pollState() {
 // longer matches it; Save as... and Delete change the list.
 
 function library(cfg) {
-  // cfg: {api, select, save, del, changed, none, what, fields: {stored key: form field}, ask}
+  // cfg: {api, select, save, del, msg, changed, none, what, fields: {stored key: form field}, ask}
   const sel = $(cfg.select);
+  // What Save as... and Delete did: under the list, not by the program's Save button
+  const message = (html, kind = '') => { $(cfg.msg).innerHTML = sentence(html); $(cfg.msg).className = 'pl-msg' + (kind ? ' ' + kind : ''); };
+  const syncDelete = () => {
+    $(cfg.del).disabled = !sel.value;
+    $(cfg.del).title = sel.value ? `Delete the ${cfg.what} ${sel.value}` : `Pick a saved ${cfg.what} to delete it`;
+  };
   const keys = Object.entries(cfg.fields);
   const lib = { items: {} };
 
@@ -462,7 +471,7 @@ function library(cfg) {
     const cur = pick ?? sel.value;
     sel.innerHTML = `<option value="">${cfg.none}</option>` + names.map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
     sel.value = names.includes(cur) ? cur : '';
-    $(cfg.del).disabled = !sel.value;
+    syncDelete();
   };
   lib.showChanged = (p) => {
     const it = lib.items[sel.value];
@@ -475,8 +484,7 @@ function library(cfg) {
     lib.render(pick);
   };
   async function call(body) {
-    const r = await fetch(cfg.api, { method: 'POST', headers: writeHeaders, body: JSON.stringify(body) });
-    const res = await r.json().catch(() => ({ ok: false, message: `HTTP ${r.status}` }));
+    const res = await fetchJson(cfg.api, { method: 'POST', headers: writeHeaders, body: JSON.stringify(body) });
     if (!res.ok) throw new Error(res.message || 'failed');
     lib.items = res.presets || lib.items;
     return res;
@@ -485,7 +493,7 @@ function library(cfg) {
   sel.addEventListener('change', () => {
     const it = lib.items[sel.value];
     if (it) fillForm(Object.fromEntries(keys.map(([k, f]) => [f, it[k]])));
-    $(cfg.del).disabled = !sel.value;
+    syncDelete();
     schedule();
   });
 
@@ -508,13 +516,13 @@ function library(cfg) {
       message(`Saved the ${cfg.what} ${esc(res.name)}.`, 'ok');
       schedule();   // the file name follows the material
     } catch (e) {
-      message(`Could not save the ${cfg.what}: ` + esc(e.message), 'err');
+      message(`Could not save the ${cfg.what}: ${esc(e.message)}`, 'err');
     }
   });
 
   $(cfg.del).addEventListener('click', async () => {
     const name = sel.value;
-    if (!name || !await ask({ title: `Delete the ${cfg.what}?`, text: `${name} is deleted, for every device. The values in the form stay.`,
+    if (!name || !await ask({ title: `Delete the ${cfg.what}?`, text: `${name} is deleted, for every device; this cannot be undone. The values in the form stay.`,
       ok: 'Delete', danger: true })) return;
     try {
       await call({ action: 'delete', name });
@@ -522,14 +530,14 @@ function library(cfg) {
       message(`Deleted ${esc(name)}.`, 'ok');
       schedule();
     } catch (e) {
-      message(`Could not delete the ${cfg.what}: ` + esc(e.message), 'err');
+      message(`Could not delete the ${cfg.what}: ${esc(e.message)}`, 'err');
     }
   });
   return lib;
 }
 
 const materials = library({
-  api: '/api/planing/presets', select: 'material', save: 'matSave', del: 'matDelete', changed: 'matChanged',
+  api: '/api/planing/presets', select: 'material', save: 'matSave', del: 'matDelete', msg: 'matMsg', changed: 'matChanged',
   none: 'No material', what: 'material',
   fields: Object.fromEntries(PRESET_KEYS.map((k) => [k, k])),
   missing: 'Fill in spindle speed, feeds, step-down and stepover first.',
@@ -537,7 +545,7 @@ const materials = library({
          text: 'The spindle speed, feeds, step-down and stepover, under the name of a material (e.g. Oak).' },
 });
 const bits = library({
-  api: '/api/planing/bits', select: 'bit', save: 'bitSave', del: 'bitDelete', changed: 'bitChanged',
+  api: '/api/planing/bits', select: 'bit', save: 'bitSave', del: 'bitDelete', msg: 'bitMsg', changed: 'bitChanged',
   none: 'No saved bit', what: 'bit',
   fields: { d: 'toolD' },
   missing: 'Fill in the bit diameter first.',
@@ -558,14 +566,16 @@ document.addEventListener('visibilitychange', async () => {
 
 let nameEdited = false;
 $('fileName').addEventListener('input', () => { nameEdited = $('fileName').value.trim() !== ''; });
+$('fileName').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !$('saveBtn').disabled) $('saveBtn').click(); });
 
 function defaultName(p) {
   const mat = (p.material || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  return `plane_${mat ? mat + '_' : ''}${fmt(p.length)}x${fmt(p.width)}_${fmt(p.depth)}mm.nc`;
+  const cut = p.zMode === 'bed' ? `to${fmt(p.target)}mm` : `${fmt(p.depth)}mm`;
+  return `plane_${mat ? mat + '_' : ''}${fmt(p.length)}x${fmt(p.width)}_${cut}.nc`;
 }
 
 function message(html, kind = '') {
-  $('saveMsg').innerHTML = html;
+  $('saveMsg').innerHTML = sentence(html);
   $('saveMsg').className = 'pl-msg' + (kind ? ' ' + kind : '');
 }
 
@@ -575,27 +585,28 @@ let tngLoad = 'TNG is not connected';   // why the program can't be loaded in TN
 function syncButtons() {
   const ready = !!plan && !plan.errors.length && !busy;
   $('saveBtn').disabled = !ready || !filesEnabled;
+  $('saveBtn').title = !filesEnabled ? 'No Files folder: choose one in Settings' : busy ? 'Busy…'
+    : !ready ? 'Fix the values marked in red first' : 'Save the program in the Files folder';
   $('loadBtn').disabled = !ready || !!tngLoad;
-  $('loadBtn').title = tngLoad || 'Open the program in TNG without saving it (it does not start it)';
+  $('loadBtn').title = tngLoad || (busy ? 'Busy…' : !ready ? 'Fix the values marked in red first'
+    : 'Load the program in TNG without saving it (it does not start it)');
 }
 
 async function showFolder() {
   syncButtons();
   if (!filesEnabled) {
-    $('folderHint').textContent = 'No Files folder: choose one in the dashboard\'s Settings to save programs.';
+    $('folderHint').textContent = 'No Files folder: choose one in Settings to save programs.';
     return;
   }
   try {
     const d = await (await fetch('/api/files?path=', { cache: 'no-store' })).json();
-    $('folderHint').textContent = d.ok ? `Saved in ${d.abs}` : '';
+    $('folderHint').textContent = d.ok ? `Saved in ${d.abs}.` : '';
   } catch { $('folderHint').textContent = ''; }
 }
 
 async function upload(name, text, overwrite) {
   const url = `/api/files/upload?path=&name=${encodeURIComponent(name)}${overwrite ? '&overwrite=1' : ''}`;
-  const r = await fetch(url, { method: 'POST', body: text,
-                               headers: { 'X-CNC-Control': '1', 'Content-Type': 'application/octet-stream' } });
-  return r.json().catch(() => ({ ok: false, message: `HTTP ${r.status}` }));
+  return fetchJson(url, { method: 'POST', body: text, headers: { 'X-CNC-Control': '1', 'Content-Type': 'application/octet-stream' } });
 }
 
 /** Save the program in the Files folder; returns its name, or null when it wasn't saved. */
@@ -606,7 +617,7 @@ async function saveProgram() {
   if (!/\.[a-z0-9]{1,5}$/i.test(name)) name += '.nc';
   $('fileName').value = name;
   // The program carries the date it was made: rebuild it now, with the values on screen
-  const text = planPlaning(lastParams).text;
+  const text = planPlaning(lastParams, { travel: bed }).text;
   message('Saving…');
   try {
     let res = await upload(name, text, false);
@@ -618,11 +629,11 @@ async function saveProgram() {
       res = await upload(name, text, true);
     }
     if (!res.ok) throw new Error(res.message || 'failed');
-    log.info(`planing: saved ${name} (${plan.info.passes} passes, ${fmt(lastParams.depth)} mm)`);
+    log.info(`planing: saved ${name} (${plan.info.passes} passes, ${fmt(plan.info.depth)} mm)`);
     return name;
   } catch (e) {
     log.warn(`planing: saving ${name} failed:`, e.message);
-    message('Could not save: ' + esc(e.message), 'err');
+    message(`Could not save: ${esc(e.message)}`, 'err');
     return null;
   }
 }
@@ -643,18 +654,12 @@ $('loadBtn').addEventListener('click', () => withButtons(async () => {
   let name = $('fileName').value.trim() || defaultName(lastParams);
   if (!/\.[a-z0-9]{1,5}$/i.test(name)) name += '.nc';
   // The program carries the date it was made: rebuild it now, with the values on screen
-  const text = planPlaning(lastParams).text;
-  message('Sending to TNG…');
-  let res;
-  try {
-    const r = await fetch('/api/tng/send', { method: 'POST', headers: writeHeaders, body: JSON.stringify({ name, text }) });
-    res = await r.json().catch(() => ({ ok: false, message: `HTTP ${r.status}` }));
-  } catch {
-    res = { ok: false, message: 'Server unreachable' };
-  }
+  const text = planPlaning(lastParams, { travel: bed }).text;
+  message('Loading in TNG…');
+  const res = await fetchJson('/api/tng/send', { method: 'POST', headers: writeHeaders, body: JSON.stringify({ name, text }) });
   if (res.ok && res.loaded) {
-    message(`Loaded ${esc(name)} in TNG (not saved). Start it at the machine.`, 'ok');
-    log.info(`planing: sent ${name} to TNG (${plan.info.passes} passes, ${fmt(lastParams.depth)} mm)`);
+    message(`Loaded ${esc(name)} in TNG (not saved): start it at the machine.`, 'ok');
+    log.info(`planing: sent ${name} to TNG (${plan.info.passes} passes, ${fmt(plan.info.depth)} mm)`);
   } else if (res.ok) {
     message(`${esc(res.message)}: check TNG.`, 'err');
   } else {
@@ -667,6 +672,11 @@ $('loadBtn').addEventListener('click', () => withButtons(async () => {
 
 (async () => {
   const saved = recall();
+  if (saved && saved.zMode === 'bed' && !('current' in saved) && saved.thickness > 0 && saved.depth > 0) {
+    // Saved before the spoilboard mode had its own fields: same cut, in the new terms
+    saved.current = saved.thickness;
+    saved.target = saved.thickness - saved.depth;
+  }
   initSystem();   // the E-stop button
   initHelp($('form'));
   fillForm({ ...DEFAULTS, ...(saved || {}) });

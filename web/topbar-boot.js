@@ -17,8 +17,8 @@
   var PAGES = [
     ['dashboard', '/', 'Dashboard', 'The machine, live'],
     ['planing', '/planing', 'Planing', 'Make a program that planes rough stock flat'],
-    ['materials', '/materials', 'Materials', 'The materials and planing bits used by Planing'],
-    ['settings', '/settings', 'Settings', 'Machine name, camera, Files folder, Telegram, timelapse, MQTT, air quality, logs'],
+    ['materials', '/materials', 'Stock &amp; Bit', 'The materials and planing bits used by Planing'],
+    ['settings', '/settings', 'Settings', 'Machine name, camera, Files folder, tool in the 3D view, Telegram and timelapse, MQTT, air quality, logs'],
     ['system', '/system', 'System', 'Versions, updates, the Raspberry Pi'],
   ];
   var nav = document.getElementById('pagenav');
@@ -67,7 +67,7 @@
       var box = boxes[i];
       box.hidden = !pi || !pi.gauges.length;
       if (box.hidden) continue;
-      fillRings(box, pi.gauges, '', '<span class="pi-power" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></span>');
+      fillRings(box, pi.gauges, '<span class="air-cap pi-cap">Pi</span>', '<span class="pi-power" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></span>');
       var pw = box.querySelector('.pi-power');
       pw.hidden = !pi.power || !pi.power.level;
       if (pi.power) { pw.setAttribute('data-level', pi.power.level); pw.title = pi.power.text; }
@@ -89,10 +89,138 @@
       var cap = box.querySelector('.air-cap');
       cap.setAttribute('data-level', air.status.level);
       cap.title = air.status.text;
-      box.querySelector('.air-climate').textContent = air.climate;
-      box.title = air.title;
+      var clim = box.querySelector('.air-climate');
+      clim.innerHTML = climateHtml(air, '\n');
+      clim.title = air.title;
+      // The rings explain themselves in a popup (below), instead of a browser tooltip
+      for (var k = 0; k < air.gauges.length; k++) {
+        var g = air.gauges[k], el = box.querySelector('[data-g="' + g.key + '"]');
+        if (!AIR_INFO[g.key]) continue;
+        el.removeAttribute('title');
+        el.tabIndex = 0;
+        el.setAttribute('aria-label', g.tip);
+        el.airGauge = g;
+      }
+      if (gaugePop && gaugePop.el.isConnected && box.contains(gaugePop.el)) showGaugePop(gaugePop.el);   // new values
     }
   };
+
+  // ---- What an air-quality value means, in a popup on the ring (hover, focus, or a tap on a phone).
+  // VOC and NOx are Sensirion indexes: they compare the air with the room's own recent past (VOC 100 =
+  // the average of the last 24 h, NOx 1 = clean air), so they show events, not health limits; the band
+  // edges are a rule of thumb (the same as the rings' amber and red). Dust is measured (µg/m³), so it
+  // has health guidelines: WHO 2021, which are 24-hour and yearly averages, not limits for one reading.
+  var LEARN = 'They learn the room: after a first start, give them about a day (ESPHome\'s store_baseline keeps '
+    + 'what they learned across restarts). A rule of thumb, not a health limit.';
+  var AIR_INFO = {
+    voc: {
+      name: 'VOC index', unit: '',
+      text: 'Compares the air with this room\'s own average of the last 24 hours, which is 100. Above 100: more '
+        + 'volatile organic compounds than usual, from cooking, cleaning products, perfume, paint, glue, finishes, '
+        + 'or people in a closed room. If the air stays bad, it slowly drifts back to 100.',
+      bands: [[1, 'Normal or better than usual'], [101, 'Slightly raised'], [150, 'Clearly raised: ventilate'],
+              [250, 'High'], [400, 'Very high: ventilate now and find the source']],
+      foot: LEARN,
+    },
+    nox: {
+      name: 'NOx index', unit: '',
+      text: '1 is the normal state of clean indoor air; any rise is an event: a gas stove, a candle or a fire, '
+        + 'or traffic fumes through an open window.',
+      bands: [[1, 'Normal'], [20, 'Noticeable: ventilate'], [150, 'High'], [300, 'Very high']],
+      foot: LEARN,
+    },
+    pm25: {
+      name: 'PM2.5', unit: 'µg/m³',
+      text: 'Fine dust, under 2.5 µm: it goes deep into the lungs. Sanding and cutting make it. Measured, so it '
+        + 'can be compared with health guidelines.',
+      who: [15, 5],
+    },
+    pm10: {
+      name: 'PM10', unit: 'µg/m³',
+      text: 'Dust under 10 µm (PM2.5 included): the coarser dust from sawing and routing. Measured, so it can be '
+        + 'compared with health guidelines.',
+      who: [45, 15],
+    },
+  };
+
+  var gaugePop = null;   // {el: the ring, box: the popup}
+  // bands: [first value, meaning], up to 500; the index values are whole numbers
+  function bandOf(info, v) {
+    var i = info.bands.length - 1;
+    while (i > 0 && Math.round(v) < info.bands[i][0]) i--;
+    return i;
+  }
+  function gaugePopHtml(g) {
+    var info = AIR_INFO[g.key], v = g.v;
+    var num = function (x) { return x == null ? '–' : x < 10 && info.unit ? x.toFixed(1) : String(Math.round(x)); };
+    var level = function (from) { return g.errAt != null && from >= g.errAt ? 'err' : g.warnAt != null && from >= g.warnAt ? 'warn' : ''; };
+    var h = '<b class="gp-head">' + esc(info.name) + ' <span>' + (v == null ? 'no value' : esc(num(v)) + (info.unit ? ' ' + info.unit : ''))
+      + '</span></b><p>' + esc(info.text) + '</p>';
+    if (info.bands) {
+      var on = v == null ? -1 : bandOf(info, v);
+      h += '<table class="gp-bands">';
+      for (var i = 0; i < info.bands.length; i++) {
+        var from = info.bands[i][0], to = i + 1 < info.bands.length ? info.bands[i + 1][0] - 1 : 500;
+        h += '<tr class="' + (i === on ? 'on ' : '') + level(from) + '"><td>' + from + '–' + to + '</td><td>' + esc(info.bands[i][1]) + '</td></tr>';
+      }
+      h += '</table>';
+    } else {
+      h += '<p>WHO guideline (2021): <b>' + info.who[0] + ' ' + info.unit + '</b> as a 24-hour average, <b>' + info.who[1] + ' '
+        + info.unit + '</b> as a yearly average. This is the reading now, not an average: a short peak while sanding is '
+        + 'normal; what counts is how long it stays high.</p>';
+      if (g.warnAt != null) h += '<p class="gp-foot">The ring turns amber from ' + g.warnAt + ' ' + info.unit + ' (the WHO 24-hour '
+        + 'guideline) and red from ' + g.errAt + ' ' + info.unit + ', far above it.' + (g.also ? ' ' + esc(g.also) + '.' : '') + '</p>';
+    }
+    if (info.foot) h += '<p class="gp-foot">' + esc(info.foot) + '</p>';
+    return h;
+  }
+  function showGaugePop(el) {
+    var g = el.airGauge;
+    if (!g) return;
+    if (!gaugePop) {
+      var box = document.createElement('div');
+      box.className = 'help-pop gauge-pop';
+      box.setAttribute('role', 'tooltip');
+      document.body.appendChild(box);
+      gaugePop = { el: el, box: box };
+    }
+    gaugePop.el = el;
+    var pop = gaugePop.box;
+    pop.innerHTML = gaugePopHtml(g);
+    pop.hidden = false;
+    // Beside the ring (the menu), or below it when there's no room (the phone's Air card)
+    var r = el.getBoundingClientRect(), w = pop.offsetWidth, ph = pop.offsetHeight, gap = 10;
+    var x = r.right + gap + w <= innerWidth - 8 ? r.right + gap : Math.max(8, Math.min(r.left + r.width / 2 - w / 2, innerWidth - w - 8));
+    var y = x === r.right + gap ? r.top + r.height / 2 - ph / 2 : (r.bottom + gap + ph <= innerHeight - 8 ? r.bottom + gap : r.top - gap - ph);
+    pop.style.left = Math.round(x) + 'px';
+    pop.style.top = Math.round(Math.max(8, Math.min(y, innerHeight - ph - 8))) + 'px';
+  }
+  function hideGaugePop() { if (gaugePop) gaugePop.box.hidden = true; }
+  var airRing = function (t) { return t && t.closest ? t.closest('.air-gauges .gauge') : null; };
+  document.addEventListener('mouseover', function (e) { var el = airRing(e.target); if (el && el.airGauge) showGaugePop(el); });
+  document.addEventListener('mouseout', function (e) { if (airRing(e.target) && !airRing(e.relatedTarget)) hideGaugePop(); });
+  document.addEventListener('focusin', function (e) { var el = airRing(e.target); if (el) showGaugePop(el); else hideGaugePop(); });
+  document.addEventListener('click', function (e) {   // a tap on a phone: show it; elsewhere: hide it
+    var el = airRing(e.target);
+    if (el && el.airGauge) showGaugePop(el); else hideGaugePop();
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') hideGaugePop(); });
+  addEventListener('scroll', hideGaugePop, true);
+  addEventListener('resize', hideGaugePop);
+
+  // The temperature and humidity, each after its icon (a thermometer, a drop), joined by `sep`
+  // (a line break in the narrow menu). The menu kept from an older version may only have the text.
+  var CLIMATE_ICON = {
+    temp: '<path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>',
+    hum: '<path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>',
+  };
+  function climateHtml(air, sep) {
+    if (air.temp === undefined) return esc((air.climate || '').split('\n').join(sep));
+    return ['temp', 'hum'].filter(function (k) { return air[k]; }).map(function (k) {
+      return '<span class="clim"><svg viewBox="0 0 24 24" aria-hidden="true">' + CLIMATE_ICON[k] + '</svg>' + esc(air[k]) + '</span>';
+    }).join(esc(sep));
+  }
+  window.climateHtml = climateHtml;
 
   // Parallax: when the page scrolls, the sky behind the cards follows at a quarter of the speed,
   // so it seems far away. Only the page itself (the document, or a page's main.page), not the
