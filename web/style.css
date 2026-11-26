@@ -34,6 +34,7 @@
   --md-outline: #8c97b3; --md-outline-variant: #364262;
   --md-success: #7ddc8e; --md-success-container: #0b4d2a; --md-on-success-container: #9df5a8;
   --md-warning: #f6be48; --md-warning-container: #5b4300; --md-on-warning-container: #ffdf9e;
+  --gauge-track: #293754;   /* the ring behind a gauge's value (air, Pi): clearly apart from the menu */
   --md-scrim: rgba(0, 2, 10, .65);
   --estop: #d32f2f; --on-estop: #ffffff;
   --sky-opacity: .045; --sky-filter: none;
@@ -60,6 +61,7 @@
   --md-outline: #736d5a; --md-outline-variant: #d0c7ab;
   --md-success: #0a7d2c; --md-success-container: #b4efb8; --md-on-success-container: #00210a;
   --md-warning: #b35900; --md-warning-container: #ffdf9e; --md-on-warning-container: #261a00;
+  --gauge-track: #c4b68f;   /* on the beige menu the surface colour vanished: as far apart as at night */
   --md-scrim: rgba(28, 26, 18, .35);
   --estop: #c62828; --on-estop: #ffffff;
   --sky-opacity: .07; --sky-filter: invert(1) sepia(.6);
@@ -389,7 +391,7 @@ input.bad { border-color: var(--md-error) !important; box-shadow: inset 0 0 0 1p
 .pi-gauges.inline { flex-direction: row; justify-content: space-around; }
 .gauge { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .gauge svg { width: 44px; height: 44px; transform: rotate(-90deg); fill: none; stroke-width: 4; }
-.gauge .g-track { stroke: var(--md-surface-container-highest); }
+.gauge .g-track { stroke: var(--gauge-track); }
 .gauge .g-val { stroke: var(--md-primary); stroke-linecap: round; transition: stroke-dasharray .4s; }
 .gauge[data-level="warn"] .g-val { stroke: var(--md-warning); }
 .gauge[data-level="err"] .g-val { stroke: var(--md-error); }
