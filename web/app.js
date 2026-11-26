@@ -574,7 +574,7 @@ function tuneSync(s) {
   if (activeTab === 'feeds') tuneLogLoad(false, s.tuning_seq);
 }
 
-/** Why a program can't be loaded in TNG now ('' = it can); the same reasons as on the Planing page. */
+/** Why a program can't be loaded in TNG now ('' = it can); the same reasons as on the Surfacing page. */
 let tngLoad = 'TNG is not connected';
 function syncLoadButtons() {
   for (const b of $('filesList').querySelectorAll('[data-load]')) {

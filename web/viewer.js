@@ -115,7 +115,7 @@ export class Viewer {
     // the grid it was ~70 mm wide on a big machine, dwarfing a 6 mm bit.)
     const shankR = Math.min(this.cutterRadius, 6);   // big surfacing bits have a 12 mm shank
     this.holder.scale.setScalar(this.cutter ? Math.max(shankR * 1.6, shankR + 1.5) / 2.2 : s);
-    // ...and see-through, always (the dashboard's generic bit as the planing page's real one),
+    // ...and see-through, always (the dashboard's generic bit as the surfacing page's real one),
     // so the cutter is what catches the eye.
     const m = this.holder.material;
     m.transparent = true;
@@ -415,7 +415,7 @@ export class Viewer {
       this.path.geometry.setAttribute('color', new THREE.BufferAttribute(this._pathColors(this.pathData), 3));
     }
     this._buildWorld();
-    this.onTheme?.();   // a page's own additions (the planing stock)
+    this.onTheme?.();   // a page's own additions (the surfacing stock)
   }
 
   // ---------------- tool + trace ----------------

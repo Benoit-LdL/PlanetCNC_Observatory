@@ -236,15 +236,21 @@ tuning.json.tmp
 # Job timelapses made from the camera on the Pi
 timelapses/
 
-# Material presets of the /planing page, saved on the Pi
+# Material presets of the /surfacing page, saved on the Pi
+surfacing_presets.json
+surfacing_presets.json.tmp
+
+# Surfacing bits of the /surfacing page, saved on the Pi
+surfacing_bits.json
+surfacing_bits.json.tmp
+
+# The same, under the page's old name (Planing): the server renames them when it starts
 planing_presets.json
 planing_presets.json.tmp
-
-# Planing bits of the /planing page, saved on the Pi
 planing_bits.json
 planing_bits.json.tmp
 
-# Programs sent to TNG from the /planing page without saving them
+# Programs sent to TNG from the /surfacing page without saving them
 sent/
 
 # The complete CAD exports of the machine (tens of MB); tools/machine_model.py

@@ -1,6 +1,6 @@
-// The /materials page: what the Planing page fills in when you pick one, in two tables:
-// - Materials: the cutting values per material (/api/planing/presets, planing_presets.json);
-// - Planing bits: their diameter (/api/planing/bits, planing_bits.json).
+// The /materials page: what the Surfacing page fills in when you pick one, in two tables:
+// - Materials: the cutting values per material (/api/surfacing/presets, surfacing_presets.json);
+// - Surfacing bits: their diameter (/api/surfacing/bits, surfacing_bits.json).
 // Change, add, delete, import and export; renaming is saving under the new name and deleting the
 // old one. Both tables are the same code (libraryTable), told which values they hold.
 
@@ -199,13 +199,13 @@ function libraryTable(card, cfg) {
 }
 
 const materials = libraryTable(document.getElementById('materialsCard'), {
-  api: '/api/planing/presets', what: 'material', whats: 'materials', file: 'planing-materials.json',
+  api: '/api/surfacing/presets', what: 'material', whats: 'materials', file: 'surfacing-materials.json',
   empty: 'No materials yet: add one below, or import a file.',
   keys: [['rpm', 'Spindle speed', 'rpm'], ['feed', 'Feed', 'mm/min'], ['plunge', 'Plunge feed', 'mm/min'],
          ['stepdown', 'Step-down', 'mm/pass'], ['stepover', 'Stepover', '% of Ø']],
 });
 const bits = libraryTable(document.getElementById('bitsCard'), {
-  api: '/api/planing/bits', what: 'bit', whats: 'bits', file: 'planing-bits.json',
+  api: '/api/surfacing/bits', what: 'bit', whats: 'bits', file: 'surfacing-bits.json',
   empty: 'No bits yet: add one below, or import a file.',
   keys: [['d', 'Bit diameter', 'mm']],
 });
@@ -216,7 +216,7 @@ followState(systemOnState, 'Stock & Bit');   // as in the menu
 
 materials.load();
 bits.load();
-// Changed on the Planing page (another tab, or another device): pick them up when shown again
+// Changed on the Surfacing page (another tab, or another device): pick them up when shown again
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) { materials.load(); bits.load(); }
 });

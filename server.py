@@ -2732,8 +2732,11 @@ class HomeAssistant:
 
 SETTINGS_FILE = os.path.join(APP_DIR, "settings.json")
 TUNING_FILE = os.path.join(APP_DIR, "tuning.json")   # the feeds log, see TuningLog
-PRESETS_FILE = os.path.join(APP_DIR, "planing_presets.json")   # material presets of the /planing page
-BITS_FILE = os.path.join(APP_DIR, "planing_bits.json")         # planing bits of the /planing page
+PRESETS_FILE = os.path.join(APP_DIR, "surfacing_presets.json")   # material presets of the /surfacing page
+BITS_FILE = os.path.join(APP_DIR, "surfacing_bits.json")         # surfacing bits of the /surfacing page
+# Their names before the page was called Surfacing (Planing): renamed when found, see SurfacingPresets
+OLD_PRESETS_FILE = os.path.join(APP_DIR, "planing_presets.json")
+OLD_BITS_FILE = os.path.join(APP_DIR, "planing_bits.json")
 SENT_DIR = os.path.join(APP_DIR, "sent")    # programs loaded in TNG without being saved (/api/tng/send)
 MAX_SEND_BYTES = 20 * 2**20
 DEFAULT_NAME = "PlanetCNC"
@@ -2939,19 +2942,25 @@ class TuningLog:
         return None
 
 
-class PlaningPresets:
-    """Named values for the /planing page, kept in a JSON file next to this file so every device
-    sees the same ones: the cutting values per material (oak, cherry...) in planing_presets.json,
-    and the planing bits (their diameter) in planing_bits.json."""
+class SurfacingPresets:
+    """Named values for the /surfacing page, kept in a JSON file next to this file so every device
+    sees the same ones: the cutting values per material (oak, cherry...) in surfacing_presets.json,
+    and the surfacing bits (their diameter) in surfacing_bits.json."""
 
     MAX_PRESETS = 100
     MAX_NAME = 40
 
     def __init__(self, path, keys=("rpm", "feed", "plunge", "stepdown", "stepover"), what="material",
-                 what_plural="materials"):
+                 what_plural="materials", old_path=None):
         self.path, self.keys, self.what, self.what_plural = path, keys, what, what_plural
         self.lock = threading.Lock()
         self.presets = {}
+        if old_path and os.path.isfile(old_path) and not os.path.exists(path):
+            try:   # saved under the page's old name (Planing): keep them under the new one
+                os.replace(old_path, path)
+                log_files.info("renamed %s to %s", os.path.basename(old_path), os.path.basename(path))
+            except OSError as e:
+                log_files.warning("cannot rename %s to %s: %s", old_path, path, e)
         try:
             with open(path, encoding="utf-8") as f:
                 data = json.load(f).get("presets", {})
@@ -2959,7 +2968,7 @@ class PlaningPresets:
         except FileNotFoundError:
             pass
         except (OSError, ValueError, AttributeError) as e:
-            log_files.warning("cannot read %s: %s - starting without planing %s", path, e, what_plural)
+            log_files.warning("cannot read %s: %s - starting without surfacing %s", path, e, what_plural)
 
     def list(self):
         with self.lock:
@@ -3128,9 +3137,9 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/tuning":
             entries, seq = TUNING.list()
             self._json(200, {"ok": True, "entries": entries, "seq": seq})
-        elif path == "/api/planing/presets":
+        elif path in ("/api/surfacing/presets", "/api/planing/presets"):   # planing: the old name
             self._json(200, {"ok": True, "presets": PRESETS.list()})
-        elif path == "/api/planing/bits":
+        elif path in ("/api/surfacing/bits", "/api/planing/bits"):
             self._json(200, {"ok": True, "presets": BITS.list()})
         elif path == "/api/logs":
             self._logs_list()
@@ -3188,7 +3197,7 @@ class Handler(BaseHTTPRequestHandler):
             if self._require_writer():
                 self._tuning_change()
             return
-        if path in ("/api/planing/presets", "/api/planing/bits"):
+        if path in ("/api/surfacing/presets", "/api/surfacing/bits", "/api/planing/presets", "/api/planing/bits"):
             if self._require_writer():
                 self._presets_change(PRESETS if path.endswith("presets") else BITS)
             return
@@ -3411,7 +3420,7 @@ class Handler(BaseHTTPRequestHandler):
         self._json(200 if result["ok"] else 409, result)
 
     def _tng_send(self):
-        """POST /api/tng/send {"name": "plane.nc", "text": "<G-code>"}: load a program in TNG without
+        """POST /api/tng/send {"name": "surface.nc", "text": "<G-code>"}: load a program in TNG without
         saving it in the Files folder.
 
         The text goes to a working file in SENT_DIR (only the latest one is kept), which TNG opens.
@@ -4063,7 +4072,7 @@ class Handler(BaseHTTPRequestHandler):
             HUB.cond.notify_all()
         self._json(*result)
 
-    # ---------- material presets of the /planing page ----------
+    # ---------- material presets of the /surfacing page ----------
 
     def _presets_change(self, store):
         """Save or delete a material or a bit (store: PRESETS or BITS)."""
@@ -4077,14 +4086,14 @@ class Handler(BaseHTTPRequestHandler):
             if action == "save":
                 name, values = store.clean(data.get("name"), data.get("values"))
                 store.save(name, values)
-                log_files.info("planing %s %s saved: %s (from %s)", store.what, name, values, self.client_address[0])
+                log_files.info("surfacing %s %s saved: %s (from %s)", store.what, name, values, self.client_address[0])
                 result = {"ok": True, "name": name, "message": "Saved %s" % name}
             elif action == "delete":
                 name = str(data.get("name", ""))
                 if not store.delete(name):
                     self._json(404, {"ok": False, "message": "no %s called %s" % (store.what, name)})
                     return
-                log_files.info("planing %s %s deleted (from %s)", store.what, name, self.client_address[0])
+                log_files.info("surfacing %s %s deleted (from %s)", store.what, name, self.client_address[0])
                 result = {"ok": True, "message": "Deleted %s" % name}
             else:
                 self._json(400, {"ok": False, "message": "unknown action"})
@@ -4093,20 +4102,26 @@ class Handler(BaseHTTPRequestHandler):
             self._json(400, {"ok": False, "message": str(e)})
             return
         except OSError as e:
-            log_files.error("cannot save the planing %s: %s", store.what_plural, e)
+            log_files.error("cannot save the surfacing %s: %s", store.what_plural, e)
             self._json(500, {"ok": False, "message": "could not save: %s" % e})
             return
         self._json(200, dict(result, presets=store.list()))
 
     def _static(self, path):
+        if path in ("/planing", "/planing.html"):   # the page's old name: bookmarks keep working
+            self.send_response(301)
+            self.send_header("Location", "/surfacing")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if path in ("", "/"):
             path = "/index.html"
         elif path == "/camera":
             path = "/camera.html"  # the camera on its own, without the dashboard
-        elif path == "/planing":
-            path = "/planing.html"  # program for planing rough stock
+        elif path == "/surfacing":
+            path = "/surfacing.html"  # program for surfacing rough stock
         elif path == "/materials":
-            path = "/materials.html"  # the planing page's materials: see, change, add, import, export
+            path = "/materials.html"  # the surfacing page's materials: see, change, add, import, export
         elif path == "/system":
             path = "/system.html"  # versions, updates, reboot / shut down
         elif path == "/settings":
@@ -4513,8 +4528,8 @@ def main():
 
     global CAMERA, SYSTEM, UPDATER, UPDATES_OFF_REASON, TUNING, PRESETS, BITS, OS_PACKAGES, NOTIFY, TIMELAPSE, HA, AIR
     TUNING = TuningLog(TUNING_FILE)
-    PRESETS = PlaningPresets(PRESETS_FILE)
-    BITS = PlaningPresets(BITS_FILE, keys=("d",), what="bit", what_plural="bits")
+    PRESETS = SurfacingPresets(PRESETS_FILE, old_path=OLD_PRESETS_FILE)
+    BITS = SurfacingPresets(BITS_FILE, keys=("d",), what="bit", what_plural="bits", old_path=OLD_BITS_FILE)
     threading.Thread(target=watch_bridge, name="watch-bridge", daemon=True).start()
     threading.Thread(target=heartbeat, name="heartbeat", daemon=True).start()
     if SystemStats.available():

@@ -1,13 +1,13 @@
-// The /planing page: enter the rough stock, the bit and the cutting values, see the stock and the
+// The /surfacing page: enter the rough stock, the bit and the cutting values, see the stock and the
 // toolpath on the machine's bed, simulate the cut, and save the program in the Files folder.
-// The program itself is built in planing-gcode.js. Nothing here talks to TNG: the program is only
+// The program itself is built in surfacing-gcode.js. Nothing here talks to TNG: the program is only
 // saved; loading and running it happens at the machine.
 
 import * as THREE from 'three';
 import { ask, askText } from './dialog.js';
 import { Viewer } from './viewer.js';
 import { buildToolpath } from './gcode.js';
-import { planPlaning, DEFAULTS, fmt } from './planing-gcode.js';
+import { planSurfacing, DEFAULTS, fmt } from './surfacing-gcode.js';
 import { log } from './log.js';
 import { initHelp } from './help.js';
 import { navOnState } from './nav.js';
@@ -20,12 +20,13 @@ const FIELDS = ['length', 'width', 'thickness', 'zMode', 'startAbove', 'current'
 const PRESET_KEYS = ['rpm', 'feed', 'plunge', 'stepdown', 'stepover'];   // what a material stores
 const TEXT_FIELDS = new Set(['zMode', 'direction', 'cutWay']);
 const CHECK_FIELDS = new Set(['clearTurn']);
-const STORE_KEY = 'planing.form';
+const STORE_KEY = 'surfacing.form';
+const OLD_STORE_KEY = 'planing.form';   // before the page was called Surfacing: read once, then moved
 const writeHeaders = { 'X-CNC-Control': '1', 'Content-Type': 'application/json' };
-// Planed: two close tones, one pass in each by turns, so the passes show apart but the
+// Surfaced: two close tones, one pass in each by turns, so the passes show apart but the
 // finished top still looks like one colour.
 const COLORS = { rough: new THREE.Color('#8a6a48'), side: new THREE.Color('#5e4630'),
-                 planed: [new THREE.Color('#e0c393'), new THREE.Color('#c9a771')] };
+                 surfaced: [new THREE.Color('#e0c393'), new THREE.Color('#c9a771')] };
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
@@ -128,7 +129,7 @@ class Stock {
     if (i0 > i1 || j0 > j1) return;
     const ex = b[0] - a[0], ey = b[1] - a[1];
     const len2 = ex * ex + ey * ey, r2 = r * r;
-    const planed = COLORS.planed[(Math.max(pass, 1) - 1) % 2];
+    const surfaced = COLORS.surfaced[(Math.max(pass, 1) - 1) % 2];
     for (let j = j0; j <= j1; j++) {
       const y = j * this.dy;
       for (let i = i0; i <= i1; i++) {
@@ -141,7 +142,7 @@ class Stock {
         if (qx * qx + qy * qy > r2) continue;
         this.h[k] = z;
         this.pos[k * 3 + 2] = z;
-        this.col[k * 3] = planed.r; this.col[k * 3 + 1] = planed.g; this.col[k * 3 + 2] = planed.b;
+        this.col[k * 3] = surfaced.r; this.col[k * 3 + 1] = surfaced.g; this.col[k * 3 + 2] = surfaced.b;
         this.dirty = true;
       }
     }
@@ -317,7 +318,14 @@ function remember(p) {
 }
 
 function recall() {
-  try { return JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch { return null; }
+  try {
+    let saved = localStorage.getItem(STORE_KEY);
+    if (saved === null && (saved = localStorage.getItem(OLD_STORE_KEY)) !== null) {
+      localStorage.setItem(STORE_KEY, saved);
+      localStorage.removeItem(OLD_STORE_KEY);
+    }
+    return JSON.parse(saved || 'null');
+  } catch { return null; }
 }
 
 let plan = null;
@@ -328,7 +336,7 @@ function update() {
   const p = readForm();
   lastParams = p;
   remember(p);
-  const result = planPlaning(p, { travel: bed });   // the end position stays inside the travel
+  const result = planSurfacing(p, { travel: bed });   // the end position stays inside the travel
   plan = result;
 
   // Each Z zero asks for its own numbers (the other mode's stay in the form for switching back)
@@ -338,7 +346,7 @@ function update() {
   $('stepoverMm').textContent = Number.isFinite(p.toolD * p.stepover) ? `% of Ø = ${fmt(p.toolD * p.stepover / 100)} mm` : '% of Ø';
   $('zHint').textContent = spoil
     ? 'To bring stock that is already flat to a thickness. Touch off Z on the spoilboard and measure the stock\'s current thickness at its highest point.'
-    : 'To plane the rough top of the stock. Touch off Z on its highest point; the program removes the depth from there.';
+    : 'To surface the rough top of the stock. Touch off Z on its highest point; the program removes the depth from there.';
   const ax = p.direction === 'y' ? 'Y' : 'X';
   $('cutWay').options[1].textContent = `+${ax} only`;
   $('cutWay').options[2].textContent = `−${ax} only`;
@@ -380,7 +388,7 @@ function schedule() {
     try {
       update();
     } catch (e) {
-      log.error('planing: building the program failed:', e);
+      log.error('surfacing: building the program failed:', e);
       $('notes').innerHTML = `<li class="err">Could not build the program: ${esc(e.message)}</li>`;
     }
   }, 150);
@@ -417,7 +425,7 @@ async function pollState() {
     const s = await (await fetch('/api/state', { cache: 'no-store' })).json();
     const name = s.machine_name || 'PlanetCNC';
     $('machineName').textContent = name;
-    document.title = 'Planing – ' + name;
+    document.title = 'Surfacing – ' + name;
     navOnState(s);
     systemOnState(s);   // status and E-stop in the top bar
     const w = s.work || [], m = s.machine || [];
@@ -537,7 +545,7 @@ function library(cfg) {
 }
 
 const materials = library({
-  api: '/api/planing/presets', select: 'material', save: 'matSave', del: 'matDelete', msg: 'matMsg', changed: 'matChanged',
+  api: '/api/surfacing/presets', select: 'material', save: 'matSave', del: 'matDelete', msg: 'matMsg', changed: 'matChanged',
   none: 'No material', what: 'material',
   fields: Object.fromEntries(PRESET_KEYS.map((k) => [k, k])),
   missing: 'Fill in spindle speed, feeds, step-down and stepover first.',
@@ -545,7 +553,7 @@ const materials = library({
          text: 'The spindle speed, feeds, step-down and stepover, under the name of a material (e.g. Oak).' },
 });
 const bits = library({
-  api: '/api/planing/bits', select: 'bit', save: 'bitSave', del: 'bitDelete', msg: 'bitMsg', changed: 'bitChanged',
+  api: '/api/surfacing/bits', select: 'bit', save: 'bitSave', del: 'bitDelete', msg: 'bitMsg', changed: 'bitChanged',
   none: 'No saved bit', what: 'bit',
   fields: { d: 'toolD' },
   missing: 'Fill in the bit diameter first.',
@@ -571,7 +579,7 @@ $('fileName').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !$('
 function defaultName(p) {
   const mat = (p.material || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   const cut = p.zMode === 'bed' ? `to${fmt(p.target)}mm` : `${fmt(p.depth)}mm`;
-  return `plane_${mat ? mat + '_' : ''}${fmt(p.length)}x${fmt(p.width)}_${cut}.nc`;
+  return `surface_${mat ? mat + '_' : ''}${fmt(p.length)}x${fmt(p.width)}_${cut}.nc`;
 }
 
 function message(html, kind = '') {
@@ -617,7 +625,7 @@ async function saveProgram() {
   if (!/\.[a-z0-9]{1,5}$/i.test(name)) name += '.nc';
   $('fileName').value = name;
   // The program carries the date it was made: rebuild it now, with the values on screen
-  const text = planPlaning(lastParams, { travel: bed }).text;
+  const text = planSurfacing(lastParams, { travel: bed }).text;
   message('Saving…');
   try {
     let res = await upload(name, text, false);
@@ -629,10 +637,10 @@ async function saveProgram() {
       res = await upload(name, text, true);
     }
     if (!res.ok) throw new Error(res.message || 'failed');
-    log.info(`planing: saved ${name} (${plan.info.passes} passes, ${fmt(plan.info.depth)} mm)`);
+    log.info(`surfacing: saved ${name} (${plan.info.passes} passes, ${fmt(plan.info.depth)} mm)`);
     return name;
   } catch (e) {
-    log.warn(`planing: saving ${name} failed:`, e.message);
+    log.warn(`surfacing: saving ${name} failed:`, e.message);
     message(`Could not save: ${esc(e.message)}`, 'err');
     return null;
   }
@@ -654,16 +662,16 @@ $('loadBtn').addEventListener('click', () => withButtons(async () => {
   let name = $('fileName').value.trim() || defaultName(lastParams);
   if (!/\.[a-z0-9]{1,5}$/i.test(name)) name += '.nc';
   // The program carries the date it was made: rebuild it now, with the values on screen
-  const text = planPlaning(lastParams, { travel: bed }).text;
+  const text = planSurfacing(lastParams, { travel: bed }).text;
   message('Loading in TNG…');
   const res = await fetchJson('/api/tng/send', { method: 'POST', headers: writeHeaders, body: JSON.stringify({ name, text }) });
   if (res.ok && res.loaded) {
     message(`Loaded ${esc(name)} in TNG (not saved): start it at the machine.`, 'ok');
-    log.info(`planing: sent ${name} to TNG (${plan.info.passes} passes, ${fmt(plan.info.depth)} mm)`);
+    log.info(`surfacing: sent ${name} to TNG (${plan.info.passes} passes, ${fmt(plan.info.depth)} mm)`);
   } else if (res.ok) {
     message(`${esc(res.message)}: check TNG.`, 'err');
   } else {
-    log.warn(`planing: sending ${name} to TNG failed:`, res.message);
+    log.warn(`surfacing: sending ${name} to TNG failed:`, res.message);
     message(`Could not load it in TNG: ${esc(res.message || 'failed')}`, 'err');
   }
 }));

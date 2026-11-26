@@ -8,7 +8,7 @@
   var FILLED = { system: true };   // filled icons; the others are drawn as outlines
   var ICON = {
     dashboard: '<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',
-    planing: '<path d="M3 17h18"/><path d="M3 21h18"/><path d="M6 13V5h12v8"/><path d="M9 9h6"/>',
+    surfacing: '<path d="M3 17h18"/><path d="M3 21h18"/><path d="M6 13V5h12v8"/><path d="M9 9h6"/>',
     materials: '<path d="M12 3 3 8l9 5 9-5-9-5z"/><path d="m3 13 9 5 9-5"/>',
     settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
     // mdiServerOutline (Material Design Icons, Apache 2.0): a filled shape, see .pagelink svg.fill
@@ -16,8 +16,8 @@
   };
   var PAGES = [
     ['dashboard', '/', 'Dashboard', 'The machine, live'],
-    ['planing', '/planing', 'Planing', 'Make a program that planes rough stock flat'],
-    ['materials', '/materials', 'Stock &amp; Bit', 'The materials and planing bits used by Planing'],
+    ['surfacing', '/surfacing', 'Surfacing', 'Make a program that surfaces rough stock flat'],
+    ['materials', '/materials', 'Stock &amp; Bit', 'The materials and surfacing bits used by Surfacing'],
     ['settings', '/settings', 'Settings', 'Machine name, camera, Files folder, tool in the 3D view, Telegram and timelapse, MQTT, air quality, logs'],
     ['system', '/system', 'System', 'Versions, updates, the Raspberry Pi'],
   ];

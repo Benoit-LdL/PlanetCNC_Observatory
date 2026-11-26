@@ -9,7 +9,7 @@
 <title>Stock &amp; Bit – Observatory</title>
 <script src="theme-boot.js"></script>
 <link rel="stylesheet" href="style.css">
-<!-- The planing materials and bits: see, change, add, delete, import and export them. See materials.js. -->
+<!-- The surfacing materials and bits: see, change, add, delete, import and export them. See materials.js. -->
 </head>
 <body>
 <header class="topbar">
@@ -33,7 +33,7 @@
         <input type="file" data-role="importFile" accept=".json,application/json" hidden>
       </header>
       <div class="page-body">
-        <p class="set-help" data-help-for="mtTitle">The cutting values the Planing page fills in when you pick a material. Change a value and press
+        <p class="set-help" data-help-for="mtTitle">The cutting values the Surfacing page fills in when you pick a material. Change a value and press
           <b>Save</b> on that row; add a new material in the last row. They are kept on the Pi, so every device sees the same ones.</p>
         <div class="mt-wrap">
           <table class="mt">
@@ -46,16 +46,16 @@
       </div>
     </section>
 
-    <section class="card" id="bitsCard" aria-label="Planing bits">
+    <section class="card" id="bitsCard" aria-label="Surfacing bits">
       <header class="card-h">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6v6H9z"/><path d="M10 9v7l2 5 2-5V9"/><path d="M10 12l4 2"/></svg>
-        <h2 id="bitTitle">Planing bits</h2>
+        <h2 id="bitTitle">Surfacing bits</h2>
         <button class="vbtn" type="button" data-role="import" title="Add the bits from a JSON file made with Export"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>Import</button>
         <button class="vbtn" type="button" data-role="export" title="Download all the bits as a JSON file"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></svg>Export</button>
         <input type="file" data-role="importFile" accept=".json,application/json" hidden>
       </header>
       <div class="page-body">
-        <p class="set-help" data-help-for="bitTitle">The bits the Planing page offers in Bit and cut: picking one fills in its diameter. Change a value and press
+        <p class="set-help" data-help-for="bitTitle">The bits the Surfacing page offers in Bit and cut: picking one fills in its diameter. Change a value and press
           <b>Save</b> on that row; add a new bit in the last row. They are kept on the Pi, so every device sees the same ones.</p>
         <div class="mt-wrap">
           <table class="mt narrow">

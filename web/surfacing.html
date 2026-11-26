@@ -6,7 +6,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="icon-32.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<title>Planing – Observatory</title>
+<title>Surfacing – Observatory</title>
 <script src="theme-boot.js"></script>
 <link rel="stylesheet" href="style.css">
 <script type="importmap">
@@ -15,8 +15,8 @@
     "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
 } }
 </script>
-<!-- Planing rough stock: the program that flattens the top of the stock, drawn on the machine's
-     bed, simulated, and saved in the Files folder. See planing.js and planing-gcode.js. -->
+<!-- Surfacing rough stock: the program that flattens the top of the stock, drawn on the machine's
+     bed, simulated, and saved in the Files folder. See surfacing.js and surfacing-gcode.js. -->
 </head>
 <body>
 <header class="topbar">
@@ -27,7 +27,7 @@
   <button class="estop-btn" data-estop disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.2 2h7.6L22 8.2v7.6L15.8 22H8.2L2 15.8V8.2z"/><path d="M12 7.5v5.5M12 16.5v.01"/></svg><span class="estop-label">E-STOP</span></button>
 </header>
 <div class="shell">
-<nav class="rail" id="pagenav" data-page="planing" aria-label="Pages"></nav>
+<nav class="rail" id="pagenav" data-page="surfacing" aria-label="Pages"></nav>
 <script src="topbar-boot.js"></script>
 <main class="pl-layout">
   <section class="panel pl-view" aria-label="Simulation">
@@ -46,7 +46,7 @@
       <div class="viewport-tools"><button class="icon-btn" id="fitBtn" title="Fit: the stock, the bed and the machine" aria-label="Fit the view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4"/></svg></button></div>
       <div class="legend">
         <span><i class="stock-swatch"></i>Rough</span>
-        <span><i class="planed-swatch"></i>Planed</span>
+        <span><i class="surfaced-swatch"></i>Surfaced</span>
         <span><i class="depth-swatch"></i>Toolpath</span>
         <span id="bedNote"></span>
       </div>
@@ -67,7 +67,7 @@
     </div>
   </section>
 
-  <section class="panel pl-side" aria-label="Planing settings">
+  <section class="panel pl-side" aria-label="Surfacing settings">
     <div class="pl-form">
       <form id="form" autocomplete="off" novalidate>
         <section class="pl-group" aria-label="Stock">
@@ -80,7 +80,7 @@
             <option value="bed">Spoilboard</option>
           </select></div>
         <p class="set-help" data-help-for="zMode" id="zHint"></p>
-        <!-- Top of the stock: plane the rough face, so many mm off the top -->
+        <!-- Top of the stock: surface the rough face, so many mm off the top -->
         <div class="pl-row" data-mode="top"><label for="thickness">Thickness (rough)<span class="unit">mm</span></label><input id="thickness" type="number" step="any" min="0" inputmode="decimal"></div>
         <p class="set-help" data-help-for="thickness">Only for drawing the stock and checking that the depth fits in it: the cut starts from Z0 whatever the thickness. Leave 15 mm if you don't know it.</p>
         <div class="pl-row" data-mode="top"><label for="depth">Depth to remove<span class="unit">mm</span></label><input id="depth" type="number" step="any" min="0" inputmode="decimal"></div>
@@ -164,7 +164,7 @@
     </div>
   </section>
 </main>
-<script type="module" src="planing.js"></script>
+<script type="module" src="surfacing.js"></script>
 </div>
 </body>
 </html>

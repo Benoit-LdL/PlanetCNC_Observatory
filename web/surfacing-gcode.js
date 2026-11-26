@@ -1,4 +1,4 @@
-// Planing (surfacing) program for rough stock, for the /planing page: back-and-forth passes
+// Surfacing (surfacing) program for rough stock, for the /surfacing page: back-and-forth passes
 // over the whole top of the stock, one Z level after the other. Millimetres only.
 //
 // Layout of one Z level, cutting along X (along Y is the same with X and Y swapped):
@@ -22,7 +22,7 @@
 // way, which shows whether a tramming or tool-mark problem depends on the direction of travel.
 //
 // The Z zero picks the job:
-//   'top' - plane the rough face: Z0 on the stock's highest point, remove `depth` from there.
+//   'top' - surface the rough face: Z0 on the stock's highest point, remove `depth` from there.
 //           `thickness` is only for drawing the stock (a rough guess will do).
 //   'bed' - bring stock that's already flat to a thickness: Z0 on the spoilboard, the top at
 //           Z = `current`, the last pass at Z = `target`.
@@ -61,7 +61,7 @@ export function linePositions(span, c, step) {
  * @returns {{errors: string[], warnings: string[], text?: string, moves?: object[], info?: object}}
  *   moves: [{x, y, z, rapid, feed, dwell, t0, t1, pass}] from the start point, with times in seconds.
  */
-export function planPlaning(input, { date = new Date(), travel = null } = {}) {
+export function planSurfacing(input, { date = new Date(), travel = null } = {}) {
   const p = { ...DEFAULTS, ...input };
   const errors = [];
   const warnings = [];
@@ -176,7 +176,7 @@ export function planPlaning(input, { date = new Date(), travel = null } = {}) {
   };
 
   const L = fmt(p.length), W = fmt(p.width), T = fmt(p.thickness);
-  G(`(Planing${p.material ? ': ' + p.material : ''} - stock ${L} x ${W}${bed ? ` x ${T}` : ''} mm)`);
+  G(`(Surfacing${p.material ? ': ' + p.material : ''} - stock ${L} x ${W}${bed ? ` x ${T}` : ''} mm)`);
   G(`(Made with PlanetCNC Observatory, ${date.toISOString().slice(0, 16).replace('T', ' ')} UTC)`);
   G(bed
     ? `(Z zero: spoilboard - stock top at Z${fmt(top)}, cut to ${fmt(p.target)} mm thick)`
