@@ -113,8 +113,8 @@ the right.*
   with a warning when the path doesn't fit.
 - A simulation of the cut: play, pause, speed and scrub through it, with the
   stock's top going from rough to surfaced and the estimated run time.
-- Cutting values saved per material (oak, cherry, …), shared by every device,
-  on a Materials page where you can change, add, delete, import and export them.
+- Cutting values saved per stock (oak, cherry, …), shared by every device,
+  on a Stock & Bit page where you can change, add, delete, import and export them.
 - The program is saved in the Files folder, and can be loaded in TNG from
   the page; you start it at the machine.
 
@@ -274,11 +274,11 @@ default the server only accepts a bridge from the Pi itself.
 | `tools/screenshots.py` | Retakes the README screenshots from the demo (on a PC, not needed on the Pi). |
 | `tools/machine_model.py` | Makes the light machine model `web/machine/evo-m.glb` from the complete CAD export (on a PC, not needed on the Pi; see [The machine in the 3D view](#the-machine-in-the-3d-view)). |
 | `media/` | The animation and screenshots in this README. |
-| `web/` | The pages (HTML, CSS, JavaScript). `style.css` holds the look of every page, day and night; `theme-boot.js` sets the day / night mode before a page is drawn; `fonts/` are Roboto and Roboto Mono, `sky.svg` the faint stars behind the cards (moved by `topbar-boot.js` as the page scrolls). `tune.js` reads and rewrites programs for the Feeds & steps window; `system-ui.js` holds the E-stop button and the System page (`system.html`, `system.js`); `topbar-boot.js` draws the top bar and the menu (and runs the day / night button) before each page is shown, and `nav.js` keeps them current; `help.js` the **?** help popups in Settings; `settings.html` and `settings.js` the Settings page; `materials.html` and `materials.js` the Materials page (materials and surfacing bits); `camera.html` is the camera page on its own; `surfacing.html`, `surfacing.js` and `surfacing-gcode.js` are the Surfacing page; `machine/evo-m.glb` is the machine drawn in the 3D view. |
+| `web/` | The pages (HTML, CSS, JavaScript). `style.css` holds the look of every page, day and night; `theme-boot.js` sets the day / night mode before a page is drawn; `fonts/` are Roboto and Roboto Mono, `sky.svg` the faint stars behind the cards (moved by `topbar-boot.js` as the page scrolls). `tune.js` reads and rewrites programs for the Feeds & steps window; `system-ui.js` holds the E-stop button and the System page (`system.html`, `system.js`); `topbar-boot.js` draws the top bar and the menu (and runs the day / night button) before each page is shown, and `nav.js` keeps them current; `help.js` the **?** help popups in Settings; `settings.html` and `settings.js` the Settings page; `materials.html` and `materials.js` the Stock & Bit page (stocks and surfacing bits); `camera.html` is the camera page on its own; `surfacing.html`, `surfacing.js` and `surfacing-gcode.js` are the Surfacing page; `machine/evo-m.glb` is the machine drawn in the 3D view. |
 | `settings.json` | Created when you change a setting in the dashboard; it also holds the Telegram bot token, the MQTT password and the Home Assistant token, so only its owner may read it. Not part of git. |
 | `timelapses/` | The last 20 job timelapses. Not part of git. |
 | `tuning.json` | The Feeds tab's log of adjusted files. Not part of git. |
-| `surfacing_presets.json` | The Surfacing page's cutting values per material. Not part of git. |
+| `surfacing_presets.json` | The Surfacing page's cutting values per stock (Stock & Bit page). Not part of git. |
 | `logs/` | The server's log files. Not part of git. |
 
 ## What you need
@@ -497,7 +497,7 @@ the page simply loads).
 
 The menu sits on the left (at the bottom on a phone): **Dashboard**,
 **Surfacing** (the [Surfacing page](#surfacing-rough-stock)), **Stock & Bit** (the
-[Materials page](#materials)), **Settings** and **System** (the [System page](#system-page)).
+[Stock & Bit page](#stock--bit)), **Settings** and **System** (the [System page](#system-page)).
 The page you are on is highlighted. A green dot on **System** means an update
 of the app or of the OS is available.
 
@@ -859,11 +859,11 @@ settings in the panel on the right.
 | Current thickness | Spoilboard only. Measured at the highest point: the first pass starts there. No default. |
 | Target thickness | Spoilboard only. The thickness you want: the last pass is at Z = target, and the program removes current − target. No default. |
 | Start above Z0 | For when you're not sure Z was touched off on the highest point: the passes start this much above Z0 and still end at the same depth, so there are more passes and the first ones only skim the high spots (or cut air) instead of one pass biting too deep there. 0 (the default) starts at the top. |
-| Bit | A saved bit fills in its diameter (**Save as…** saves the one in the form, **Delete** removes it; all of them are on the [Materials page](#materials)). **Changed** shows when the diameter no longer matches the saved bit. |
+| Bit | A saved bit fills in its diameter (**Save as…** saves the one in the form, **Delete** removes it; all of them are on the [Stock & Bit page](#stock--bit)). **Changed** shows when the diameter no longer matches the saved bit. |
 | Bit diameter | The surfacing bit, drawn at this size. |
 | Cut direction | Along X or along Y: usually along the grain. |
 | Cut | **Both ways** (zigzag, the default and fastest), or **+X only** / **−X only** (+Y / −Y when cutting along Y): every line is cut in the same direction, and between lines the bit lifts to the safe height, goes back beside the stock in a rapid and comes down there. Slower, but it shows whether a tramming problem or tool marks depend on the direction of travel. |
-| Material | A saved set of the values below (see below). |
+| Stock (under **Cutting values**) | A saved stock (Oak, Cherry, …) fills in the cutting values below (see below). |
 | Spindle speed, Feed, Plunge feed | Plunge feed is for going down to each pass, which always happens beside the stock. |
 | Step-down | Depth per pass at most. The depth is split into equal passes. |
 | Stepover | Sideways step between lines, as % of the bit diameter (40 % is a good start). |
@@ -907,17 +907,17 @@ surfaced (light) where the bit passes, in two close tones that take turns from
 one pass to the next, so each pass shows apart. The run time is estimated from the feeds,
 with rapids at 5000 mm/min.
 
-**Materials.** **Save as…** stores the spindle speed, feeds, step-down and
-stepover under a name (Oak, Cherry, …); picking it later fills them in. The
-stock size, bit and depth (or thicknesses) are entered each time. "changed" next to the title
-means the form no longer matches the saved material. Materials are kept on
-the Pi in `surfacing_presets.json`, so every device sees the same ones. To see
-them all, change, rename, import or export them, use the
-[Materials page](#materials) (the link under the material list, or
-**Stock & Bit** in the menu).
+**Stocks.** In **Cutting values**, **Save as…** stores the spindle speed, feeds,
+step-down and stepover under the name of a stock (Oak, Cherry, …); picking it
+later fills them in. The stock size, bit and depth (or thicknesses) are
+entered each time. **Changed** next to the title means the form no longer
+matches the saved stock. Stocks are kept on the Pi in `surfacing_presets.json`,
+so every device sees the same ones. To see them all, change, rename, import or
+export them, use the [Stock & Bit page](#stock--bit) (the link under the
+cutting values, or **Stock & Bit** in the menu).
 
 **Save** writes the program to the top of the Files folder (set in Settings),
-named after the material, size and depth, e.g. `surface_oak_600x200_3mm.nc`
+named after the stock, size and depth, e.g. `surface_oak_600x200_3mm.nc`
 (`…_to22mm.nc` with Z zero on the spoilboard); you
 can type another name. If the file exists, it asks before replacing it.
 **Load in TNG** opens it in TNG, ready to run, without saving it in the Files
@@ -926,12 +926,12 @@ latest one is kept), named as in the name field. It is greyed out while the
 machine runs or TNG isn't connected. Starting
 the program always happens at the machine. The last values entered are remembered in the browser.
 
-### Materials
+### Stock & Bit
 
 **http://&lt;pi-address&gt;:8080/materials** (or **Stock & Bit** in the
 menu) shows what the Surfacing page can fill in for you, in two tables:
 
-- **Materials:** name, spindle speed, feed, plunge feed, step-down and stepover
+- **Stock:** name (the wood: oak, cherry…), spindle speed, feed, plunge feed, step-down and stepover
   (% of the bit diameter).
 - **Surfacing bits:** name and diameter.
 
@@ -941,7 +941,7 @@ In both:
   **Save** button lights up. Saving under another name renames it.
 - **Delete** removes one (after asking).
 - **Add** one in the last row: a name and all the values, above 0.
-- **Export** downloads all of them as `surfacing-materials.json` or
+- **Export** downloads all of them as `surfacing-stock.json` or
   `surfacing-bits.json`: a backup (they only live on the Pi, in
   `surfacing_presets.json` and `surfacing_bits.json`), or to move them to another Pi.
 - **Import** adds them from such a file. If some names already exist, it asks
@@ -1397,7 +1397,7 @@ sudo systemctl start planetcnc-web
 journalctl -u planetcnc-web -n 20 --no-pager  # "Observatory on http://..."
 ```
 
-Settings, the Feeds log, the materials, the logs and the timelapses are inside
+Settings, the Feeds log, the stocks and bits, the logs and the timelapses are inside
 the folder, so they move with it. The sudo rule from `setup-sudo.sh` and the
 bridge in TNG's profile don't refer to the folder: they need no change. The
 service keeps its name, `planetcnc-web`.

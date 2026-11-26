@@ -119,11 +119,11 @@
         <p class="set-help" data-help-for="cutWay">Both ways (zigzag) is fastest. One way: every line is cut in the same direction; between lines the bit lifts and goes back in a rapid. Useful to find out whether a tramming problem or tool marks depend on the direction of travel.</p>
         </section>
 
-        <section class="pl-group" aria-label="Material and cutting values">
-        <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4l9 5-9 5-9-5z"/><path d="M3 14l9 5 9-5"/></svg><span>Material</span> <span class="pl-changed" id="matChanged" hidden>Changed</span></h3>
+        <section class="pl-group" aria-label="Stock and cutting values">
+        <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4l9 5-9 5-9-5z"/><path d="M3 14l9 5 9-5"/></svg><span>Cutting values</span> <span class="pl-changed" id="matChanged" hidden>Changed</span></h3>
         <div class="pl-mat">
-          <select id="material" aria-label="Material"></select>
-          <button class="vbtn text" type="button" id="matSave" title="Save these cutting values for a material">Save as…</button>
+          <select id="material" aria-label="Stock"></select>
+          <button class="vbtn text" type="button" id="matSave" title="Save these cutting values for a stock (e.g. Oak)">Save as…</button>
           <button class="vbtn text danger" type="button" id="matDelete" disabled>Delete</button>
         </div>
         <p class="pl-msg" id="matMsg" aria-live="polite"></p>
@@ -132,7 +132,7 @@
         <div class="pl-row"><label for="plunge">Plunge feed<span class="unit">mm/min</span></label><input id="plunge" type="number" step="any" min="0" inputmode="decimal"></div>
         <div class="pl-row"><label for="stepdown">Step-down<span class="unit">mm/pass</span></label><input id="stepdown" type="number" step="any" min="0" inputmode="decimal"></div>
         <div class="pl-row"><label for="stepover">Stepover<span class="unit" id="stepoverMm">% of Ø</span></label><input id="stepover" type="number" step="any" min="0" inputmode="decimal"></div>
-        <p class="pl-hint pl-mat-io"><a href="/materials">All materials and bits: change, import, export →</a></p>
+        <p class="pl-hint pl-mat-io"><a href="/materials">Stock &amp; Bit page: all stocks and bits, change, import, export →</a></p>
         </section>
 
         <section class="pl-group" aria-label="More settings">

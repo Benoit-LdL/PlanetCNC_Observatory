@@ -17,7 +17,7 @@
   var PAGES = [
     ['dashboard', '/', 'Dashboard', 'The machine, live'],
     ['surfacing', '/surfacing', 'Surfacing', 'Make a program that surfaces rough stock flat'],
-    ['materials', '/materials', 'Stock &amp; Bit', 'The materials and surfacing bits used by Surfacing'],
+    ['materials', '/materials', 'Stock &amp; Bit', 'The stocks and surfacing bits used by Surfacing'],
     ['settings', '/settings', 'Settings', 'Machine name, camera, Files folder, tool in the 3D view, Telegram and timelapse, MQTT, air quality, logs'],
     ['system', '/system', 'System', 'Versions, updates, the Raspberry Pi'],
   ];

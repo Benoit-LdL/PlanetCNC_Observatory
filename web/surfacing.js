@@ -17,7 +17,7 @@ import { sentence, fetchJson, UNREACHABLE } from './msg.js';
 const $ = (id) => document.getElementById(id);
 const FIELDS = ['length', 'width', 'thickness', 'zMode', 'startAbove', 'current', 'target', 'toolD', 'depth', 'direction', 'cutWay',
                 'rpm', 'feed', 'plunge', 'stepdown', 'stepover', 'safe', 'clearance', 'clearTurn', 'dwell'];
-const PRESET_KEYS = ['rpm', 'feed', 'plunge', 'stepdown', 'stepover'];   // what a material stores
+const PRESET_KEYS = ['rpm', 'feed', 'plunge', 'stepdown', 'stepover'];   // what a stock stores (its cutting values)
 const TEXT_FIELDS = new Set(['zMode', 'direction', 'cutWay']);
 const CHECK_FIELDS = new Set(['clearTurn']);
 const STORE_KEY = 'surfacing.form';
@@ -458,7 +458,7 @@ async function pollState() {
 }
 
 // ---------------------------------------------------------------- materials and bits
-// Named values kept on the Pi (the Materials page shows them all): a material holds the cutting
+// Named values kept on the Pi (the Stock & Bit page shows them all): a stock (oak...) holds the cutting
 // values, a bit its diameter. Picking one fills in the form; "Changed" shows when the form no
 // longer matches it; Save as... and Delete change the list.
 
@@ -522,7 +522,7 @@ function library(cfg) {
       lib.render(res.name);
       lib.showChanged(readForm());
       message(`Saved the ${cfg.what} ${esc(res.name)}.`, 'ok');
-      schedule();   // the file name follows the material
+      schedule();   // the file name follows the stock
     } catch (e) {
       message(`Could not save the ${cfg.what}: ${esc(e.message)}`, 'err');
     }
@@ -546,11 +546,11 @@ function library(cfg) {
 
 const materials = library({
   api: '/api/surfacing/presets', select: 'material', save: 'matSave', del: 'matDelete', msg: 'matMsg', changed: 'matChanged',
-  none: 'No material', what: 'material',
+  none: 'No saved stock', what: 'stock',
   fields: Object.fromEntries(PRESET_KEYS.map((k) => [k, k])),
   missing: 'Fill in spindle speed, feeds, step-down and stepover first.',
-  ask: { title: 'Save as a material', label: 'Material',
-         text: 'The spindle speed, feeds, step-down and stepover, under the name of a material (e.g. Oak).' },
+  ask: { title: 'Save as a stock', label: 'Stock',
+         text: 'The spindle speed, feeds, step-down and stepover, under the name of a stock (e.g. Oak).' },
 });
 const bits = library({
   api: '/api/surfacing/bits', select: 'bit', save: 'bitSave', del: 'bitDelete', msg: 'bitMsg', changed: 'bitChanged',
@@ -560,7 +560,7 @@ const bits = library({
   ask: { title: 'Save as a bit', label: 'Bit', text: 'The bit diameter, under the name of the bit (e.g. Surfacing 50 mm).' },
 });
 
-// Changed on the Materials page (another tab, or another device): pick them up when this page
+// Changed on the Stock & Bit page (another tab, or another device): pick them up when this page
 // is shown again.
 document.addEventListener('visibilitychange', async () => {
   if (document.hidden) return;
