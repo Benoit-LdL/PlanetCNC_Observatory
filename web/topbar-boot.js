@@ -101,7 +101,8 @@
         el.setAttribute('aria-label', g.tip);
         el.airGauge = g;
       }
-      if (gaugePop && gaugePop.el.isConnected && box.contains(gaugePop.el)) showGaugePop(gaugePop.el);   // new values
+      // New values while its popup is open: update it (only then: a closed popup stays closed)
+      if (gaugePop && !gaugePop.box.hidden && gaugePop.el.isConnected && box.contains(gaugePop.el)) showGaugePop(gaugePop.el);
     }
   };
 
