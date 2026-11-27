@@ -278,7 +278,7 @@ default the server only accepts a bridge from the Pi itself.
 | `tools/screenshots.py` | Retakes the README screenshots from the demo (on a PC, not needed on the Pi). |
 | `tools/machine_model.py` | Makes the light machine model `web/machine/evo-m.glb` from the complete CAD export (on a PC, not needed on the Pi; see [The machine in the 3D view](#the-machine-in-the-3d-view)). |
 | `media/` | The animation and screenshots in this README. |
-| `web/` | The pages (HTML, CSS, JavaScript). `style.css` holds the look of every page, day and night; `theme-boot.js` sets the day / night mode before a page is drawn; `fonts/` are Roboto and Roboto Mono, `sky.svg` the faint stars behind the cards (moved by `topbar-boot.js` as the page scrolls). `tune.js` reads and rewrites programs for the Feeds & steps window; `system-ui.js` holds the E-stop button and the System page (`system.html`, `system.js`); `topbar-boot.js` draws the top bar and the menu (and runs the day / night switch, the logo) before each page is shown, and `nav.js` keeps them current; `help.js` the **?** help popups in Settings; `settings.html` and `settings.js` the Settings page; `materials.html` and `materials.js` the Stock & Bit page (stocks and surfacing bits); `camera.html` is the camera page on its own; `surfacing.html`, `surfacing.js` and `surfacing-gcode.js` are the Surfacing page; `machine/evo-m.glb` is the machine drawn in the 3D view. |
+| `web/` | The pages (HTML, CSS, JavaScript). `style.css` holds the look of every page, day and night; `theme-boot.js` sets the day / night mode before a page is drawn; `fonts/` are Roboto and Roboto Mono, `sky.svg` the faint stars behind the cards (moved by `topbar-boot.js` as the page scrolls). `tune.js` reads and rewrites programs for the Feeds & steps window; `system-ui.js` holds the E-stop button and the System page (`system.html`, `system.js`); `topbar-boot.js` draws the top bar and the menu (and runs the day / night switch, the logo) before each page is shown, and `nav.js` keeps them current; `help.js` the **?** help popups in Settings; `settings.html` and `settings.js` the Settings page; `materials.html` and `materials.js` the Stock & Bit page (stocks and surfacing bits); `camera.html` is the camera page on its own; `mjpeg.js` reads the camera stream for both (so the frames can be counted); `surfacing.html`, `surfacing.js` and `surfacing-gcode.js` are the Surfacing page; `machine/evo-m.glb` is the machine drawn in the 3D view. |
 | `settings.json` | Created when you change a setting in the dashboard; it also holds the Telegram bot token, the MQTT password and the Home Assistant token, so only its owner may read it. Not part of git. |
 | `timelapses/` | The last 20 job timelapses. Not part of git. |
 | `tuning.json` | The Feeds tab's log of adjusted files. Not part of git. |
@@ -545,6 +545,11 @@ command in TNG. TNG stops the machine at once.
   - When there is no picture, the panel says **Camera connection doesn't
     work** and why: no camera found on the Pi, the camera set to **Off**,
     ffmpeg not installed, or no picture coming from the camera.
+  - The **fps** counter in the picture's top-right corner counts the frames
+    that really reach this browser each second, so a frozen or stuttering
+    picture shows. It turns red below 1 fps (0.5 fps means the camera stopped
+    sending: the Pi only repeats the last frame every 2 s), and says **No
+    frame for N s** when the connection stalls; after 10 s it reconnects.
   - **Full**, or a double-click, shows it fullscreen; **Exit full screen**, a
     double-click or Esc go back. **Hide** folds it away;
     each browser remembers this. To remove the panel for everyone, turn off
@@ -997,7 +1002,7 @@ any browser on the network:
 
 | Address | What it is |
 |---|---|
-| `http://<pi-address>:8080/camera` | A page with only the camera, filling the window. Double-click (or double-tap) for fullscreen. Made for a second screen, a tablet next to the machine, or a phone. The machine's name is in the tab's title; a link in the top corner opens the dashboard. |
+| `http://<pi-address>:8080/camera` | A page with only the camera, filling the window. Double-click (or double-tap) for fullscreen. An fps counter in the bottom-right corner works as on the dashboard. Made for a second screen, a tablet next to the machine, or a phone. The machine's name is in the tab's title; a link in the top corner opens the dashboard. |
 | `http://<pi-address>:8080/api/camera.mjpg` | The raw MJPEG stream. Browsers show it as a moving picture; it is also what to give a program that takes an MJPEG address (home automation, OBS as a browser source, a media player). |
 | `http://<pi-address>:8080/api/camera.jpg` | One still picture, taken now. For a bookmark, a widget that refreshes an image, or a script that fetches a photo. The camera is started for it when nobody is watching, so the first picture can take a few seconds, and it then stays on until 30 seconds after the last request, so a program that polls stills gets them at once. The answer is `503` while there is no picture at all. |
 

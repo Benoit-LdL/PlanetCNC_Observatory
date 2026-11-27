@@ -6,6 +6,7 @@ import { initTune, openTune, tuneLogLoad } from './tune-ui.js';
 import { initSystem, systemOnState } from './system-ui.js';
 import { navOnState } from './nav.js';
 import { sentence, UNREACHABLE } from './msg.js';
+import { playMjpeg } from './mjpeg.js';
 
 const $ = (id) => document.getElementById(id);
 const ROW_H = 20;          // must match .row height in style.css
@@ -333,21 +334,51 @@ let camViewOn = false;    // Settings: show the camera on the dashboard (from th
 let camWanted = true;     // this browser hasn't folded it away (Hide)
 let camOpened = 0;        // when the current stream was opened
 let camRetry = null;
+let camStream = null;     // stops the stream that is playing
 let liveDownSince = null; // the live updates stopped; the camera waits so its connection is free
 
 try { camWanted = localStorage.getItem('cncCamHidden') !== '1'; } catch { /* storage unavailable */ }
 
+const camFps = $('camFps');
+
+/** The frames that really reach this browser, so a frozen or stuttering picture shows. */
+function camShowFps(fps, idleMs) {
+  const stalled = idleMs > 2000;
+  camFps.hidden = false;
+  camFps.textContent = stalled ? `No frame for ${Math.round(idleMs / 1000)} s`
+    : `${fps < 10 ? fps.toFixed(1) : Math.round(fps)} fps`;
+  camFps.classList.toggle('bad', stalled || fps < 1);
+  // The server sends a frame at least every 2 s, so a connection this quiet is dead: open a new one.
+  if (idleMs > 10000 && camStream) { camStream(); camFailed('no frame for 10 s'); }
+}
+
 function camStart() {
   clearTimeout(camRetry);
+  camRetry = null;
+  camStream?.();
   camOpened = Date.now();
   camImg.hidden = false;
-  camImg.src = '/api/camera.mjpg?t=' + camOpened;
+  camFps.hidden = true;
+  camStream = playMjpeg(camImg, '/api/camera.mjpg?t=' + camOpened, { onFps: camShowFps, onFail: camFailed });
 }
 
 function camStop() {
   clearTimeout(camRetry);
-  camImg.removeAttribute('src');
+  camRetry = null;
+  camStream?.();
+  camStream = null;
   camImg.hidden = true;
+  camFps.hidden = true;
+}
+
+function camFailed(why) {
+  camStream = null;
+  camFps.hidden = true;
+  if (!camShouldStream()) return;
+  camImg.hidden = true;
+  camMessage('nosignal', CAM_BROKEN, 'The picture broke off. Trying again…');
+  log.warn(`camera stream failed after ${Math.round((Date.now() - camOpened) / 1000)} s (${why}), retrying in 3 s`);
+  camRetry = setTimeout(camStart, 3000);
 }
 
 function camShouldStream() {
@@ -361,7 +392,7 @@ function camSync() {
   camToggle.textContent = camWanted ? 'Hide' : 'Show';
   camToggle.classList.toggle('active', camWanted);
   $('camFullBtn').hidden = !camWanted || !camEnabled;
-  const streaming = camImg.hasAttribute('src');
+  const streaming = !!(camStream || camRetry);   // playing, or about to try again
   if (camShouldStream() && !streaming) camStart();
   else if (!camShouldStream() && streaming) camStop();
 }
@@ -393,13 +424,6 @@ function camUpdate(s) {
   } else camMessage('connecting', 'Connecting to the camera…');
 }
 
-camImg.addEventListener('error', () => {
-  if (!camShouldStream()) return;
-  camImg.hidden = true;
-  camMessage('nosignal', CAM_BROKEN, 'The picture broke off. Trying again…');
-  log.warn(`camera stream failed after ${Math.round((Date.now() - camOpened) / 1000)} s, retrying in 3 s`);
-  camRetry = setTimeout(camStart, 3000);
-});
 camToggle.addEventListener('click', () => {
   camWanted = !camWanted;
   try { localStorage.setItem('cncCamHidden', camWanted ? '0' : '1'); } catch { /* ignore */ }
@@ -996,7 +1020,7 @@ function connectionLost(why) {
   if (!liveDownSince) {
     liveDownSince = Date.now();
     log.warn(`live connection lost: ${why}; last update ${lastMessage ? ((Date.now() - lastMessage) / 1000).toFixed(1) + ' s ago' : 'never'}`);
-    if (camImg.hasAttribute('src')) camStop();
+    if (camStream || camRetry) camStop();
   }
   state = { ...state, bridge_online: false };
   renderInfo();
