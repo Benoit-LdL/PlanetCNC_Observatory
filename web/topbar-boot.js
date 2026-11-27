@@ -119,6 +119,7 @@
       box.hidden = !air;
       if (!air) continue;
       fillRings(box, air.gauges, '<span class="air-cap"><i></i>Air</span>', '<span class="air-climate"></span>');
+      box.classList.toggle('down', !!air.down);   // the rings greyed: what they show isn't measured now
       var cap = box.querySelector('.air-cap');
       cap.setAttribute('data-level', air.status.level);
       cap.title = air.status.text;
@@ -145,6 +146,8 @@
   // menu's air rings, on the dashboard and the Surfacing page only. On a phone: the same frame around the air
   // button and the message in its panel, on every page
   // (the button is on every page). It can't be hidden (for now): it goes when the values are back in the green.
+  // While nothing is measured (air.down: the sensor offline, Home Assistant unreachable) the same box says so,
+  // in a steady red frame: the air isn't being watched, so no alert would come.
   var ALERT_PAGES = { dashboard: true, surfacing: true };
   var alertEl = null;
   function alertPage() {
@@ -155,11 +158,13 @@
     if (!document.getElementById('pagenav')) return;
     var over = air && air.fresh ? air.gauges.filter(function (g) { return g.level; }) : [];
     var high = over.some(function (g) { return g.level === 'err'; });
-    var on = over.length > 0;
+    var down = air && air.down;
+    var on = over.length > 0 || !!down;
     // On a phone the same frame goes around the air button (its panel holds the message)
     if (airBtn) {
       airBtn.classList.toggle('alert', !!on);
-      airBtn.classList.toggle('high', !!on && high);
+      airBtn.classList.toggle('high', !!on && high && !down);
+      airBtn.classList.toggle('down', !!down);
     }
     if (!on) {
       if (alertEl) alertEl.hidden = true;
@@ -170,7 +175,15 @@
       alertEl.className = 'air-alert';
       alertEl.setAttribute('role', 'alert');
     }
-    alertEl.classList.toggle('high', high);
+    alertEl.classList.toggle('high', high && !down);
+    alertEl.classList.toggle('down', !!down);
+    if (down) {
+      alertEl.innerHTML = '<div class="air-alert-in"><b class="air-alert-head">⚠ ' + esc(down.head) + '</b>'
+        + '<p>' + esc(down.text) + '</p><p class="air-alert-foot">The air isn\'t being watched: no alert would come.</p></div>';
+      alertEl.hidden = false;
+      placeAirAlert();
+      return;
+    }
     alertEl.innerHTML = '<div class="air-alert-in"><b class="air-alert-head">⚠ Air quality ' + (high ? 'high' : 'raised')
       + '</b><ul>'
       + over.map(function (g) {

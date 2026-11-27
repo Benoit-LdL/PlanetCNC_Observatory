@@ -613,6 +613,24 @@ input.bad { border-color: var(--md-error) !important; box-shadow: inset 0 0 0 1p
 .air-alert li b { font-weight: 600; }
 .air-alert li span { font-size: 12px; font-weight: 600; color: var(--md-warning); }
 .air-alert li.err span { color: var(--md-error); }
+/* Nothing measured (the sensor offline, Home Assistant unreachable): a steady red frame, glowing slowly, and
+   the rings greyed so their old numbers aren't taken for the air now (topbar-boot.js) */
+.air-alert.down { background: #e53935; animation: alert-glow-red 2.4s ease-in-out infinite; }
+.air-alert p { margin: 0; white-space: normal; }
+.air-alert-foot { margin-top: 4px !important; font-size: 12px; color: var(--md-on-surface-variant); }
+@keyframes alert-glow-red {
+  0%, 100% { box-shadow: var(--drop), 0 0 2px 0 #e53935; }
+  50% { box-shadow: var(--drop), 0 0 14px 3px #e53935; }
+}
+.air-gauges.down .gauge { opacity: .35; }
+@media (max-width: 700px) {
+  .air-btn.alert.down { border-color: #e53935; animation: btn-glow-red 2.4s ease-in-out infinite; }
+}
+@keyframes btn-glow-red { 0%, 100% { box-shadow: 0 0 1px 0 #e53935; } 50% { box-shadow: 0 0 10px 2px #e53935; } }
+@media (prefers-reduced-motion: reduce) {
+  .air-alert.down, .air-btn.alert.down { animation: none; }
+  .air-alert.down { box-shadow: var(--drop), 0 0 8px 1px #e53935; }
+}
 /* Each air ring explains its value in a popup (topbar-boot.js), on hover, focus or a tap */
 .air-gauges .gauge { cursor: help; border-radius: 8px; }
 .air-gauges .gauge:focus-visible { outline: 2px solid var(--md-primary); outline-offset: 2px; }
