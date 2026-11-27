@@ -290,12 +290,13 @@ export function planSurfacing(input, { date = new Date(), travel = null } = {}) 
   }
   if (cur[2] !== safeZ) G(`G0 Z${fmt(safeZ)}`);
   go(null, safeZ, true, 0, passes);
-  G('M5');
   // Park to the right of the stock (it usually sits in the front-left corner of the bed) and at
   // the back, with the bit clear of it, instead of over X0 Y0 where it's in the way of taking the
-  // stock off
+  // stock off. The spindle stops only once there: TNG waits for it to spin down after M5, and
+  // that wait belongs at the end, not between the lift and the move to the back.
   G(`G0 ${xy(park)}`);
   go(park, null, true, 0, passes);
+  G('M5');
   G('M30');
 
   // Times, for the simulation and the estimate

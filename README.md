@@ -935,8 +935,9 @@ pass runs the lines back from
 where the last one ended. With **Cut** set to one direction only, the bit
 instead lifts at the end of every line and comes back in a rapid, so each
 line is cut the same way. It starts with `M3` and a `G4` pause for the spindle
-to spin up, before any move (so don't leave the bit touching the stock), and ends with `M5` and the bit parked at the safe height right of the stock (at
-Y0, the bit's edge 10 mm past the stock's right end), out of the way of taking
+to spin up, before any move (so don't leave the bit touching the stock), and ends with the bit parked at the safe height past the stock's back-right
+corner (the bit's edge **End clear of the back-right corner**, 10 mm, from the stock in X and Y), then `M5`, so the
+spindle's spin-down wait happens once the bit is there, out of the way of taking
 the stock off: it's assumed to sit in the front-left corner of the bed. When
 the machine's travel is known (TNG connected), the end position is kept 1 mm
 inside it, measured from the current work zero, so set X0 Y0 on the stock
