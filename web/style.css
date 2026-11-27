@@ -171,15 +171,15 @@ code { font-family: var(--mono); }
 :root:not([data-theme="light"]) .logo-btn .logo-day, :root[data-theme="light"] .logo-btn .logo-night {
   filter: drop-shadow(0 0 .7px var(--md-on-surface)) drop-shadow(0 0 .7px var(--md-on-surface)); }
 @media (hover: hover) {
-  :root:not([data-theme="light"]) .logo-btn:hover:not(.switched) { --wheel: 20deg; }
-  :root:not([data-theme="light"]) .logo-btn:hover:not(.switched) .logo-day { --pos: -80deg; }
-  :root[data-theme="light"] .logo-btn:hover:not(.switched) { --wheel: -20deg; }
-  :root[data-theme="light"] .logo-btn:hover:not(.switched) .logo-night { --pos: 80deg; }
+  :root:not([data-theme="light"]) .logo-btn:hover:not(.switched) { --wheel: 45deg; }
+  :root:not([data-theme="light"]) .logo-btn:hover:not(.switched) .logo-day { --pos: -95deg; }
+  :root[data-theme="light"] .logo-btn:hover:not(.switched) { --wheel: -45deg; }
+  :root[data-theme="light"] .logo-btn:hover:not(.switched) .logo-night { --pos: 95deg; }
 }
-:root:not([data-theme="light"]) .logo-btn:focus-visible:not(.switched) { --wheel: 20deg; }
-:root:not([data-theme="light"]) .logo-btn:focus-visible:not(.switched) .logo-day { --pos: -80deg; }
-:root[data-theme="light"] .logo-btn:focus-visible:not(.switched) { --wheel: -20deg; }
-:root[data-theme="light"] .logo-btn:focus-visible:not(.switched) .logo-night { --pos: 80deg; }
+:root:not([data-theme="light"]) .logo-btn:focus-visible:not(.switched) { --wheel: 45deg; }
+:root:not([data-theme="light"]) .logo-btn:focus-visible:not(.switched) .logo-day { --pos: -95deg; }
+:root[data-theme="light"] .logo-btn:focus-visible:not(.switched) { --wheel: -45deg; }
+:root[data-theme="light"] .logo-btn:focus-visible:not(.switched) .logo-night { --pos: 95deg; }
 /* The full turn is a longer way than the preview's: a little slower */
 .logo-btn.switched img { transition-duration: .7s, .4s; }
 @media (prefers-reduced-motion: reduce) { .logo-btn img { transition: none; } }
