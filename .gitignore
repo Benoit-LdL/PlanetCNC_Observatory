@@ -244,6 +244,10 @@ surfacing_presets.json.tmp
 surfacing_bits.json
 surfacing_bits.json.tmp
 
+# The /surfacing page's "More settings", saved on the Pi
+surfacing_defaults.json
+surfacing_defaults.json.tmp
+
 # The same, under the page's old name (Planing): the server renames them when it starts
 planing_presets.json
 planing_presets.json.tmp

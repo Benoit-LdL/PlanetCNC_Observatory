@@ -283,6 +283,7 @@ default the server only accepts a bridge from the Pi itself.
 | `timelapses/` | The last 20 job timelapses. Not part of git. |
 | `tuning.json` | The Feeds tab's log of adjusted files. Not part of git. |
 | `surfacing_presets.json` | The Surfacing page's cutting values per stock (Stock & Bit page). Not part of git. |
+| `surfacing_defaults.json` | The Surfacing page's *More settings* (safe height, run past the edges, turns, line ends, spin-up), shared by every device. Not part of git. |
 | `logs/` | The server's log files. Not part of git. |
 
 ## What you need
@@ -618,6 +619,14 @@ the alert (below). A tap elsewhere closes it.
   back in the green. Telegram can warn too (see [Telegram](#telegram-notifications-and-timelapse)).
 - The dot next to **Air**: green Good, amber Raised, red High (or **No
   data** when Home Assistant doesn't answer, with the reason when you hover).
+  Amber **Partly offline** when some readings are missing (they show **–**).
+- When the air isn't measured at all, a box in a steady red frame says so, in
+  the same places as the alert: **Air sensor offline** (Home Assistant has the
+  SEN55's readings as unavailable: it lost its power or Wi-Fi), **no
+  connection** (Home Assistant doesn't answer) or **old data**, and for how
+  long. The rings are greyed, since their numbers aren't the air now, and no
+  "high" alert can come until it measures again. The Console says when it stops
+  and when it measures again.
   Grey while waiting for the first reading; amber when the last reading is
   more than a minute old.
 - In a short window (a laptop) the air and Pi rings are smaller, two per row,
@@ -903,7 +912,7 @@ settings in the panel on the right.
 | Spindle speed, Feed, Plunge feed | Plunge feed is for going down to each pass, which always happens beside the stock. |
 | Step-down | Depth per pass at most. The depth is split into equal passes. |
 | Stepover | Sideways step between lines, as % of the bit diameter (40 % is a good start). |
-| More settings | Safe height above the stock (5 mm), how far the bit's centre runs past the edges (5 mm, less than the bit radius), **Turn round clear of the stock** (off), spindle spin-up time (3 s). |
+| More settings | Safe height above the stock (5 mm), how far the bit's centre runs past the edges (5 mm, less than the bit radius), **Turn round clear of the stock** (off), **Straighten the line ends** (off), spindle spin-up time (3 s). Kept on the Pi in `surfacing_defaults.json`: a change is used by every device, and by every tab opened afterwards. |
 
 **The program** goes back and forth over the stock in lines along the chosen
 direction, one Z level after the other. The bit's centre runs past every edge
@@ -1375,7 +1384,9 @@ buttons (fan cleaning) aren't used.
 
 A sensor that is renamed in Home Assistant is found again by itself within 5
 minutes. If Home Assistant can't be reached, the menu says **No data** and the
-reason is in Settings and in the log (`pcnc.air`).
+reason is in Settings and in the log (`pcnc.air`). If the sensor itself is off,
+Home Assistant still answers but has its readings as unavailable: the menu then
+says **Sensor offline** (see [Air quality](#air-quality)).
 
 ### Shop devices
 

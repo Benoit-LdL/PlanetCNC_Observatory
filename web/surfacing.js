@@ -20,6 +20,10 @@ const FIELDS = ['length', 'width', 'thickness', 'zMode', 'startAbove', 'current'
 const PRESET_KEYS = ['rpm', 'feed', 'plunge', 'stepdown', 'stepover'];   // what a stock stores (its cutting values)
 const TEXT_FIELDS = new Set(['zMode', 'direction', 'cutWay']);
 const CHECK_FIELDS = new Set(['clearTurn', 'cleanEdges']);
+// "More settings": kept on the Pi (surfacing_defaults.json), so every device and every new tab
+// starts from the last values set anywhere; the rest of the form stays in this browser
+const SHARED_FIELDS = ['safe', 'clearance', 'clearTurn', 'cleanEdges', 'dwell'];
+const SHARED_MIN = { safe: 1, clearance: 0, dwell: 0 };
 const STORE_KEY = 'surfacing.form';
 const OLD_STORE_KEY = 'planing.form';   // before the page was called Surfacing: read once, then moved
 const writeHeaders = { 'X-CNC-Control': '1', 'Content-Type': 'application/json' };
@@ -328,6 +332,39 @@ function recall() {
   } catch { return null; }
 }
 
+// ---------------------------------------------------------------- "More settings" on the Pi
+
+let sharedSent = {};       // the values the Pi has, as last read or saved
+let sharedTimer = null;    // a save waiting for typing to stop
+
+async function loadShared() {
+  try {
+    const d = await (await fetch('/api/surfacing/defaults', { cache: 'no-store' })).json();
+    if (d && d.ok && d.values) { sharedSent = d.values; return d.values; }
+  } catch (e) { log.warn('surfacing: cannot read the shared settings:', e); }
+  return null;
+}
+
+/** The "More settings" values that are valid now and differ from the Pi's: saved after a pause. */
+function saveSharedSoon() {
+  clearTimeout(sharedTimer);
+  sharedTimer = setTimeout(async () => {
+    sharedTimer = null;
+    const p = readForm();
+    const values = {};
+    for (const f of SHARED_FIELDS) {
+      const v = p[f];
+      const ok = CHECK_FIELDS.has(f) ? typeof v === 'boolean' : Number.isFinite(v) && v >= SHARED_MIN[f];
+      if (ok && sharedSent[f] !== v) values[f] = v;
+    }
+    if (!Object.keys(values).length) return;
+    try {
+      const d = await fetchJson('/api/surfacing/defaults', { method: 'POST', headers: writeHeaders, body: JSON.stringify({ values }) });
+      if (d && d.ok && d.values) sharedSent = d.values;
+    } catch (e) { log.warn('surfacing: cannot save the shared settings:', e); }
+  }, 800);
+}
+
 let plan = null;
 let lastParams = null;
 let timer = null;
@@ -396,6 +433,10 @@ function schedule() {
 
 $('form').addEventListener('input', schedule);
 $('form').addEventListener('change', schedule);
+for (const f of SHARED_FIELDS) {
+  $(f).addEventListener('input', saveSharedSoon);
+  $(f).addEventListener('change', saveSharedSoon);
+}
 $('form').addEventListener('submit', (e) => e.preventDefault());
 
 // ---------------------------------------------------------------- the machine's bed
@@ -597,7 +638,12 @@ const bits = library({
 // is shown again.
 document.addEventListener('visibilitychange', async () => {
   if (document.hidden) return;
-  await Promise.all([materials.load(), bits.load()]);
+  const [shared] = await Promise.all([sharedTimer ? null : loadShared(), materials.load(), bits.load()]);
+  // Changed on another device meanwhile: take them (unless a change made here is still to be saved)
+  if (shared && !sharedTimer) {
+    const now = readForm();
+    if (SHARED_FIELDS.some((f) => f in shared && shared[f] !== now[f])) { fillForm(shared); schedule(); }
+  }
   const p = readForm();
   materials.showChanged(p);
   bits.showChanged(p);
@@ -720,7 +766,9 @@ $('loadBtn').addEventListener('click', () => withButtons(async () => {
   }
   initSystem();   // the E-stop button
   initHelp($('form'));
-  fillForm({ ...DEFAULTS, ...(saved || {}) });
+  // The Pi's "More settings" win over this browser's copy: the last ones set, on any device
+  const shared = await loadShared();
+  fillForm({ ...DEFAULTS, ...(saved || {}), ...(shared || {}) });
   await Promise.all([materials.load(saved?.material || ''), bits.load(saved?.bit || '')]);
   schedule();
   pollState();

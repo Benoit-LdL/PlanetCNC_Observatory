@@ -2149,6 +2149,7 @@ class AirQuality:
         self.values = {}       # "pm25" -> {"v": float or None, "unit": str}
         self.updated = 0.0     # time of the last successful reading
         self.error = ""
+        self.down_since = 0.0  # since when nothing is measured: Home Assistant unreachable, or the sensor offline
         self.resolved = 0.0    # time of the last search for the entities
         self.gen = 0           # +1 on each settings change, so a poll that was running then is dropped
         self.high = {}         # "pm25" -> True while it's high (until it went back below AIR_ALERT_CLEAR)
@@ -2165,6 +2166,7 @@ class AirQuality:
         """The URL, token or prefix changed: start over."""
         self.gen += 1
         self.entities, self.values, self.updated, self.error, self.resolved = {}, {}, 0.0, "", 0.0
+        self.down_since = 0.0
         self.wake.set()
 
     @staticmethod
@@ -2217,7 +2219,7 @@ class AirQuality:
         with self.lock:
             gen = self.gen
             if not self.configured():
-                self.values, self.error = {}, ""
+                self.values, self.error, self.down_since = {}, "", 0.0
                 return False
             try:
                 if not self.entities or (len(self.entities) < len(AIR_MATCH)
@@ -2245,6 +2247,9 @@ class AirQuality:
                 if self.error:
                     log_air.info("Home Assistant: reading again")
                 self.error = ""
+                # The SEN55 off its power or Wi-Fi: Home Assistant still answers, with every reading "unavailable"
+                self._down(bool(values) and all(x["v"] is None for x in values.values()),
+                           "the sensor is offline (unavailable in Home Assistant)")
                 return True
             except RuntimeError as e:
                 if gen != self.gen:
@@ -2252,7 +2257,17 @@ class AirQuality:
                 if str(e) != self.error:
                     log_air.warning("%s", e)
                 self.error = str(e)
+                self._down(True, "no connection to Home Assistant: %s" % e)
                 return False
+
+    def _down(self, down, why):
+        """Say in the Console (which also goes to the log) when the air stops being measured, and when it is again."""
+        if down and not self.down_since:
+            self.down_since = time.time()
+            HUB.log("warn", "Air quality not measured: %s" % why)
+        elif not down and self.down_since:
+            HUB.log("ok", "Air quality measured again (after %s)" % fmt_duration(time.time() - self.down_since))
+            self.down_since = 0.0
 
     def _run(self):
         while True:
@@ -2269,7 +2284,8 @@ class AirQuality:
         if not self.configured():
             return None
         return {"values": self.values, "age": time.time() - self.updated if self.updated else None,
-                "stale": not self.updated or time.time() - self.updated > AIR_STALE, "error": self.error}
+                "stale": not self.updated or time.time() - self.updated > AIR_STALE, "error": self.error,
+                "down_for": time.time() - self.down_since if self.down_since else None}
 
     def settings_view(self):
         return {"url": SETTINGS["ha_url"], "token_set": bool(SETTINGS["ha_token"]), "prefix": SETTINGS["air_prefix"],
@@ -3120,6 +3136,7 @@ SETTINGS_FILE = os.path.join(APP_DIR, "settings.json")
 TUNING_FILE = os.path.join(APP_DIR, "tuning.json")   # the feeds log, see TuningLog
 PRESETS_FILE = os.path.join(APP_DIR, "surfacing_presets.json")   # material presets of the /surfacing page
 BITS_FILE = os.path.join(APP_DIR, "surfacing_bits.json")         # surfacing bits of the /surfacing page
+SURF_DEFAULTS_FILE = os.path.join(APP_DIR, "surfacing_defaults.json")   # the /surfacing page's "More settings"
 # Their names before the page was called Surfacing (Planing): renamed when found, see SurfacingPresets
 OLD_PRESETS_FILE = os.path.join(APP_DIR, "planing_presets.json")
 OLD_BITS_FILE = os.path.join(APP_DIR, "planing_bits.json")
@@ -3407,10 +3424,66 @@ class SurfacingPresets:
         os.replace(tmp, self.path)
 
 
+class SurfacingDefaults:
+    """The /surfacing page's "More settings" (safe height, run past the edges...), kept in
+    surfacing_defaults.json so every device and every new tab starts from the last values set."""
+
+    # key -> (kind, smallest value allowed)
+    KEYS = {"safe": ("num", 1), "clearance": ("num", 0), "dwell": ("num", 0),
+            "clearTurn": ("bool", None), "cleanEdges": ("bool", None)}
+
+    def __init__(self, path):
+        self.path = path
+        self.lock = threading.Lock()
+        self.values = {}
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f).get("values", {})
+            self.values = self.clean(data, strict=False)
+        except FileNotFoundError:
+            pass
+        except (OSError, ValueError, AttributeError) as e:
+            log_files.warning("cannot read %s: %s - starting from the page's own defaults", path, e)
+
+    def get(self):
+        with self.lock:
+            return dict(self.values)
+
+    def clean(self, values, strict=True):
+        """The known keys of `values`, checked. strict: a bad value raises ValueError, else it's dropped."""
+        if not isinstance(values, dict):
+            raise ValueError("invalid values")
+        out = {}
+        for k, (kind, low) in self.KEYS.items():
+            if k not in values:
+                continue
+            v = values[k]
+            if kind == "bool":
+                ok = isinstance(v, bool)
+            else:
+                ok = not isinstance(v, bool) and isinstance(v, (int, float)) and math.isfinite(v) and v >= low
+            if ok:
+                out[k] = v
+            elif strict:
+                raise ValueError("invalid value for %s" % k)
+        return out
+
+    def update(self, values):
+        """Merge the (cleaned) values in and write the file; returns all of them."""
+        with self.lock:
+            self.values.update(values)
+            tmp = self.path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump({"values": self.values}, f, indent=1, sort_keys=True)
+            os.replace(tmp, self.path)
+            return dict(self.values)
+
+
 HUB = Hub()
 TUNING = None
 PRESETS = None
 BITS = None
+SURF_DEFAULTS = None
 CAMERA = None
 SYSTEM = None
 UPDATER = None
@@ -3534,6 +3607,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, {"ok": True, "presets": PRESETS.list()})
         elif path in ("/api/surfacing/bits", "/api/planing/bits"):
             self._json(200, {"ok": True, "presets": BITS.list()})
+        elif path == "/api/surfacing/defaults":
+            self._json(200, {"ok": True, "values": SURF_DEFAULTS.get()})
         elif path == "/api/shop/choices":
             self._shop_choices()
         elif path == "/api/shop/icon":
@@ -3601,6 +3676,10 @@ class Handler(BaseHTTPRequestHandler):
         if path in ("/api/surfacing/presets", "/api/surfacing/bits", "/api/planing/presets", "/api/planing/bits"):
             if self._require_writer():
                 self._presets_change(PRESETS if path.endswith("presets") else BITS)
+            return
+        if path == "/api/surfacing/defaults":
+            if self._require_writer():
+                self._surf_defaults_change()
             return
         if path == "/api/log":
             if self._require_writer():
@@ -4529,6 +4608,23 @@ class Handler(BaseHTTPRequestHandler):
 
     # ---------- material presets of the /surfacing page ----------
 
+    def _surf_defaults_change(self):
+        """Save the /surfacing page's "More settings": {"values": {key: value, ...}}, any of them."""
+        try:
+            data = json.loads(self._read_body() or b"{}")
+            values = SURF_DEFAULTS.clean(data.get("values"))
+        except (ValueError, AttributeError) as e:
+            self._json(400, {"ok": False, "message": str(e) if isinstance(e, ValueError) else "invalid json"})
+            return
+        try:
+            saved = SURF_DEFAULTS.update(values)
+        except OSError as e:
+            log_files.error("cannot save the surfacing defaults: %s", e)
+            self._json(500, {"ok": False, "message": "could not save: %s" % e})
+            return
+        log_files.info("surfacing defaults saved: %s (from %s)", values, self.client_address[0])
+        self._json(200, {"ok": True, "values": saved})
+
     def _presets_change(self, store):
         """Save or delete a material or a bit (store: PRESETS or BITS)."""
         try:
@@ -4981,10 +5077,11 @@ def main():
             log_files.warning("folder %s not found, file view disabled", files_dir)
     apply_files_dir()
 
-    global CAMERA, SYSTEM, UPDATER, UPDATES_OFF_REASON, TUNING, PRESETS, BITS, OS_PACKAGES, NOTIFY, TIMELAPSE, HA, AIR, SHOP
+    global CAMERA, SYSTEM, UPDATER, UPDATES_OFF_REASON, TUNING, PRESETS, BITS, SURF_DEFAULTS, OS_PACKAGES, NOTIFY, TIMELAPSE, HA, AIR, SHOP
     TUNING = TuningLog(TUNING_FILE)
     PRESETS = SurfacingPresets(PRESETS_FILE, old_path=OLD_PRESETS_FILE)
     BITS = SurfacingPresets(BITS_FILE, keys=("d",), what="bit", what_plural="bits", old_path=OLD_BITS_FILE)
+    SURF_DEFAULTS = SurfacingDefaults(SURF_DEFAULTS_FILE)
     threading.Thread(target=watch_bridge, name="watch-bridge", daemon=True).start()
     threading.Thread(target=heartbeat, name="heartbeat", daemon=True).start()
     if SystemStats.available():
