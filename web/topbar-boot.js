@@ -39,6 +39,33 @@
       // The air quality (when set up) and the Raspberry Pi's health at the bottom of the menu, on every
       // page (filled by nav.js)
       + '<div class="air-gauges" hidden></div><div class="pi-gauges" hidden></div>';
+
+    // The icons' animations (style.css, .play): with a mouse, while it is on the item; on a phone (no
+    // hover), the item tapped plays once the page it opens is there: after it is built and the page
+    // transition is done, never on the page being left
+    var links = nav.querySelectorAll('.pagelink');
+    var mouse = window.matchMedia && matchMedia('(hover: hover)').matches;
+    for (var li = 0; li < links.length; li++) {
+      (function (link) {
+        if (mouse) {
+          link.addEventListener('mouseenter', function () { link.classList.add('play'); });
+          link.addEventListener('mouseleave', function () { link.classList.remove('play'); });
+        } else {
+          link.addEventListener('click', function () {
+            try { sessionStorage.setItem('menuPlay', link.getAttribute('data-nav')); } catch (e) { /* no storage */ }
+          });
+        }
+      })(links[li]);
+    }
+    if (!mouse) {
+      var tapped = null;
+      try { tapped = sessionStorage.getItem('menuPlay'); sessionStorage.removeItem('menuPlay'); } catch (e) { /* no storage */ }
+      var mine = tapped === cur && nav.querySelector('.pagelink[data-nav="' + cur + '"]');
+      if (mine) {
+        var play = function () { setTimeout(function () { mine.classList.add('play'); }, 350); };
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', play); else play();
+      }
+    }
   }
 
   // Ring gauges for the Pi's health, in every .pi-gauges box (the menu; the dashboard's Pi card
