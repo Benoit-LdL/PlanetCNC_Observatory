@@ -579,9 +579,12 @@ quality card.
     rule of thumb, not health limits: the indexes learn the room (give them
     about a day after a first start) and show events, such as when to open a
     window.
-  - **PM2.5** and **PM10**: the WHO 2021 guidelines (PM2.5 15 µg/m³ over
-    24 hours and 5 over a year; PM10 45 and 15), which are averages, not limits
-    for one reading. The PM2.5 popup also gives PM1, the PM10 popup PM4.
+  - **PM2.5** and **PM10**: the same kind of table, with the current range
+    highlighted (PM2.5: 0–5 clean, 5–15 fine, 15–50 raised, 50+ high; PM10:
+    0–15, 15–45, 45–100, 100+), built on the WHO 2021 guidelines (PM2.5
+    15 µg/m³ over 24 hours and 5 over a year; PM10 45 and 15). Those are
+    averages, not limits for one reading. The PM2.5 popup also gives PM1, the
+    PM10 popup PM4.
 - A ring turns amber (high) or red (bad) from PM2.5 15 / 50 and PM10 45 / 100
   (amber from the WHO 2021 24-hour guideline, red far above it), VOC 150 / 250
   (100 is the room's usual air) and NOx 20 / 150 (1 is clean air).

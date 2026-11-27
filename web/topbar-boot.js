@@ -111,44 +111,44 @@
   // the average of the last 24 h, NOx 1 = clean air), so they show events, not health limits; the band
   // edges are a rule of thumb (the same as the rings' amber and red). Dust is measured (µg/m³), so it
   // has health guidelines: WHO 2021, which are 24-hour and yearly averages, not limits for one reading.
-  var LEARN = 'They learn the room: after a first start, give them about a day (ESPHome\'s store_baseline keeps '
-    + 'what they learned across restarts). A rule of thumb, not a health limit.';
+  var LEARN = 'A rule of thumb, not a health limit. Learns the room in about a day after a first start.';
   var AIR_INFO = {
     voc: {
       name: 'VOC index', unit: '',
-      text: 'Compares the air with this room\'s own average of the last 24 hours, which is 100. Above 100: more '
-        + 'volatile organic compounds than usual, from cooking, cleaning products, perfume, paint, glue, finishes, '
-        + 'or people in a closed room. If the air stays bad, it slowly drifts back to 100.',
+      text: 'Compared with this room\'s last 24 hours (= 100). Rises with finishes, glue, paint, solvents or cooking.',
       bands: [[1, 'Normal or better than usual'], [101, 'Slightly raised'], [150, 'Clearly raised: ventilate'],
               [250, 'High'], [400, 'Very high: ventilate now and find the source']],
-      foot: LEARN,
+      foot: LEARN, source: 'Sensirion VOC index',
     },
     nox: {
       name: 'NOx index', unit: '',
-      text: '1 is the normal state of clean indoor air; any rise is an event: a gas stove, a candle or a fire, '
-        + 'or traffic fumes through an open window.',
+      text: '1 is clean air. Rises with a gas stove, a fire or candle, or traffic fumes.',
       bands: [[1, 'Normal'], [20, 'Noticeable: ventilate'], [150, 'High'], [300, 'Very high']],
-      foot: LEARN,
+      foot: LEARN, source: 'Sensirion NOx index',
     },
     pm25: {
       name: 'PM2.5', unit: 'µg/m³',
-      text: 'Fine dust, under 2.5 µm: it goes deep into the lungs. Sanding and cutting make it. Measured, so it '
-        + 'can be compared with health guidelines.',
-      who: [15, 5],
+      text: 'Fine dust from sanding and cutting; it goes deep into the lungs.',
+      // From the WHO 2021 guidelines (5 a year, 15 a day) and the ring's red (50): measured values, with decimals
+      bands: [[0, 'Clean: below the WHO yearly guideline'], [5, 'Fine: below the WHO 24-hour guideline'],
+              [15, 'Raised: run the dust extraction, ventilate'], [50, 'High: dust extraction and a mask']],
+      measured: true, who: [15, 5],
     },
     pm10: {
       name: 'PM10', unit: 'µg/m³',
-      text: 'Dust under 10 µm (PM2.5 included): the coarser dust from sawing and routing. Measured, so it can be '
-        + 'compared with health guidelines.',
-      who: [45, 15],
+      text: 'Coarser dust from sawing and routing (PM2.5 included).',
+      bands: [[0, 'Clean: below the WHO yearly guideline'], [15, 'Fine: below the WHO 24-hour guideline'],
+              [45, 'Raised: run the dust extraction, ventilate'], [100, 'High: dust extraction and a mask']],
+      measured: true, who: [45, 15],
     },
   };
 
   var gaugePop = null;   // {el: the ring, box: the popup}
-  // bands: [first value, meaning], up to 500; the index values are whole numbers
+  // bands: [first value, meaning]. The indexes (VOC, NOx) are whole numbers up to 500, shown as 1–100, 101–149...;
+  // dust is measured with decimals, shown as 0–5, 5–15... (a value on the edge is in the higher range, as for the rings)
   function bandOf(info, v) {
     var i = info.bands.length - 1;
-    while (i > 0 && Math.round(v) < info.bands[i][0]) i--;
+    while (i > 0 && (info.measured ? v : Math.round(v)) < info.bands[i][0]) i--;
     return i;
   }
   function gaugePopHtml(g) {
@@ -156,23 +156,24 @@
     var num = function (x) { return x == null ? '–' : x < 10 && info.unit ? x.toFixed(1) : String(Math.round(x)); };
     var level = function (from) { return g.errAt != null && from >= g.errAt ? 'err' : g.warnAt != null && from >= g.warnAt ? 'warn' : ''; };
     var h = '<b class="gp-head">' + esc(info.name) + ' <span>' + (v == null ? 'no value' : esc(num(v)) + (info.unit ? ' ' + info.unit : ''))
-      + '</span></b><p>' + esc(info.text) + '</p>';
+      + '</span></b>';
+    // The table first, under the title: where the value is, at a glance; the explanation after it
     if (info.bands) {
       var on = v == null ? -1 : bandOf(info, v);
       h += '<table class="gp-bands">';
       for (var i = 0; i < info.bands.length; i++) {
-        var from = info.bands[i][0], to = i + 1 < info.bands.length ? info.bands[i + 1][0] - 1 : 500;
-        h += '<tr class="' + (i === on ? 'on ' : '') + level(from) + '"><td>' + from + '–' + to + '</td><td>' + esc(info.bands[i][1]) + '</td></tr>';
+        var from = info.bands[i][0], next = i + 1 < info.bands.length ? info.bands[i + 1][0] : null;
+        var range = info.measured ? from + (next == null ? '+' : '–' + next) : from + '–' + (next == null ? 500 : next - 1);
+        h += '<tr class="' + (i === on ? 'on ' : '') + level(from) + '"><td>' + range + '</td><td>' + esc(info.bands[i][1]) + '</td></tr>';
       }
       h += '</table>';
-    } else {
-      h += '<p>WHO guideline (2021): <b>' + info.who[0] + ' ' + info.unit + '</b> as a 24-hour average, <b>' + info.who[1] + ' '
-        + info.unit + '</b> as a yearly average. This is the reading now, not an average: a short peak while sanding is '
-        + 'normal; what counts is how long it stays high.</p>';
-      if (g.warnAt != null) h += '<p class="gp-foot">The ring turns amber from ' + g.warnAt + ' ' + info.unit + ' (the WHO 24-hour '
-        + 'guideline) and red from ' + g.errAt + ' ' + info.unit + ', far above it.' + (g.also ? ' ' + esc(g.also) + '.' : '') + '</p>';
     }
-    if (info.foot) h += '<p class="gp-foot">' + esc(info.foot) + '</p>';
+    h += '<p>' + esc(info.text) + '</p>';
+    // One footnote: the caveat, PM1 / PM4 with the dust, and the source last
+    var foot = info.who ? 'Short peaks while sanding are normal: the guidelines are averages.' + (g.also ? ' ' + g.also + '.' : '')
+      + ' Source: WHO 2021 guidelines, ' + info.who[0] + ' ' + info.unit + ' over 24 h, ' + info.who[1] + ' over a year.'
+      : info.foot + ' Source: ' + info.source + '.';
+    h += '<p class="gp-foot">' + esc(foot) + '</p>';
     return h;
   }
   function showGaugePop(el) {
