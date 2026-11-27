@@ -16,6 +16,15 @@
 // happen in the air. With clearTurn, the lines run on until the whole bit is c clear of the stock
 // (centre r + c past the edge), so the turns happen in the air too.
 //
+// With cleanEdges (for surfacing only part of a bigger piece, where the line ends are not in the
+// air): the half circles leave a scalloped edge at both ends of the lines. After each Z level
+// the bit cuts once across all the lines at each end, at that level, with its centre on the tips
+// of the turns, so both ends finish as straight edges:
+//
+//      │╭──╮  ╭──╮│        the straight cut covers from the tips of the turns back past
+//      ││  ╰──╯  ││        the line ends (half the line gap is less than the bit radius)
+//      ▼          ▼
+//
 // With cutWay 'plus' or 'minus' every line is cut the same way (towards + or - along the cut):
 // at the end of a line the bit lifts to the safe height, goes back beside the stock in a rapid,
 // comes down there in the air and starts the next line - slower, but each line cuts the same
@@ -38,7 +47,7 @@ export const DEFAULTS = {
   length: 600, width: 200, thickness: 15, zMode: 'top', startAbove: 0, current: null, target: null,
   toolD: 50, depth: 3, stepdown: 1, stepover: 40, direction: 'x', cutWay: 'both',
   rpm: 18000, feed: 3000, plunge: 900,
-  safe: 5, clearance: 5, clearTurn: false, dwell: 3,
+  safe: 5, clearance: 5, clearTurn: false, cleanEdges: false, dwell: 3,
   material: '',
 };
 
@@ -101,16 +110,17 @@ export function planSurfacing(input, { date = new Date(), travel = null } = {}) 
   }
 
   const r = p.toolD / 2;
-  // Where the program ends: right of the stock, kept inside the machine's travel when it's known
-  const park = [p.length + r + PARK_GAP, 0];
-  let parkNote = `right of the stock, the bit ${PARK_GAP} mm clear of it`;
+  // Where the program ends: right of the stock and at the back (of the machine's travel when it's
+  // known, else level with the back edge of the stock), kept inside the machine's travel
+  const park = [p.length + r + PARK_GAP, travel ? travel.max[1] - PARK_MARGIN : p.width];
+  let parkNote = `right of the stock, the bit ${PARK_GAP} mm clear of it, at the back`;
   if (travel) {
     const inside = (v, k) => Math.min(Math.max(v, travel.min[k] + PARK_MARGIN), travel.max[k] - PARK_MARGIN);
     const want = park[0];
     park[0] = inside(park[0], 0);
     park[1] = inside(park[1], 1);
     if (park[0] < want) {
-      parkNote = 'as far right as the machine\'s travel allows';
+      parkNote = 'as far right as the machine\'s travel allows, at the back';
       if (park[0] < p.length + r) {
         warnings.push(`Not enough travel right of the stock to park the bit clear of it: the program ends at X${fmt(park[0])}, ` +
                       `with the bit ${fmt(p.length + r - park[0])} mm over the stock (at the safe height).`);
@@ -140,6 +150,13 @@ export function planSurfacing(input, { date = new Date(), travel = null } = {}) 
   const oneWay = p.cutWay !== 'both';
   const from = p.cutWay === 'minus' ? 1 : 0;          // the end each line starts from
   const axis = alongX ? 'X' : 'Y';
+  // cleanEdges: where the bit's centre runs for the straight cut at each end of the lines - on the
+  // tips of the half-circle turns (half a line gap past the line ends), or with one-way lines, on
+  // the line ends themselves (where they start and where they stop)
+  const gap = lines.length > 1 ? lines[1] - lines[0] : 0;
+  const edgeAt = oneWay
+    ? (from ? [ends[0], air[1]] : [air[0], ends[1]])
+    : [ends[0] - gap / 2, ends[1] + gap / 2];
   if (p.stepover > 80) warnings.push('A stepover above 80 % can leave ridges between the lines.');
   if (passDepth > 0.25 * p.toolD) warnings.push(`Each pass cuts ${fmt(passDepth)} mm, more than a quarter of the bit diameter.`);
   if (p.plunge > p.feed) warnings.push('The plunge feed is faster than the feed.');
@@ -174,6 +191,21 @@ export function planSurfacing(input, { date = new Date(), travel = null } = {}) 
       go(i === ARC_CHORDS ? q : [ctr[0] + R * Math.cos(a), ctr[1] + R * Math.sin(a)], z, false, p.feed, pass);
     }
   };
+  // cleanEdges, at the end of a pass (the bit on the last line, `at` the end it stopped at, still
+  // at the pass depth): out to the straight-cut position on that end and across all the lines,
+  // along the first line (already cut) to the other end, and across all the lines again.
+  // Returns the end the bit is at afterwards.
+  const cleanEnds = (order, at, pass) => {
+    const cA = order[order.length - 1], cB = order[0];
+    const path = [pt(edgeAt[at], cA), pt(edgeAt[at], cB), pt(edgeAt[1 - at], cB), pt(edgeAt[1 - at], cA)];
+    G(`(Straight cuts across the line ends)`);
+    for (const q of path) {
+      if (q[0] === cur[0] && q[1] === cur[1]) continue;
+      G(`G1 ${xy(q)} F${fmt(p.feed)}`);
+      go(q, null, false, p.feed, pass);
+    }
+    return 1 - at;
+  };
 
   const L = fmt(p.length), W = fmt(p.width), T = fmt(p.thickness);
   G(`(Surfacing${p.material ? ': ' + p.material : ''} - stock ${L} x ${W}${bed ? ` x ${T}` : ''} mm)`);
@@ -188,6 +220,7 @@ export function planSurfacing(input, { date = new Date(), travel = null } = {}) 
   G(`(T1 D=${fmt(p.toolD)} CR=0 - ZMIN=${fmt(finalTop)} - FLAT END MILL)`);
   G(`(Stepover ${fmt(step)} mm = ${fmt(p.stepover)} %, ${lines.length} line${lines.length > 1 ? 's' : ''} per pass)`);
   G(`(Lines run ${fmt(p.clearance)} mm past the edges${oneWay ? '' : ', turning round in half circles'}${p.clearTurn ? ' with the bit clear of the stock' : ''})`);
+  if (p.cleanEdges) G(`(After each pass, a straight cut across the line ends at ${axis}${fmt(edgeAt[0])} and ${axis}${fmt(edgeAt[1])}, for clean edges)`);
   G(`(Spindle ${fmt(p.rpm)} rpm, feed ${fmt(p.feed)} mm/min, plunge ${fmt(p.plunge)} mm/min)`);
   G(`(Ends at the safe height ${parkNote}: X${fmt(park[0])} Y${fmt(park[1])})`);
   G('G21 G90 G94 G17 G91.1');   // G91.1: arc centres (I J) relative to the arc's start
@@ -197,7 +230,7 @@ export function planSurfacing(input, { date = new Date(), travel = null } = {}) 
     G(`G4 P${fmt(p.dwell)}`);
     moves.push({ x: cur[0], y: cur[1], z: cur[2], rapid: false, feed: 0, dwell: p.dwell, pass: 0 });
   }
-  G(`G0 Z${fmt(safeZ)}`);
+  // XY first, at whatever height the bit is at, then down: no trip up to the safe height first
   G(`G0 ${xy(cur)}`);
   G(`G0 Z${fmt(startZ + 1)}`);
   go(null, startZ + 1, true, 0, 0);
@@ -227,6 +260,7 @@ export function planSurfacing(input, { date = new Date(), travel = null } = {}) 
       G(`G1 ${xy(q1)} F${fmt(p.feed)}`);
       go(q1, null, false, p.feed, k + 1);
     }
+    if (p.cleanEdges) cleanEnds(order, 1 - from, k + 1);
   }
   for (let k = 0; k < passes && !oneWay; k++) {
     const z = startZ - passDepth * (k + 1);
@@ -249,12 +283,15 @@ export function planSurfacing(input, { date = new Date(), travel = null } = {}) 
       go(q, null, false, p.feed, k + 1);
       first = false;
     }
+    // The next pass starts from the end the bit is at, so it carries on from there
+    if (p.cleanEdges) side = cleanEnds(order, side, k + 1);
   }
   if (cur[2] !== safeZ) G(`G0 Z${fmt(safeZ)}`);
   go(null, safeZ, true, 0, passes);
   G('M5');
-  // Park to the right of the stock (it usually sits in the front-left corner of the bed), with
-  // the bit clear of it, instead of over X0 Y0 where it's in the way of taking the stock off
+  // Park to the right of the stock (it usually sits in the front-left corner of the bed) and at
+  // the back, with the bit clear of it, instead of over X0 Y0 where it's in the way of taking the
+  // stock off
   G(`G0 ${xy(park)}`);
   go(park, null, true, 0, passes);
   G('M30');

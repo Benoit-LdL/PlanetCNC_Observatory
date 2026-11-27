@@ -140,9 +140,11 @@
         <div class="pl-row"><label for="safe">Safe height above stock<span class="unit">mm</span></label><input id="safe" type="number" step="any" min="0" inputmode="decimal"></div>
         <div class="pl-row"><label for="clearance">Run past the edges by<span class="unit">mm</span></label><input id="clearance" type="number" step="any" min="0" inputmode="decimal"></div>
           <label class="pl-check" for="clearTurn"><input id="clearTurn" type="checkbox"><span class="help-at">Turn round clear of the stock</span></label>
+          <label class="pl-check" for="cleanEdges"><input id="cleanEdges" type="checkbox"><span class="help-at">Straighten the line ends</span></label>
         <div class="pl-row"><label for="dwell">Spindle spin-up<span class="unit">s</span></label><input id="dwell" type="number" step="any" min="0" inputmode="decimal"></div>
           <p class="set-help" data-help-for="clearance">How far the bit's centre goes past every edge of the stock, at the ends of the lines and on the first and last line. Less than the bit radius. Plunges always happen beside the stock. With "Both ways", the bit turns round to the next line in a half circle that reaches another half line gap further out.</p>
           <p class="set-help" data-help-for="clearTurn">The lines run on until the whole bit has left the stock by the "run past the edges" amount, so the turn to the next line happens in the air (longer lines, a bit slower).</p>
+          <p class="set-help" data-help-for="cleanEdges">For surfacing only part of a bigger piece: the half-circle turns cut scallops into the material past both ends of the lines. After each pass, the bit cuts once across all the lines at each end, at the tips of the turns, so both ends finish as straight edges. Those edges sit half a line gap plus the bit radius past the line ends.</p>
           <p class="set-help" data-help-for="dwell">How long the program waits after starting the spindle (<code>M3</code>, then <code>G4</code>), before the first move, so the bit is at full speed before it goes anywhere. 0 = no wait.</p>
         </section>
       </form>
