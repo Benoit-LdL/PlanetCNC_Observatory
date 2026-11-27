@@ -618,6 +618,14 @@ the alert (below). A tap elsewhere closes it.
   back in the green. Telegram can warn too (see [Telegram](#telegram-notifications-and-timelapse)).
 - The dot next to **Air**: green Good, amber Raised, red High (or **No
   data** when Home Assistant doesn't answer, with the reason when you hover).
+  Amber **Partly offline** when some readings are missing (they show **–**).
+- When the air isn't measured at all, a box in a steady red frame says so, in
+  the same places as the alert: **Air sensor offline** (Home Assistant has the
+  SEN55's readings as unavailable: it lost its power or Wi-Fi), **no
+  connection** (Home Assistant doesn't answer) or **old data**, and for how
+  long. The rings are greyed, since their numbers aren't the air now, and no
+  "high" alert can come until it measures again. The Console says when it stops
+  and when it measures again.
   Grey while waiting for the first reading; amber when the last reading is
   more than a minute old.
 - In a short window (a laptop) the air and Pi rings are smaller, two per row,
@@ -1375,7 +1383,9 @@ buttons (fan cleaning) aren't used.
 
 A sensor that is renamed in Home Assistant is found again by itself within 5
 minutes. If Home Assistant can't be reached, the menu says **No data** and the
-reason is in Settings and in the log (`pcnc.air`).
+reason is in Settings and in the log (`pcnc.air`). If the sensor itself is off,
+Home Assistant still answers but has its readings as unavailable: the menu then
+says **Sensor offline** (see [Air quality](#air-quality)).
 
 ### Shop devices
 

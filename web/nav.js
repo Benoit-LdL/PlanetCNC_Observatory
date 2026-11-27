@@ -95,7 +95,12 @@ const AIR_TIPS = { pm1: 'Ultrafine dust', pm25: 'Fine dust', pm4: 'Dust up to 4 
 
 const fmtAir = (key, v) => v == null ? '–' : key.startsWith('pm') && v < 10 ? v.toFixed(1) : String(Math.round(v));
 
-/** The air quality (state.air) as rings, a status and the temperature and humidity; null when not set up. */
+const AIR_NAMES = { pm1: 'PM1', pm25: 'PM2.5', pm4: 'PM4', pm10: 'PM10', voc: 'VOC', nox: 'NOx', temp: 'Temperature', hum: 'Humidity' };
+const fmtFor = (sec) => sec < 90 ? `${Math.round(sec)} s` : sec < 5400 ? `${Math.round(sec / 60)} min` : `${Math.round(sec / 3600)} h`;
+
+/** The air quality (state.air) as rings, a status and the temperature and humidity; null when not set up.
+ *  down: {head, text} while nothing is measured (Home Assistant unreachable, the sensor offline, or the data
+ *  old), for the alert box that says the air isn't being watched (topbar-boot.js). */
 export function airHealth(air) {
   if (!air) return null;
   const vals = air.values || {};
@@ -114,15 +119,27 @@ export function airHealth(air) {
   const t = vals.temp?.v, h = vals.hum?.v;
   // Whole degrees and percent, side by side (the menu and the phone card's title)
   const climate = [t != null ? Math.round(t) + '°' : '', h != null ? Math.round(h) + ' %' : ''].filter(Boolean).join(' ');
+  // Readings Home Assistant has as "unavailable" or "unknown": all of them when the sensor is offline
+  const keys = Object.keys(vals);
+  const missing = keys.filter((k) => vals[k].v == null).map((k) => AIR_NAMES[k] || k);
+  const offline = keys.length > 0 && missing.length === keys.length;
+  const since = air.down_for != null ? ` for ${fmtFor(air.down_for)}` : '';
   const status = air.error ? { level: 'err', text: 'No data: ' + air.error }
     : air.age == null ? { level: 'off', text: 'Waiting for Home Assistant' }
-    : air.stale ? { level: 'warn', text: `Old data: last reading ${Math.round(air.age)} s ago` }
+    : air.stale ? { level: 'err', text: `Old data: last reading ${fmtFor(air.age)} ago` }
+    : offline ? { level: 'err', text: `Sensor offline${since}: Home Assistant has no readings from it` }
+    : missing.length ? { level: worst === 2 ? 'err' : 'warn',
+                         text: `${['Partly offline', 'Raised', 'High'][worst]}: no ${missing.join(', ')}` }
     : { level: ['', 'warn', 'err'][worst], text: ['Good', 'Raised', 'High'][worst] };   // as the popups' ranges
+  const down = air.error ? { head: 'Air quality: no connection', text: `Home Assistant can't be reached${since} (${air.error}).` }
+    : air.age != null && air.stale ? { head: 'Air quality: old data', text: `The last reading is ${fmtFor(air.age)} old.` }
+    : offline ? { head: 'Air sensor offline', text: `Home Assistant has had no readings from it${since}. Check its power and Wi-Fi.` }
+    : null;
   const title = `Air quality: ${status.text}` + (t != null ? `\nTemperature ${Math.round(t)} °C` : '')
     + (h != null ? `\nHumidity ${Math.round(h)} %` : '');
-  return { gauges, status, climate, title,
+  return { gauges, status, climate, title, down,
            temp: t != null ? Math.round(t) + '°' : null, hum: h != null ? Math.round(h) + ' %' : null,
-           fresh: !air.error && air.age != null && !air.stale };   // only fresh values raise the alert (topbar-boot.js)
+           fresh: !air.error && air.age != null && !air.stale && !offline };   // only fresh values raise the alert (topbar-boot.js)
 }
 
 /** The air rings everywhere they are: the menu, and on a phone the air button in the top bar (topbar-boot.js). */

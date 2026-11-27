@@ -2149,6 +2149,7 @@ class AirQuality:
         self.values = {}       # "pm25" -> {"v": float or None, "unit": str}
         self.updated = 0.0     # time of the last successful reading
         self.error = ""
+        self.down_since = 0.0  # since when nothing is measured: Home Assistant unreachable, or the sensor offline
         self.resolved = 0.0    # time of the last search for the entities
         self.gen = 0           # +1 on each settings change, so a poll that was running then is dropped
         self.high = {}         # "pm25" -> True while it's high (until it went back below AIR_ALERT_CLEAR)
@@ -2165,6 +2166,7 @@ class AirQuality:
         """The URL, token or prefix changed: start over."""
         self.gen += 1
         self.entities, self.values, self.updated, self.error, self.resolved = {}, {}, 0.0, "", 0.0
+        self.down_since = 0.0
         self.wake.set()
 
     @staticmethod
@@ -2217,7 +2219,7 @@ class AirQuality:
         with self.lock:
             gen = self.gen
             if not self.configured():
-                self.values, self.error = {}, ""
+                self.values, self.error, self.down_since = {}, "", 0.0
                 return False
             try:
                 if not self.entities or (len(self.entities) < len(AIR_MATCH)
@@ -2245,6 +2247,9 @@ class AirQuality:
                 if self.error:
                     log_air.info("Home Assistant: reading again")
                 self.error = ""
+                # The SEN55 off its power or Wi-Fi: Home Assistant still answers, with every reading "unavailable"
+                self._down(bool(values) and all(x["v"] is None for x in values.values()),
+                           "the sensor is offline (unavailable in Home Assistant)")
                 return True
             except RuntimeError as e:
                 if gen != self.gen:
@@ -2252,7 +2257,17 @@ class AirQuality:
                 if str(e) != self.error:
                     log_air.warning("%s", e)
                 self.error = str(e)
+                self._down(True, "no connection to Home Assistant: %s" % e)
                 return False
+
+    def _down(self, down, why):
+        """Say in the Console (which also goes to the log) when the air stops being measured, and when it is again."""
+        if down and not self.down_since:
+            self.down_since = time.time()
+            HUB.log("warn", "Air quality not measured: %s" % why)
+        elif not down and self.down_since:
+            HUB.log("ok", "Air quality measured again (after %s)" % fmt_duration(time.time() - self.down_since))
+            self.down_since = 0.0
 
     def _run(self):
         while True:
@@ -2269,7 +2284,8 @@ class AirQuality:
         if not self.configured():
             return None
         return {"values": self.values, "age": time.time() - self.updated if self.updated else None,
-                "stale": not self.updated or time.time() - self.updated > AIR_STALE, "error": self.error}
+                "stale": not self.updated or time.time() - self.updated > AIR_STALE, "error": self.error,
+                "down_for": time.time() - self.down_since if self.down_since else None}
 
     def settings_view(self):
         return {"url": SETTINGS["ha_url"], "token_set": bool(SETTINGS["ha_token"]), "prefix": SETTINGS["air_prefix"],
