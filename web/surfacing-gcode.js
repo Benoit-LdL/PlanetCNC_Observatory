@@ -110,17 +110,17 @@ export function planSurfacing(input, { date = new Date(), travel = null } = {}) 
   }
 
   const r = p.toolD / 2;
-  // Where the program ends: right of the stock and at the back (of the machine's travel when it's
-  // known, else level with the back edge of the stock), kept inside the machine's travel
-  const park = [p.length + r + PARK_GAP, travel ? travel.max[1] - PARK_MARGIN : p.width];
-  let parkNote = `right of the stock, the bit ${PARK_GAP} mm clear of it, at the back`;
+  // Where the program ends: right of the stock and level with its back edge (Y = the stock's
+  // length, `width` here), kept inside the machine's travel when it's known
+  const park = [p.length + r + PARK_GAP, p.width];
+  let parkNote = `right of the stock, the bit ${PARK_GAP} mm clear of it, level with its back edge`;
   if (travel) {
     const inside = (v, k) => Math.min(Math.max(v, travel.min[k] + PARK_MARGIN), travel.max[k] - PARK_MARGIN);
     const want = park[0];
     park[0] = inside(park[0], 0);
     park[1] = inside(park[1], 1);
     if (park[0] < want) {
-      parkNote = 'as far right as the machine\'s travel allows, at the back';
+      parkNote = 'as far right as the machine\'s travel allows, level with the stock\'s back edge';
       if (park[0] < p.length + r) {
         warnings.push(`Not enough travel right of the stock to park the bit clear of it: the program ends at X${fmt(park[0])}, ` +
                       `with the bit ${fmt(p.length + r - park[0])} mm over the stock (at the safe height).`);
