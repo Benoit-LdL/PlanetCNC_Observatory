@@ -428,21 +428,30 @@ input.bad { border-color: var(--md-error) !important; box-shadow: inset 0 0 0 1p
 .air-gauges { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .rail .air-gauges { margin-top: auto; padding: 10px 0 4px; width: 72px; user-select: none; }
 /* The air alert (topbar-boot.js): beside the menu's air rings on the dashboard and the Surfacing page while a
-   value is raised or high, framed in red and white hazard tape that scrolls, and blinks when one is high.
-   The tape is a 24 px tile with exactly one stripe period across and down (stripes 24/2√2 px wide), so
-   sliding it 24 px loops without a seam. */
+   value is raised or high. Raised: an orange frame that glows (the same orange in both themes). High: red and
+   white hazard tape that scrolls and blinks. The tape is a 24 px tile with exactly one stripe period across and
+   down (stripes 24/2√2 px wide), so sliding it 24 px loops without a seam. --drop is the box's own shadow,
+   none in the phone's air panel. */
+:root { --alert-orange: #fb8c00; }
 .air-alert { --tape: repeating-linear-gradient(-45deg, #e53935 0 8.4853px, #ffffff 8.4853px 16.9706px);
-             position: fixed; z-index: 900; padding: 5px; border-radius: 12px;
-             background-image: var(--tape); background-size: 24px 24px; animation: tape-scroll 1s linear infinite;
-             box-shadow: 0 4px 16px rgba(0, 0, 0, .3); max-width: min(260px, calc(100vw - 16px)); }
+             --drop: 0 4px 16px rgba(0, 0, 0, .3);
+             position: fixed; z-index: 900; padding: 3px; border-radius: 11px; background: var(--alert-orange);
+             box-shadow: var(--drop); animation: alert-glow 1.6s ease-in-out infinite;
+             max-width: min(260px, calc(100vw - 16px)); }
 .air-alert[hidden] { display: none; }
 /* Beside the menu's rings: the bottom left corner square, a speech bubble's corner pointing at where it comes from */
 .air-alert:not(.inline), .air-alert:not(.inline) .air-alert-in { border-bottom-left-radius: 0; }
-.air-alert.inline { position: static; max-width: none; box-shadow: none; margin-bottom: 4px; }
-.air-alert.high { animation: tape-scroll 1s linear infinite, tape-blink 1s steps(1) infinite; }
+.air-alert.inline { position: static; max-width: none; --drop: 0 0 0 transparent; margin-bottom: 4px; }
+.air-alert.high { padding: 5px; border-radius: 12px; background: var(--tape) 0 0 / 24px 24px;
+                  animation: tape-scroll 1s linear infinite, tape-blink 1s steps(1) infinite; }
+@keyframes alert-glow {
+  0%, 100% { box-shadow: var(--drop), 0 0 2px 0 var(--alert-orange); }
+  50% { box-shadow: var(--drop), 0 0 14px 3px var(--alert-orange); }
+}
 @keyframes tape-scroll { to { background-position: 24px 0; } }
-/* The air button in the top bar, on a phone only (topbar-boot.js): the worst reading's colour, hazard tape
-   around it while the air alert is on; a tap opens the air panel under the top bar */
+/* The air button in the top bar, on a phone only (topbar-boot.js): the worst reading's colour, and as the
+   alert: a glowing orange ring while a value is raised, hazard tape while one is high; a tap opens the air
+   panel under the top bar */
 .air-btn, .air-panel { display: none; }
 @media (max-width: 700px) {
   .air-btn { display: grid; place-items: center; width: 40px; height: 40px; flex: none; padding: 0; border-radius: 50%;
@@ -453,12 +462,15 @@ input.bad { border-color: var(--md-error) !important; box-shadow: inset 0 0 0 1p
   .air-btn[data-level="err"] { color: var(--md-error); }
   .air-btn[data-level="off"] { color: var(--md-outline); }
   .air-btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
-  /* The same tape, in a 14 px tile, scrolling in the ring around the button */
-  .air-btn.alert { background: linear-gradient(var(--md-surface-container-high), var(--md-surface-container-high)) padding-box,
-                                repeating-linear-gradient(-45deg, #e53935 0 4.9497px, #ffffff 4.9497px 9.8995px) border-box;
-                   background-size: 100% 100%, 14px 14px; animation: tape-scroll-btn 1s linear infinite; }
-  .air-btn.alert.high { animation: tape-scroll-btn 1s linear infinite, tape-blink-btn 1s steps(1) infinite; }
+  .air-btn.alert { border-color: var(--alert-orange); animation: btn-glow 1.6s ease-in-out infinite; }
+  /* High: the same tape, in a 14 px tile, scrolling in the ring around the button */
+  .air-btn.alert.high { border-color: transparent;
+                        background: linear-gradient(var(--md-surface-container-high), var(--md-surface-container-high)) padding-box,
+                                    repeating-linear-gradient(-45deg, #e53935 0 4.9497px, #ffffff 4.9497px 9.8995px) border-box;
+                        background-size: 100% 100%, 14px 14px;
+                        animation: tape-scroll-btn 1s linear infinite, tape-blink-btn 1s steps(1) infinite; }
   .air-btn[aria-expanded="true"] { box-shadow: 0 0 0 2px var(--md-primary); }
+  .air-btn.alert:not(.high)[aria-expanded="true"] { animation: none; }
   .air-panel { display: flex; flex-direction: column; gap: 8px; position: fixed; z-index: 950; left: 8px; right: 8px;
                padding: 4px 16px 16px; border-radius: 16px; background: var(--md-surface-container-high);
                box-shadow: 0 6px 24px rgba(0, 0, 0, .35); }
@@ -466,10 +478,15 @@ input.bad { border-color: var(--md-error) !important; box-shadow: inset 0 0 0 1p
   .air-panel .air-alert.inline { margin: 0; }
 }
 @keyframes tape-scroll-btn { to { background-position: 0 0, 14px 0; } }
+@keyframes btn-glow { 0%, 100% { box-shadow: 0 0 1px 0 var(--alert-orange); } 50% { box-shadow: 0 0 10px 2px var(--alert-orange); } }
 /* Blinking swaps only the image (the tape, then plain red, the same red in both themes): the scrolling goes on */
 @keyframes tape-blink-btn { 50% { background-image: linear-gradient(var(--md-surface-container-high), var(--md-surface-container-high)), linear-gradient(#e53935, #e53935); } }
 @keyframes tape-blink { 50% { background-image: linear-gradient(#e53935, #e53935); } }
-@media (prefers-reduced-motion: reduce) { .air-alert, .air-alert.high, .air-btn.alert, .air-btn.alert.high { animation: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .air-alert, .air-alert.high, .air-btn.alert, .air-btn.alert.high { animation: none; }
+  .air-alert:not(.high) { box-shadow: var(--drop), 0 0 8px 1px var(--alert-orange); }
+  .air-btn.alert:not(.high):not([aria-expanded="true"]) { box-shadow: 0 0 6px 1px var(--alert-orange); }
+}
 .air-alert-in { position: relative; padding: 8px 12px; border-radius: 8px; background: var(--md-surface-container-highest);
                 color: var(--md-on-surface); font-size: 13px; line-height: 1.4; }
 .air-alert-head { display: block; font-size: 13px; margin-bottom: 2px; }

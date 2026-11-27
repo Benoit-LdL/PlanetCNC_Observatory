@@ -140,9 +140,10 @@
     airAlert(air);
   };
 
-  // ---- The air alert, while a value is raised (amber) or high (red), saying which, in hazard tape (blinking
-  // when one is high). On a computer: a small box next to the menu's air rings, on the dashboard and the
-  // Surfacing page only. On a phone: tape around the air button and the message in its panel, on every page
+  // ---- The air alert, while a value is raised (amber) or high (red), saying which: in a glowing orange frame
+  // while raised, in blinking hazard tape once one is high (style.css). On a computer: a small box next to the
+  // menu's air rings, on the dashboard and the Surfacing page only. On a phone: the same frame around the air
+  // button and the message in its panel, on every page
   // (the button is on every page). It can't be hidden (for now): it goes when the values are back in the green.
   var ALERT_PAGES = { dashboard: true, surfacing: true };
   var alertEl = null;
@@ -155,7 +156,7 @@
     var over = air && air.fresh ? air.gauges.filter(function (g) { return g.level; }) : [];
     var high = over.some(function (g) { return g.level === 'err'; });
     var on = over.length > 0;
-    // On a phone the same alert is hazard tape around the air button (its panel holds the message)
+    // On a phone the same frame goes around the air button (its panel holds the message)
     if (airBtn) {
       airBtn.classList.toggle('alert', !!on);
       airBtn.classList.toggle('high', !!on && high);
@@ -201,8 +202,8 @@
   addEventListener('resize', placeAirAlert);
 
   // ---- The air button in the top bar, on a phone (the menu there is a bottom bar, without the air rings).
-  // Its colour is the worst reading's (as the dot next to Air); hazard tape around it while the air alert is
-  // on (above). A tap opens a panel under the top bar: status, temperature and humidity, the alert, the rings.
+  // Its colour is the worst reading's (as the dot next to Air); the alert's frame around it while the air
+  // alert is on (above). A tap opens a panel under the top bar: status, temperature and humidity, the alert, the rings.
   var AIR_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 12h15a3 3 0 1 1-3 3"/>'
     + '<path d="M3 16h7"/></svg>';
   var airBtn = null, airPanel = null;
