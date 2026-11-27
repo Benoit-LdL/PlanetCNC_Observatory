@@ -90,7 +90,7 @@
       cap.setAttribute('data-level', air.status.level);
       cap.title = air.status.text;
       var clim = box.querySelector('.air-climate');
-      clim.innerHTML = climateHtml(air, '\n');
+      clim.innerHTML = climateHtml(air, ' ');   // side by side, on one line
       clim.title = air.title;
       // The rings explain themselves in a popup (below), instead of a browser tooltip
       for (var k = 0; k < air.gauges.length; k++) {

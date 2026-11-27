@@ -366,7 +366,12 @@ function renderAir(a) {
   const on = !!(a.url && a.token_set);
   $('airCheckBtn').disabled = !on;
   $('airCheckBtn').title = !a.url ? 'Save the Home Assistant address first' : !a.token_set ? 'Save a token first' : 'Read the sensors now';
-  $('airEntities').innerHTML = !on || (a.error && !Object.keys(a.entities).length) ? ''
+  // The sensors found: folded behind their count (opened or closed, it stays so while the page is open)
+  const showEnts = on && !(a.error && !Object.keys(a.entities).length);
+  $('airEntsBox').hidden = !showEnts;
+  const found = a.keys.filter((k) => a.entities[k]).length;
+  $('airEntsSum').textContent = `${found} of ${a.keys.length} sensors found`;
+  $('airEntities').innerHTML = !showEnts ? ''
     : a.keys.map((k) => `<li><span>${AIR_NAMES[k]}</span>` + (a.entities[k]
       ? `<code title="${esc(a.entities[k])}">${esc(a.entities[k])}</code><b>found</b>`
       : '<code>–</code><span class="muted">not found</span>') + '</li>').join('');
@@ -408,6 +413,11 @@ $('airClearBtn').addEventListener('click', async () => {
   }
 });
 $('airCheckBtn').addEventListener('click', airCheck);
+$('airEntsBtn').addEventListener('click', () => {
+  const list = $('airEntities');
+  list.hidden = !list.hidden;
+  $('airEntsBtn').setAttribute('aria-expanded', String(!list.hidden));
+});
 
 // ---------------------------------------------------------------- logs
 

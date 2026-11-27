@@ -434,7 +434,7 @@ input.bad { border-color: var(--md-error) !important; box-shadow: inset 0 0 0 1p
 .air-cap[data-level="off"] i { background: var(--md-outline); }
 .air-climate { margin-top: -4px; font: 500 11px/14px var(--mono); color: var(--md-on-surface-variant); white-space: nowrap; }
 .air-climate:empty { display: none; }
-.air-climate { white-space: pre-line; text-align: center; }
+.air-climate { display: flex; justify-content: center; gap: 6px; }   /* temperature and humidity side by side */
 /* Thermometer and drop before the temperature and the humidity */
 .clim { display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; }
 .clim svg { width: 11px; height: 11px; flex: none; fill: none; stroke: currentColor; stroke-width: 2.2;
@@ -625,6 +625,16 @@ span.ptab::after { display: none; }
 .tg-chats.air-ents code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left;
                  font: 11px var(--mono); color: var(--md-on-surface-variant); }
 .air-ents b { color: var(--md-success); font-weight: 500; }
+/* A list folded behind a row with its summary and a chevron (Settings > Air quality: the sensors found) */
+.set-more { display: flex; flex-direction: column; gap: 4px; }
+.set-more-btn { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 8px 10px;
+                border: 0; border-radius: 8px; background: var(--md-surface-container); color: var(--md-on-surface);
+                font: 500 13px var(--font); text-align: left; cursor: pointer; }
+.set-more-btn:hover { background: var(--md-surface-container-high); }
+.set-more-btn:focus-visible { outline: 2px solid var(--md-primary); outline-offset: 2px; }
+.set-more-btn svg { flex: none; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2;
+                    stroke-linecap: round; stroke-linejoin: round; transition: transform .2s; }
+.set-more-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
 .log-files a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .log-files span { color: var(--md-on-surface-variant); }
 .log-view { margin: 0; padding: 10px; border-radius: 8px; background: var(--md-surface-container); font: 11px/1.45 var(--mono);

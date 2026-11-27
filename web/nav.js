@@ -110,16 +110,16 @@ export function airHealth(air) {
              v, also, warnAt, errAt };
   });
   const t = vals.temp?.v, h = vals.hum?.v;
-  // On two lines in the menu (it is narrow), on one in the phone card's title
-  const climate = [t != null ? t.toFixed(1) + '°' : '', h != null ? Math.round(h) + ' %' : ''].filter(Boolean).join('\n');
+  // Whole degrees and percent, side by side (the menu and the phone card's title)
+  const climate = [t != null ? Math.round(t) + '°' : '', h != null ? Math.round(h) + ' %' : ''].filter(Boolean).join(' ');
   const status = air.error ? { level: 'err', text: 'No data: ' + air.error }
     : air.age == null ? { level: 'off', text: 'Waiting for Home Assistant' }
     : air.stale ? { level: 'warn', text: `Old data: last reading ${Math.round(air.age)} s ago` }
     : { level: ['', 'warn', 'err'][worst], text: ['Good', 'Elevated', 'Poor'][worst] };
-  const title = `Air quality: ${status.text}` + (t != null ? `\nTemperature ${t.toFixed(1)} °C` : '')
+  const title = `Air quality: ${status.text}` + (t != null ? `\nTemperature ${Math.round(t)} °C` : '')
     + (h != null ? `\nHumidity ${Math.round(h)} %` : '');
   return { gauges, status, climate, title,
-           temp: t != null ? t.toFixed(1) + '°' : null, hum: h != null ? Math.round(h) + ' %' : null };
+           temp: t != null ? Math.round(t) + '°' : null, hum: h != null ? Math.round(h) + ' %' : null };
 }
 
 /** The air rings everywhere they are, and the dashboard's Air card (shown on a phone only). */

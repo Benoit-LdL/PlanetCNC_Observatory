@@ -1314,7 +1314,8 @@ buttons (fan cleaning) aren't used.
 | **Sensors** | `sensor.smart_sen55` | The start of the sensors' entity ids. ESPHome names them after the device's `friendly_name` (`Smart SEN55` → `sensor.smart_sen55_…`); Home Assistant shows them under **Settings → Devices** → the sensor. |
 
 3. Press **Save**. The dashboard looks up the sensors (PM1, PM2.5, PM4, PM10,
-   temperature, humidity, VOC, NOx) and lists which it found. **Check** reads
+   temperature, humidity, VOC, NOx) and says how many it found ("7 of 8
+   sensors found"): click it to see which, with their entity ids. **Check** reads
    them again right away; **Turn off** forgets the token.
 
 A sensor that is renamed in Home Assistant is found again by itself within 5

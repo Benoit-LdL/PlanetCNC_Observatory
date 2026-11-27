@@ -236,7 +236,13 @@
           <button class="vbtn primary" type="submit">Save</button>
         </div>
       </form>
-      <ul class="tg-chats air-ents" id="airEntities"></ul>
+      <!-- The sensors found, folded away behind their count (the System page's Details chevron) -->
+      <div class="set-more" id="airEntsBox" hidden>
+        <button class="set-more-btn" type="button" id="airEntsBtn" aria-expanded="false" aria-controls="airEntities">
+          <span id="airEntsSum"></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <ul class="tg-chats air-ents" id="airEntities" hidden></ul>
+      </div>
       <p class="set-hint" id="airStatus"></p>
       <div class="set-btns flush">
         <button class="vbtn" id="airCheckBtn" type="button" title="Read the sensors now">Check</button>
