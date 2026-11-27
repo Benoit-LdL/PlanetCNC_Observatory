@@ -181,7 +181,7 @@
     alertEl.hidden = false;
     placeAirAlert();
   }
-  // Beside the menu's air rings; on a phone (no rings in the menu) in the air button's panel, above its rings
+  // Beside the menu's air rings; on a phone (no rings in the menu) in the air button's panel, under its rings
   function placeAirAlert() {
     if (!alertEl || alertEl.hidden) return;
     var rail = document.querySelector('.rail .air-gauges');
@@ -193,8 +193,7 @@
       alertEl.style.left = Math.round(r.right + 8) + 'px';
       alertEl.style.top = Math.round(Math.max(8, Math.min(r.top, innerHeight - alertEl.offsetHeight - 8))) + 'px';
     } else if (airPanel) {
-      var rings = airPanel.querySelector('.air-gauges');
-      if (alertEl.nextElementSibling !== rings) airPanel.insertBefore(alertEl, rings);
+      if (airPanel.lastElementChild !== alertEl) airPanel.appendChild(alertEl);   // last: after the rings
       alertEl.classList.add('inline');
       alertEl.style.left = alertEl.style.top = '';
     }
@@ -203,7 +202,7 @@
 
   // ---- The air button in the top bar, on a phone (the menu there is a bottom bar, without the air rings).
   // Its colour is the worst reading's (as the dot next to Air); the alert's frame around it while the air
-  // alert is on (above). A tap opens a panel under the top bar: status, temperature and humidity, the alert, the rings.
+  // alert is on (above). A tap opens a panel under the top bar: status, temperature and humidity, the rings, the alert.
   var AIR_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 12h15a3 3 0 1 1-3 3"/>'
     + '<path d="M3 16h7"/></svg>';
   var airBtn = null, airPanel = null;

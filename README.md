@@ -572,8 +572,8 @@ With a SEN55 air-quality sensor in Home Assistant (set up in
 every page, refreshed every 10 seconds. On a phone the menu is a bar at the
 bottom without room for it: the **air** button in the top bar takes its place
 (green, amber or red after the worst reading, grey while waiting); a tap opens
-a panel with the status, temperature and humidity, the alert (below) and the
-rings. A tap elsewhere closes it.
+a panel with the status, temperature and humidity, the rings and, under them,
+the alert (below). A tap elsewhere closes it.
 
 - Up to six rings: **PM1**, **PM2.5**, **PM4** and **PM10** dust (µg/m³), and
   the **VOC** and **NOx** indexes (PM1 and PM4 only when set up in Settings).
