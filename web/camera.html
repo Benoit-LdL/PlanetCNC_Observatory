@@ -17,6 +17,7 @@
   #view { position: fixed; inset: 0; background: #11161b; }
   #cam { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
   #cam[hidden] { display: none; }
+  #cam:not([src]) { visibility: hidden; }   /* until the first frame */
   #msg { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); }
   body[data-state="live"] #msg { display: none; }
   body[data-state="nosignal"] #msg { background: rgba(17, 22, 27, .7); }
@@ -32,51 +33,77 @@
   body[data-state="live"] #dot { background: var(--ok); }
   body[data-state="nosignal"] #dot { background: var(--err); }
   #hint { color: var(--muted); }
+  /* Frames reaching this browser each second: always shown, so a frozen picture is spotted */
+  #fps { position: absolute; right: 12px; bottom: 12px; padding: 2px 6px; border-radius: 6px; pointer-events: none;
+         background: rgba(0, 0, 0, .55); font: 12px/16px ui-monospace, monospace; }
+  #fps.bad { background: var(--err); color: #fff; }
+  #fps[hidden] { display: none; }
 </style>
 </head>
 <body data-state="connecting">
 <div id="view">
   <div id="msg">Connecting…</div>
   <img id="cam" alt="Machine camera">
+  <span id="fps" title="Camera frames reaching this browser each second" hidden></span>
   <div id="bar">
     <span><i id="dot"></i><span id="name">Camera</span></span>
     <span id="hint">Double-click for full screen</span>
     <a href="/" title="Open the dashboard">Dashboard</a>
   </div>
 </div>
-<script>
-(() => {
+<script type="module">
+import { playMjpeg } from './mjpeg.js';
+{
   const $ = (id) => document.getElementById(id);
   const cam = $('cam');
+  const fpsEl = $('fps');
   let opened = 0;      // when the current stream was opened
   let retry = null;
+  let stream = null;   // stops the stream that is playing
   let enabled = true;  // the server has a camera (known after the first status poll)
 
   // ---- the stream (the server's ffmpeg only runs while a stream is open, so it is
   //      closed when the tab is hidden, like the dashboard does)
+  function showFps(fps, idleMs) {
+    const stalled = idleMs > 2000;
+    fpsEl.hidden = false;
+    fpsEl.textContent = stalled ? `No frame for ${Math.round(idleMs / 1000)} s`
+      : `${fps < 10 ? fps.toFixed(1) : Math.round(fps)} fps`;
+    fpsEl.classList.toggle('bad', stalled || fps < 1);
+    // The server sends a frame at least every 2 s, so a connection this quiet is dead: open a new one.
+    if (idleMs > 10000 && stream) { stream(); failed(); }
+  }
   function start() {
     clearTimeout(retry);
+    retry = null;
+    stream?.();
     opened = Date.now();
     cam.hidden = false;
-    cam.src = '/api/camera.mjpg?t=' + opened;
+    fpsEl.hidden = true;
+    stream = playMjpeg(cam, '/api/camera.mjpg?t=' + opened, { onFps: showFps, onFail: failed });
   }
   function stop() {
     clearTimeout(retry);
-    cam.removeAttribute('src');
+    retry = null;
+    stream?.();
+    stream = null;
     cam.hidden = true;
+    fpsEl.hidden = true;
   }
-  function sync() {
-    const want = enabled && document.visibilityState === 'visible';
-    const streaming = cam.hasAttribute('src');
-    if (want && !streaming) start();
-    else if (!want && streaming) stop();
-  }
-  cam.addEventListener('error', () => {
+  function failed() {
+    stream = null;
+    fpsEl.hidden = true;
     if (!enabled || document.visibilityState !== 'visible') return;
     cam.hidden = true;
     setState('nosignal', 'Camera stream lost – retrying…');
     retry = setTimeout(start, 3000);
-  });
+  }
+  function sync() {
+    const want = enabled && document.visibilityState === 'visible';
+    const streaming = !!(stream || retry);   // playing, or about to try again
+    if (want && !streaming) start();
+    else if (!want && streaming) stop();
+  }
   document.addEventListener('visibilitychange', sync);
 
   // ---- status: whether the camera really delivers a picture (the stream shows a dark
@@ -120,7 +147,7 @@
   wake();
   start();
   poll();
-})();
+}
 </script>
 </body>
 </html>
