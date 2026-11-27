@@ -16,14 +16,14 @@ import { sentence, fetchJson, UNREACHABLE } from './msg.js';
 
 const $ = (id) => document.getElementById(id);
 const FIELDS = ['length', 'width', 'thickness', 'zMode', 'startAbove', 'current', 'target', 'toolD', 'depth', 'direction', 'cutWay',
-                'rpm', 'feed', 'plunge', 'stepdown', 'stepover', 'safe', 'clearance', 'clearTurn', 'cleanEdges', 'dwell'];
+                'rpm', 'feed', 'plunge', 'stepdown', 'stepover', 'safe', 'clearance', 'clearTurn', 'cleanEdges', 'parkGap', 'dwell'];
 const PRESET_KEYS = ['rpm', 'feed', 'plunge', 'stepdown', 'stepover'];   // what a stock stores (its cutting values)
 const TEXT_FIELDS = new Set(['zMode', 'direction', 'cutWay']);
 const CHECK_FIELDS = new Set(['clearTurn', 'cleanEdges']);
 // "More settings": kept on the Pi (surfacing_defaults.json), so every device and every new tab
 // starts from the last values set anywhere; the rest of the form stays in this browser
-const SHARED_FIELDS = ['safe', 'clearance', 'clearTurn', 'cleanEdges', 'dwell'];
-const SHARED_MIN = { safe: 1, clearance: 0, dwell: 0 };
+const SHARED_FIELDS = ['safe', 'clearance', 'clearTurn', 'cleanEdges', 'parkGap', 'dwell'];
+const SHARED_MIN = { safe: 1, clearance: 0, parkGap: 0, dwell: 0 };
 const STORE_KEY = 'surfacing.form';
 const OLD_STORE_KEY = 'planing.form';   // before the page was called Surfacing: read once, then moved
 const writeHeaders = { 'X-CNC-Control': '1', 'Content-Type': 'application/json' };

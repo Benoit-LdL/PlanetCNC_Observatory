@@ -283,7 +283,7 @@ default the server only accepts a bridge from the Pi itself.
 | `timelapses/` | The last 20 job timelapses. Not part of git. |
 | `tuning.json` | The Feeds tab's log of adjusted files. Not part of git. |
 | `surfacing_presets.json` | The Surfacing page's cutting values per stock (Stock & Bit page). Not part of git. |
-| `surfacing_defaults.json` | The Surfacing page's *More settings* (safe height, run past the edges, turns, line ends, spin-up), shared by every device. Not part of git. |
+| `surfacing_defaults.json` | The Surfacing page's *More settings* (safe height, run past the edges, turns, line ends, end position, spin-up), shared by every device. Not part of git. |
 | `logs/` | The server's log files. Not part of git. |
 
 ## What you need
@@ -917,7 +917,7 @@ settings in the panel on the right.
 | Spindle speed, Feed, Plunge feed | Plunge feed is for going down to each pass, which always happens beside the stock. |
 | Step-down | Depth per pass at most. The depth is split into equal passes. |
 | Stepover | Sideways step between lines, as % of the bit diameter (40 % is a good start). |
-| More settings | Safe height above the stock (5 mm), how far the bit's centre runs past the edges (5 mm, less than the bit radius), **Turn round clear of the stock** (off), **Straighten the line ends** (off), spindle spin-up time (3 s). Kept on the Pi in `surfacing_defaults.json`: a change is used by every device, and by every tab opened afterwards. |
+| More settings | Safe height above the stock (5 mm), how far the bit's centre runs past the edges (5 mm, less than the bit radius), **Turn round clear of the stock** (off), **Straighten the line ends** (off), **End clear of the back-right corner** (10 mm: where the program ends, the bit's edge this far from the stock in X and Y), spindle spin-up time (3 s). Kept on the Pi in `surfacing_defaults.json`: a change is used by every device, and by every tab opened afterwards. |
 
 **The program** goes back and forth over the stock in lines along the chosen
 direction, one Z level after the other. The bit's centre runs past every edge

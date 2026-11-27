@@ -3429,7 +3429,7 @@ class SurfacingDefaults:
     surfacing_defaults.json so every device and every new tab starts from the last values set."""
 
     # key -> (kind, smallest value allowed)
-    KEYS = {"safe": ("num", 1), "clearance": ("num", 0), "dwell": ("num", 0),
+    KEYS = {"safe": ("num", 1), "clearance": ("num", 0), "dwell": ("num", 0), "parkGap": ("num", 0),
             "clearTurn": ("bool", None), "cleanEdges": ("bool", None)}
 
     def __init__(self, path):

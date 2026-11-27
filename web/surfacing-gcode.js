@@ -38,7 +38,6 @@
 
 export const RAPID_ESTIMATE = 5000;   // mm/min, only for the run-time estimate
 const ARC_CHORDS = 16;                // a half-circle turn, in the simulation
-const PARK_GAP = 10;                  // mm between the stock's right edge and the bit, at the end
 const PARK_MARGIN = 1;                // mm inside the machine's travel limits when parking
 
 // No default for the spoilboard mode's thicknesses: they set where the bit cuts, so a made-up
@@ -47,7 +46,7 @@ export const DEFAULTS = {
   length: 600, width: 200, thickness: 15, zMode: 'top', startAbove: 0, current: null, target: null,
   toolD: 50, depth: 3, stepdown: 1, stepover: 40, direction: 'x', cutWay: 'both',
   rpm: 18000, feed: 3000, plunge: 900,
-  safe: 5, clearance: 5, clearTurn: false, cleanEdges: false, dwell: 3,
+  safe: 5, clearance: 5, clearTurn: false, cleanEdges: false, parkGap: 10, dwell: 3,
   material: '',
 };
 
@@ -93,6 +92,7 @@ export function planSurfacing(input, { date = new Date(), travel = null } = {}) 
   need('feed', 'Feed', pos, 'enter a feed above 0');
   need('plunge', 'Plunge feed', pos, 'enter a feed above 0');
   need('safe', 'Safe height', (v) => v >= 1, 'at least 1 mm above the stock');
+  need('parkGap', 'End clear of the back-right corner', (v) => v >= 0, 'enter 0 or more');
   need('clearance', 'Run past the edges', (v) => v >= 0, 'enter 0 or more');
   need('dwell', 'Spin-up time', (v) => v >= 0, 'enter 0 or more seconds');
   need('startAbove', 'Start above Z0', (v) => v >= 0, 'enter 0 or more');
@@ -110,20 +110,22 @@ export function planSurfacing(input, { date = new Date(), travel = null } = {}) 
   }
 
   const r = p.toolD / 2;
-  // Where the program ends: right of the stock and level with its back edge (Y = the stock's
-  // length, `width` here), kept inside the machine's travel when it's known
-  const park = [p.length + r + PARK_GAP, p.width];
-  let parkNote = `right of the stock, the bit ${PARK_GAP} mm clear of it, level with its back edge`;
+  // Where the program ends: past the stock's back-right corner, with the bit's edge parkGap clear
+  // of the stock in X and in Y (Y: the stock's length, `width` here), kept inside the machine's
+  // travel when it's known
+  const park = [p.length + r + p.parkGap, p.width + r + p.parkGap];
+  let parkNote = `past the back-right corner of the stock, the bit ${fmt(p.parkGap)} mm clear of it in X and Y`;
   if (travel) {
     const inside = (v, k) => Math.min(Math.max(v, travel.min[k] + PARK_MARGIN), travel.max[k] - PARK_MARGIN);
-    const want = park[0];
+    const want = [...park];
     park[0] = inside(park[0], 0);
     park[1] = inside(park[1], 1);
-    if (park[0] < want) {
-      parkNote = 'as far right as the machine\'s travel allows, level with the stock\'s back edge';
-      if (park[0] < p.length + r) {
-        warnings.push(`Not enough travel right of the stock to park the bit clear of it: the program ends at X${fmt(park[0])}, ` +
-                      `with the bit ${fmt(p.length + r - park[0])} mm over the stock (at the safe height).`);
+    if (park[0] < want[0] || park[1] < want[1]) {
+      parkNote = 'past the back-right corner of the stock, as far as the machine\'s travel allows';
+      // Clear of the stock as long as it's past one of its edges
+      if (park[0] < p.length + r && park[1] < p.width + r) {
+        warnings.push(`Not enough travel past the back-right corner of the stock to park the bit clear of it: ` +
+                      `the program ends at X${fmt(park[0])} Y${fmt(park[1])}, with the bit over the stock (at the safe height).`);
       }
     }
   }
