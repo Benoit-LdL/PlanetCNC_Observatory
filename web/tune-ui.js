@@ -272,7 +272,7 @@ async function save() {
     const stopped = stoppedOp();
     const startHint = stopped >= 0 && !cur.edits[stopped].skip && result.opLines[stopped]
       ? ` Op ${stopped + 1} starts at line ${result.opLines[stopped]} of the new file.` : '';
-    message(`Saved <b>${esc(name)}</b>. Load it in TNG at the machine.${startHint}` +
+    message(`Saved <b>${esc(name)}</b>. Load it into the machine to run it.${startHint}` +
       (res2.ok ? '' : ' (It could not be added to the Feeds log.)'), 'ok');
     log.info(`feeds: saved ${path} from ${cur.name}`);
     hooks.filesReload?.();

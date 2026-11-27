@@ -76,10 +76,11 @@
     }
   };
 
-  // The air quality rings, in every .air-gauges box (the menu; the dashboard's Air card on a phone).
-  // air = {gauges: [...as above], status: {level, text}, climate: '21.3° · 47 %', title} as nav.js
-  // makes it, or null to hide them.
+  // The air quality rings, in every .air-gauges box (the menu; on a phone, the panel of the air button in
+  // the top bar). air = {gauges: [...as above], status: {level, text}, climate: '21° 47 %', title, fresh}
+  // as nav.js makes it, or null to hide them.
   window.airGauges = function (air) {
+    airButton(air);   // first: its panel holds a box of rings, filled below
     var boxes = document.querySelectorAll('.air-gauges');
     for (var i = 0; i < boxes.length; i++) {
       var box = boxes[i];
@@ -104,7 +105,122 @@
       // New values while its popup is open: update it (only then: a closed popup stays closed)
       if (gaugePop && !gaugePop.box.hidden && gaugePop.el.isConnected && box.contains(gaugePop.el)) showGaugePop(gaugePop.el);
     }
+    airAlert(air);
   };
+
+  // ---- The air alert: on the dashboard and the Surfacing page, a small box next to the air rings while a
+  // value is raised (amber) or high (red), saying which. Hazard tape around it; blinking when one is high.
+  // x hides it until what's over changes (another sensor, or one going from raised to high).
+  var ALERT_PAGES = { dashboard: true, surfacing: true };
+  var alertEl = null, alertNow = '', alertHidden = '';
+  function airAlert(air) {
+    var nav = document.getElementById('pagenav');
+    if (!nav || !ALERT_PAGES[nav.getAttribute('data-page')]) return;
+    var over = air && air.fresh ? air.gauges.filter(function (g) { return g.level; }) : [];
+    alertNow = over.map(function (g) { return g.key + ':' + g.level; }).join(',');
+    if (!over.length) alertHidden = '';
+    var high = over.some(function (g) { return g.level === 'err'; });
+    var on = over.length && alertNow !== alertHidden;
+    // On a phone the same alert is hazard tape around the air button (its panel holds the message)
+    if (airBtn) {
+      airBtn.classList.toggle('alert', !!on);
+      airBtn.classList.toggle('high', !!on && high);
+    }
+    if (!on) {
+      if (alertEl) alertEl.hidden = true;
+      return;
+    }
+    if (!alertEl) {
+      alertEl = document.createElement('div');
+      alertEl.className = 'air-alert';
+      alertEl.setAttribute('role', 'alert');
+      alertEl.addEventListener('click', function (e) {
+        if (!e.target.closest('.air-alert-x')) return;
+        alertHidden = alertNow;
+        alertEl.hidden = true;
+        if (airBtn) airBtn.classList.remove('alert', 'high');
+      });
+    }
+    alertEl.classList.toggle('high', high);
+    alertEl.innerHTML = '<div class="air-alert-in"><b class="air-alert-head">⚠ Air quality ' + (high ? 'high' : 'raised')
+      + '</b><button class="air-alert-x" type="button" title="Hide until something changes" aria-label="Hide">×</button><ul>'
+      + over.map(function (g) {
+        var unit = AIR_INFO[g.key] && AIR_INFO[g.key].unit;
+        return '<li class="' + g.level + '"><b>' + esc(g.label) + '</b> ' + esc(g.value) + (unit ? ' ' + unit : '')
+          + ' <span>' + (g.level === 'err' ? 'high' : 'raised') + '</span></li>';
+      }).join('') + '</ul></div>';
+    alertEl.hidden = false;
+    placeAirAlert();
+  }
+  // Beside the menu's air rings; on a phone (no rings in the menu) in the air button's panel, above its rings
+  function placeAirAlert() {
+    if (!alertEl || alertEl.hidden) return;
+    var rail = document.querySelector('.rail .air-gauges');
+    if (rail && rail.offsetParent) {
+      if (alertEl.parentNode !== document.body) document.body.appendChild(alertEl);
+      alertEl.classList.remove('inline');
+      var r = rail.getBoundingClientRect();
+      alertEl.style.left = Math.round(r.right + 8) + 'px';
+      alertEl.style.top = Math.round(Math.max(8, Math.min(r.top, innerHeight - alertEl.offsetHeight - 8))) + 'px';
+    } else if (airPanel) {
+      var rings = airPanel.querySelector('.air-gauges');
+      if (alertEl.nextElementSibling !== rings) airPanel.insertBefore(alertEl, rings);
+      alertEl.classList.add('inline');
+      alertEl.style.left = alertEl.style.top = '';
+    }
+  }
+  addEventListener('resize', placeAirAlert);
+
+  // ---- The air button in the top bar, on a phone (the menu there is a bottom bar, without the air rings).
+  // Its colour is the worst reading's (as the dot next to Air); hazard tape around it while the air alert is
+  // on (above). A tap opens a panel under the top bar: status, temperature and humidity, the alert, the rings.
+  var AIR_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 12h15a3 3 0 1 1-3 3"/>'
+    + '<path d="M3 16h7"/></svg>';
+  var airBtn = null, airPanel = null;
+  function airButton(air) {
+    var bar = document.querySelector('.topbar');
+    if (!bar) return;
+    if (!airBtn) {
+      airBtn = document.createElement('button');
+      airBtn.type = 'button';
+      airBtn.className = 'air-btn';
+      airBtn.setAttribute('aria-expanded', 'false');
+      airBtn.innerHTML = AIR_ICON;
+      bar.insertBefore(airBtn, bar.querySelector('.status'));
+      airPanel = document.createElement('div');
+      airPanel.className = 'air-panel';
+      airPanel.hidden = true;
+      airPanel.setAttribute('role', 'dialog');
+      airPanel.setAttribute('aria-label', 'Air quality');
+      airPanel.innerHTML = '<div class="sys-head"><h2>Air quality</h2><span class="sys-up air-panel-clim"></span>'
+        + '<span class="sys-power air-panel-status"></span></div><div class="air-gauges inline"></div>';
+      document.body.appendChild(airPanel);
+      airBtn.addEventListener('click', function () { openAirPanel(airPanel.hidden); });
+      document.addEventListener('click', function (e) {   // a tap elsewhere closes it
+        if (!airPanel.hidden && !airPanel.contains(e.target) && !airBtn.contains(e.target)) openAirPanel(false);
+      });
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape') openAirPanel(false); });
+    }
+    airBtn.hidden = !air;
+    if (!air) { openAirPanel(false); return; }
+    airBtn.setAttribute('data-level', air.status.level);
+    airBtn.title = 'Air quality: ' + air.status.text;
+    airBtn.setAttribute('aria-label', airBtn.title);
+    var st = airPanel.querySelector('.air-panel-status');
+    st.setAttribute('data-level', air.status.level);
+    st.textContent = air.status.text.split(':')[0];
+    st.title = air.status.text;
+    airPanel.querySelector('.air-panel-clim').innerHTML = climateHtml(air, ' · ');
+  }
+  function openAirPanel(open) {
+    if (!airPanel) return;
+    airPanel.hidden = !open;
+    airBtn.setAttribute('aria-expanded', String(!!open));
+    if (open) {
+      airPanel.style.top = Math.round(document.querySelector('.topbar').getBoundingClientRect().bottom + 8) + 'px';
+      placeAirAlert();
+    }
+  }
 
   // ---- What an air-quality value means, in a popup on the ring (hover, focus, or a tap on a phone).
   // VOC and NOx are Sensirion indexes: they compare the air with the room's own recent past (VOC 100 =

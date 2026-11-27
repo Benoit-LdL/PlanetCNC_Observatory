@@ -1686,6 +1686,11 @@ class Notifier:
                 BRIDGE_TIMEOUT), False
         elif kind == "pi":
             text, photo = "⚠️ <b>Raspberry Pi</b>: %s" % _html(d.get("text")), False
+        elif kind == "air":
+            text = "😷 <b>Air quality high</b> at %s" % _html(SETTINGS["name"]) + "".join(
+                "\n• <b>%s %s%s</b> (high from %s): %s" % (_html(n["label"]), n["value"], n["unit"], n["limit"], _html(n["advice"]))
+                for n in d.get("items") or [])
+            photo = False
         else:
             return
         if kind == "progress" and SETTINGS["notify_replace"]:
@@ -1981,6 +1986,16 @@ AIR_DEFAULT_PREFIX = "sensor.smart_sen55"
 AIR_MATCH = (("pm1", r"pm_?1(?:_0)?(?:um|_|$)"), ("pm25", r"pm_?2_?5"), ("pm4", r"pm_?4(?:_0)?(?:um|_|$)"),
              ("pm10", r"pm_?10(?:_0)?(?:um|_|$)"), ("temp", r"temp"), ("hum", r"hum"),
              ("voc", r"voc"), ("nox", r"nox"))
+# When a value is high: the rings' red (web/nav.js AIR_RINGS) and the popups' "High" range (web/topbar-boot.js),
+# keep them the same. It goes to the Console and to Telegram (Settings > Telegram > Messages: "Air quality high").
+# A sensor warns again only after going back below AIR_ALERT_CLEAR of its limit, and not within AIR_ALERT_GAP,
+# so a value hovering at the limit (a sanding session) gives one message, not one every 10 s.
+AIR_HIGH = (("pm25", "PM2.5", 50, " µg/m³", "run the dust extraction and wear a mask"),
+            ("pm10", "PM10", 100, " µg/m³", "run the dust extraction and wear a mask"),
+            ("voc", "VOC index", 250, "", "ventilate and find the source (finishes, glue, solvents)"),
+            ("nox", "NOx index", 150, "", "ventilate (a gas stove, a fire, fumes?)"))
+AIR_ALERT_CLEAR = 0.8
+AIR_ALERT_GAP = 30 * 60
 
 
 class AirQuality:
@@ -1994,6 +2009,8 @@ class AirQuality:
         self.error = ""
         self.resolved = 0.0    # time of the last search for the entities
         self.gen = 0           # +1 on each settings change, so a poll that was running then is dropped
+        self.high = {}         # "pm25" -> True while it's high (until it went back below AIR_ALERT_CLEAR)
+        self.alerted = {}      # "pm25" -> time of its last warning
         self.lock = threading.Lock()   # one poll at a time
         self.wake = threading.Event()
         threading.Thread(target=self._run, name="air", daemon=True).start()
@@ -2043,6 +2060,27 @@ class AirQuality:
             log_air.info("sensors: %s", ", ".join("%s=%s" % kv for kv in sorted(found.items())))
         self.entities = found
 
+    def _check_high(self, values):
+        """Warn (Console, Telegram) about the sensors that just became high: one message for all of them."""
+        now, new = time.time(), []
+        for key, label, limit, unit, advice in AIR_HIGH:
+            v = (values.get(key) or {}).get("v")
+            if v is None:
+                continue
+            if v >= limit:
+                if not self.high.get(key) and now - self.alerted.get(key, 0) >= AIR_ALERT_GAP:
+                    new.append({"label": label, "value": round(v), "limit": limit, "unit": unit, "advice": advice})
+                    self.alerted[key] = now
+                self.high[key] = True
+            elif v < limit * AIR_ALERT_CLEAR:
+                self.high[key] = False
+        if new:
+            text = ", ".join("%s %s%s" % (n["label"], n["value"], n["unit"]) for n in new)
+            log_air.warning("high: %s", text)
+            HUB.log("warn", "Air quality high: %s" % text)
+            if NOTIFY:
+                NOTIFY.event("air", items=new)
+
     def poll(self):
         """Read every sensor once. Returns True when it worked."""
         with self.lock:
@@ -2072,6 +2110,7 @@ class AirQuality:
                 if gen != self.gen:
                     return False
                 self.values, self.updated = values, time.time()
+                self._check_high(values)
                 if self.error:
                     log_air.info("Home Assistant: reading again")
                 self.error = ""
@@ -2781,6 +2820,7 @@ NOTIFY_EVENTS = (
     ("job_end", "Job finished or stopped", False),
     ("bridge_lost", "TNG not reachable during a job", False),
     ("pi", "Raspberry Pi warnings (under-voltage, heat)", False),
+    ("air", "Air quality high (dust, VOC, NOx)", False),
     ("system", "Updates, start-up and shut-down of the Pi", False),
 )
 

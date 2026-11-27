@@ -71,7 +71,7 @@ the right.*
 - Messages from your own Telegram bot when a job starts, every few percent
   or minutes (you choose), when it pauses, on E-stop and when it ends (finished, or stopped at
   which line), each with a camera photo. Also when TNG drops out during a job,
-  and Pi warnings (under-voltage, heat).
+  Pi warnings (under-voltage, heat), and when the air quality gets high.
 - A **timelapse** of every job from the camera: a short video, sent with the
   "job ended" message.
 - `/status` and `/photo` in the chat. The bot only reports: it can't control
@@ -121,7 +121,7 @@ the right.*
 **Look**
 
 - Material 3 design, in night mode (a deep-space navy) and day mode (a warm
-  moonlight white): the button at the top left switches, and each browser remembers its choice (the computer's own setting
+  moonlight white): the button next to the logo switches, and each browser remembers its choice (the computer's own setting
   at first). The 3D views follow.
 - The same top bar and menu on every page; on a phone the menu moves to the
   bottom of the screen.
@@ -176,7 +176,7 @@ with the line being run highlighted.
 
 ![Desktop, day mode: the same dashboard](media/screenshots/desktop-day.png)
 
-The same in day mode: the button at the top left switches.
+The same in day mode: the button next to the logo switches.
 
 ![Desktop: the Console tab](media/screenshots/desktop-console.png)
 
@@ -479,10 +479,12 @@ The top bar is the same on every page, and stays still when you move between
 pages (Edge, Chrome and Safari cross-fade the page below it; in other browsers
 the page simply loads).
 
-- The **day / night** button at the top left. Each browser remembers its
+- The logo, **Observatory** and the machine's name (set in Settings), in the
+  top left corner; a click goes to the dashboard. On a phone only the logo shows.
+- The **day / night** button, next to it. Each browser remembers its
   choice; at first it follows the computer's own setting.
-- The logo, **Observatory** and the machine's name (set in Settings); a click
-  goes to the dashboard. On a phone only the logo shows.
+- On a phone, with the [air quality](#air-quality) set up: the **air** button,
+  in the colour of the worst reading (see below).
 - The status:
 
   | Status | Meaning |
@@ -567,8 +569,11 @@ On a phone they are in the dashboard's Raspberry Pi card instead.
 
 With a SEN55 air-quality sensor in Home Assistant (set up in
 [Settings](#settings-page)), the menu shows the air above the Pi's rings, on
-every page, refreshed every 10 seconds. On a phone it is the dashboard's Air
-quality card.
+every page, refreshed every 10 seconds. On a phone the menu is a bar at the
+bottom without room for it: the **air** button in the top bar takes its place
+(green, amber or red after the worst reading, grey while waiting); a tap opens
+a panel with the status, temperature and humidity, the alert (below) and the
+rings. A tap elsewhere closes it.
 
 - Four rings: **PM2.5** and **PM10** fine dust (µg/m³), and the **VOC** and
   **NOx** indexes. Under the rings: temperature and humidity.
@@ -585,10 +590,16 @@ quality card.
     15 µg/m³ over 24 hours and 5 over a year; PM10 45 and 15). Those are
     averages, not limits for one reading. The PM2.5 popup also gives PM1, the
     PM10 popup PM4.
-- A ring turns amber (high) or red (bad) from PM2.5 15 / 50 and PM10 45 / 100
+- A ring turns amber (raised) or red (high) from PM2.5 15 / 50 and PM10 45 / 100
   (amber from the WHO 2021 24-hour guideline, red far above it), VOC 150 / 250
   (100 is the room's usual air) and NOx 20 / 150 (1 is clean air).
-- The dot next to **Air**: green Good, amber Elevated, red Poor (or **No
+- On the dashboard and the Surfacing page, while a value is raised or high, a
+  small alert next to the air rings says which (on a phone: hazard tape around
+  the air button, and the alert in its panel), framed in red and white hazard tape that blinks when one is high
+  (not with "reduced motion" set on the computer). **×** hides it until what's
+  over changes: another sensor, or one going from raised to high. Telegram can
+  warn too (see [Telegram](#telegram-notifications-and-timelapse)).
+- The dot next to **Air**: green Good, amber Raised, red High (or **No
   data** when Home Assistant doesn't answer, with the reason when you hover).
   Grey while waiting for the first reading; amber when the last reading is
   more than a minute old.
@@ -923,7 +934,7 @@ cutting values, or **Stock & Bit** in the menu).
 named after the stock, size and depth, e.g. `surface_oak_600x200_3mm.nc`
 (`…_to22mm.nc` with Z zero on the spoilboard); you
 can type another name. If the file exists, it asks before replacing it.
-**Load in TNG** opens it in TNG, ready to run, without saving it in the Files
+**Load into machine** (next to **Save**) opens it in TNG, ready to run, without saving it in the Files
 folder: it goes to a working file in `sent/` next to the server (only the
 latest one is kept), named as in the name field. It is greyed out while the
 machine runs or TNG isn't connected. Starting
@@ -937,6 +948,10 @@ menu) shows what the Surfacing page can fill in for you, in two tables:
 - **Stock:** name (the wood: oak, cherry…), spindle speed, feed, plunge feed, step-down and stepover
   (% of the bit diameter).
 - **Surfacing bits:** name and diameter.
+
+On a phone each one is a card instead of a table row (name, then the values
+with their titles, then Save and Delete), so nothing needs scrolling sideways;
+Import and Export are just their icons there.
 
 In both:
 
@@ -1050,6 +1065,7 @@ job once the program's line number starts moving up).
 | The job ends | **Job finished** with the time it took, or **Job stopped** (by E-stop, or by hand in TNG) at line … of …, with how far it got. | the timelapse, or else a photo |
 | TNG stops answering during a job | No update from TNG for 3 seconds: check the machine. | no |
 | Raspberry Pi warning | Under-voltage, throttling, or the Pi getting hot (75 °C and up), and when it's back to normal. | no |
+| Air quality high | With the [air quality](#air-quality) set up: a sensor reached its "high" range (PM2.5 50 µg/m³, PM10 100, VOC index 250, NOx index 150: where its ring turns red), with the value and what to do. One message for the sensors that went high together; a sensor warns again only after going back below 80 % of its limit, and at most every 30 minutes. Also in the Console. | no |
 | The Pi has started | **Raspberry Pi started**: the server is running again after a boot (sent once the network is up). | no |
 | The app was updated | **Observatory updated** (or **rolled back**): the old and new version and the latest change, after an update from the dashboard or `update.sh`. | no |
 | The Pi reboots or shuts down | From the System page: **Rebooting** / **Shutting down** and who asked. Otherwise (over SSH, a power-off command): **Observatory is stopping**, just before. | no |
@@ -1113,7 +1129,9 @@ Optional, also with BotFather: `/setuserpic` gives the bot a picture,
    your **chat id**, a number.
 2. In the dashboard, press **Refresh** under Telegram. Your chat appears in
    the list with your name and the chat id. Press **Use**.
-   (You can also type the chat id in **Chat** and press **Save**.)
+   (You can also type the chat id in **Chat** and press **Save**. Once saved,
+   the token and chat fields are empty again, greyed "saved": the bot and the
+   chat show in the line under them.)
 3. The status line turns green: **messages go to chat …**
 
 **4. Test it.** Press **Send test message**. Within a few seconds, a message
@@ -1127,7 +1145,7 @@ with the machine's status and a camera photo arrives in Telegram.
 | **Or by time** | Also a progress message every 5, 10, 15, 30 or 60 minutes, or not by time. Whichever of the two comes first sends the message. Each message (or a resume) restarts the clock, and a percentage step that comes soon after a timed message is skipped, so they don't come in pairs. Both off: no progress messages. | not by time |
 | **One progress message** | Each progress message replaces the previous one, and the last goes when the job ends, so a job leaves only its start and its end (and any pause or E-stop) in the chat. Off: every progress message stays. | on |
 | **A camera photo with each message** | Messages come as a photo with the text under it. | on |
-| **Messages** | A table with, for each kind of message above (job started, progress, paused, resumed, E-stop, job finished or stopped, TNG not reachable, Raspberry Pi warnings, updates / start-up / shut-down of the Pi), a **Send** box (unticked: that message is never sent) and a **Silent** box (no sound or vibration). | all sent; progress and resumed silent |
+| **Messages** | A table with, for each kind of message above (job started, progress, paused, resumed, E-stop, job finished or stopped, TNG not reachable, Raspberry Pi warnings, air quality high, updates / start-up / shut-down of the Pi), a **Send** box (unticked: that message is never sent) and a **Silent** box (no sound or vibration). | all sent; progress and resumed silent |
 | **A timelapse video of each job** | See [Timelapse](#timelapse). | on |
 | **Photo** (timelapse) | How often a timelapse photo is taken. | every 10 s |
 

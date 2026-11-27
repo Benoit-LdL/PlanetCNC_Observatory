@@ -187,15 +187,16 @@ function renderNotify(d) {
     // Don't overwrite what is being typed (as in the other forms: MQTT, air quality).
     if (!$('tgForm').contains(document.activeElement)) {
       $('tgToken').value = '';
-      $('tgChat').value = t.chat || '';
+      $('tgChat').value = '';   // shown in the status line below, like the bot
     }
     $('tgToken').placeholder = t.token_set ? 'saved – paste a new one to change it' : '123456:ABC-…';
+    $('tgChat').placeholder = t.chat ? 'saved – paste a new one to change it' : 'chat id';
     $('tgClearBtn').hidden = !t.token_set;
     $('tgChats').innerHTML = t.chats.map((c) =>
       `<li><span>${esc(c.name)}</span><code>${esc(c.id)}</code>` +
       (c.id === t.chat ? '<b>in use</b>' : `<button class="vbtn" type="button" data-chat="${esc(c.id)}">Use</button>`) +
       '</li>').join('');
-    const status = !t.token_set ? ['Off: no bot token.', '']
+    const status = !t.token_set ? [`Off: no bot token.${t.chat ? ` Chat ${t.chat} saved.` : ''}`, '']
       : t.error ? [`Not connected: ${t.error}.`, 'err']
       : !t.bot ? ['Connecting to Telegram…', '']
       : !t.chat ? [`Connected as @${t.bot}. Send /start to it in Telegram, then press Refresh and choose your chat.`, '']
@@ -220,9 +221,12 @@ function renderNotify(d) {
 // Saved together with Save, like the other forms (MQTT, air quality)
 $('tgForm').addEventListener('submit', (e) => {
   e.preventDefault();
-  const changes = { telegram_chat: $('tgChat').value.trim() };
-  const token = $('tgToken').value.trim();
-  if (token) changes.telegram_token = token;   // empty: keep the saved token
+  // An empty field keeps what is saved (Remove bot forgets both; Use picks another chat)
+  const changes = {};
+  const token = $('tgToken').value.trim(), chat = $('tgChat').value.trim();
+  if (token) changes.telegram_token = token;
+  if (chat) changes.telegram_chat = chat;
+  if (!token && !chat) { setMessage('Nothing to save: paste a new token or chat id first.'); return; }
   document.activeElement?.blur();
   settingsSave(changes);
 });

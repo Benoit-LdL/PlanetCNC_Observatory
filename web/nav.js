@@ -115,27 +115,17 @@ export function airHealth(air) {
   const status = air.error ? { level: 'err', text: 'No data: ' + air.error }
     : air.age == null ? { level: 'off', text: 'Waiting for Home Assistant' }
     : air.stale ? { level: 'warn', text: `Old data: last reading ${Math.round(air.age)} s ago` }
-    : { level: ['', 'warn', 'err'][worst], text: ['Good', 'Elevated', 'Poor'][worst] };
+    : { level: ['', 'warn', 'err'][worst], text: ['Good', 'Raised', 'High'][worst] };   // as the popups' ranges
   const title = `Air quality: ${status.text}` + (t != null ? `\nTemperature ${Math.round(t)} °C` : '')
     + (h != null ? `\nHumidity ${Math.round(h)} %` : '');
   return { gauges, status, climate, title,
-           temp: t != null ? Math.round(t) + '°' : null, hum: h != null ? Math.round(h) + ' %' : null };
+           temp: t != null ? Math.round(t) + '°' : null, hum: h != null ? Math.round(h) + ' %' : null,
+           fresh: !air.error && air.age != null && !air.stale };   // only fresh values raise the alert (topbar-boot.js)
 }
 
-/** The air rings everywhere they are, and the dashboard's Air card (shown on a phone only). */
+/** The air rings everywhere they are: the menu, and on a phone the air button in the top bar (topbar-boot.js). */
 function renderAir(air) {
   window.airGauges?.(air);
-  const card = document.getElementById('airCard');
-  if (card) {
-    card.hidden = !air;
-    if (air) {
-      const st = document.getElementById('airCardStatus');
-      st.dataset.level = air.status.level;
-      st.textContent = air.status.text.split(':')[0];
-      st.title = air.status.text;
-      document.getElementById('airCardClimate').innerHTML = window.climateHtml(air, ' · ');
-    }
-  }
   saveTopbar({ air });
 }
 

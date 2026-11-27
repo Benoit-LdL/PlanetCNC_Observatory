@@ -31,8 +31,10 @@ function libraryTable(card, cfg) {
   // The header and the row to add one, from the keys
   $('head').innerHTML = '<th>Name</th>' + cfg.keys.map(([, label, unit]) =>
     `<th>${esc(label)}${unit ? ` <span class="unit">${esc(unit)}</span>` : ''}</th>`).join('') + '<th></th>';
-  $('add').innerHTML = `<td><input class="name" data-k="name" placeholder="New ${esc(cfg.what)}" maxlength="40" aria-label="Name"></td>`
-    + cfg.keys.map(([k, label]) => `<td>${numInput(k, label)}</td>`).join('')
+  // Each value cell carries its column's title (data-label): on a phone the rows are cards, the titles shown in them
+  const cellLabel = (label, unit) => esc(label + (unit ? ` (${unit})` : ''));
+  $('add').innerHTML = `<td class="name-cell"><input class="name" data-k="name" placeholder="New ${esc(cfg.what)}" maxlength="40" aria-label="Name"></td>`
+    + cfg.keys.map(([k, label, unit]) => `<td data-label="${cellLabel(label, unit)}">${numInput(k, label)}</td>`).join('')
     + '<td class="acts"><button class="vbtn tonal" type="button" data-role="addBtn">Add</button></td>';
 
   async function load() {
@@ -56,8 +58,8 @@ function libraryTable(card, cfg) {
     const names = Object.keys(items).sort((a, b) => a.localeCompare(b));
     $('rows').innerHTML = names.length ? names.map((n) => `
       <tr data-name="${esc(n)}">
-        <td><input class="name" data-k="name" maxlength="40" value="${esc(n)}" aria-label="Name"></td>
-        ${cfg.keys.map(([k, label]) => `<td>${numInput(k, label, items[n][k] ?? '')}</td>`).join('')}
+        <td class="name-cell"><input class="name" data-k="name" maxlength="40" value="${esc(n)}" aria-label="Name"></td>
+        ${cfg.keys.map(([k, label, unit]) => `<td data-label="${cellLabel(label, unit)}">${numInput(k, label, items[n][k] ?? '')}</td>`).join('')}
         <td class="acts"><button class="vbtn primary" type="button" data-save disabled>Save</button><button class="vbtn text danger" type="button" data-delete>Delete</button></td>
       </tr>`).join('')
       : `<tr><td colspan="${KEYS.length + 2}" class="mt-empty">${esc(cfg.empty)}</td></tr>`;

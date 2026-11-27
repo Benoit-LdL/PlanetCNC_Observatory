@@ -36,6 +36,7 @@ export class Viewer {
     // Draw only when something changed: a big toolpath redrawn 60 times a second makes laptops crawl.
     this.dirty = true;
     this.controls.addEventListener('change', () => { this.dirty = true; });
+    this._twoFingers();
 
     this.scene.add(new THREE.AmbientLight(0xffffff, 0.6));
     const sun = new THREE.DirectionalLight(0xffffff, 1.2);
@@ -67,6 +68,47 @@ export class Viewer {
     this._resize();
     this.setView('3d');
     this.renderer.setAnimationLoop(() => this._render());
+  }
+
+  /** Touch screens: one finger scrolls the page, two fingers move the view, so a view as wide as a phone
+   *  doesn't catch the page's scrolling. The browser scrolls vertically (touch-action: pan-y) unless two
+   *  fingers are down; one finger dragging sideways (trying to turn the view) shows a short hint. The
+   *  mouse is unchanged. */
+  _twoFingers() {
+    const el = this.renderer.domElement;
+    this.controls.touches.ONE = null;          // nothing: the page scrolls
+    el.style.touchAction = 'pan-y';            // OrbitControls sets 'none'
+    let start = null, hinted = false;
+    el.addEventListener('touchstart', (e) => {
+      start = e.touches.length === 1 ? [e.touches[0].clientX, e.touches[0].clientY] : null;
+      hinted = false;
+    }, { passive: true });
+    el.addEventListener('touchmove', (e) => {
+      if (e.touches.length >= 2) {             // the view's gesture, not a scroll
+        if (e.cancelable) e.preventDefault();
+        start = null;
+        return;
+      }
+      if (!start || hinted) return;
+      const dx = e.touches[0].clientX - start[0], dy = e.touches[0].clientY - start[1];
+      if (Math.abs(dx) > 24 && Math.abs(dx) > 1.5 * Math.abs(dy)) {
+        hinted = true;
+        this._hint('Use two fingers to move the view');
+      }
+    }, { passive: false });
+  }
+
+  _hint(text) {
+    if (!this.hintEl) {
+      this.hintEl = document.createElement('div');
+      this.hintEl.className = 'view-hint';
+      this.hintEl.setAttribute('role', 'status');
+      this.container.appendChild(this.hintEl);
+    }
+    this.hintEl.textContent = text;
+    this.hintEl.classList.add('show');
+    clearTimeout(this.hintTimer);
+    this.hintTimer = setTimeout(() => this.hintEl.classList.remove('show'), 1800);
   }
 
   // ---------------- scene setup ----------------
@@ -468,6 +510,9 @@ export class Viewer {
       this.controls.object = cam;
     }
     this.controls.enableRotate = !useOrtho;
+    // Two fingers on a touch screen (one scrolls the page): pinch zooms; dragging turns the 3D view, and
+    // moves the flat views (Top, Front, Right), which don't turn
+    this.controls.touches.TWO = useOrtho ? THREE.TOUCH.DOLLY_PAN : THREE.TOUCH.DOLLY_ROTATE;
     this._resize();
     this.fit();
   }

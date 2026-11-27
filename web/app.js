@@ -579,7 +579,7 @@ let tngLoad = 'TNG is not connected';
 function syncLoadButtons() {
   for (const b of $('filesList').querySelectorAll('[data-load]')) {
     b.disabled = !!tngLoad;
-    b.title = tngLoad || 'Load in TNG (it does not start it)';
+    b.title = tngLoad || 'Load into machine (TNG; it does not start it)';
   }
 }
 
@@ -631,7 +631,7 @@ async function filesLoad(path) {
     }
     const acts = [
       GCODE_RE.test(e.name) ? `<button class="ficon" data-preview="${p}" title="Preview in 3D view">${ICONS.view}</button>` : '',
-      GCODE_RE.test(e.name) ? `<button class="ficon" data-load="${p}" title="Load in TNG (it does not start it)">${ICONS.load}</button>` : '',
+      GCODE_RE.test(e.name) ? `<button class="ficon" data-load="${p}" title="Load into machine (TNG; it does not start it)">${ICONS.load}</button>` : '',
       GCODE_RE.test(e.name) ? `<button class="ficon" data-tune="${p}" title="Feeds &amp; steps: change feeds and step height (saved as a new file)">${ICONS.tune}</button>` : '',
       `<a class="ficon" href="/api/files/download?path=${encodeURIComponent(rel)}" download title="Download">${ICONS.down}</a>`,
       `<button class="ficon del" data-delete="${p}" title="Delete">${ICONS.del}</button>`,
@@ -725,7 +725,7 @@ filesPanel.addEventListener('click', async (e) => {
   else if (b.dataset.load) {
     const path = b.dataset.load;
     const name = path.split('/').pop();
-    filesMessage(`Loading ${name} in TNG…`);
+    filesMessage(`Loading ${name} into the machine…`);
     b.disabled = true;
     let res;
     try {
@@ -738,7 +738,7 @@ filesPanel.addEventListener('click', async (e) => {
       res = { ok: false, message: UNREACHABLE };
     }
     syncLoadButtons();
-    filesMessage(res.ok && res.loaded ? `Loaded ${name} in TNG: start it at the machine.`
+    filesMessage(res.ok && res.loaded ? `Loaded ${name} into the machine: start it there.`
       : res.ok ? `${res.message}: check TNG` : `Could not load ${name} in TNG: ${res.message || 'failed'}`,
     res.ok && res.loaded ? 'ok' : 'err');
   }

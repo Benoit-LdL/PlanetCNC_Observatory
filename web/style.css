@@ -383,7 +383,7 @@ input.bad { border-color: var(--md-error) !important; box-shadow: inset 0 0 0 1p
 .sys-power[data-level="warn"]::before { background: var(--md-warning); }
 .sys-power[data-level="err"]::before { background: var(--md-error); }
 /* The dashboard's Pi card: on a phone only (on a larger screen the rings are in the menu) */
-@media (min-width: 701px) { #sys, #airCard { display: none !important; } }
+@media (min-width: 701px) { #sys { display: none !important; } }
 .sys-power[data-level="off"]::before { background: var(--md-outline); }
 
 /* The Raspberry Pi's health as rings (topbar-boot.js draws them, nav.js fills them in) */
@@ -405,6 +405,52 @@ input.bad { border-color: var(--md-error) !important; box-shadow: inset 0 0 0 1p
 /* The air quality, the same rings above the Pi's in the menu (topbar-boot.js, nav.js) */
 .air-gauges { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .rail .air-gauges { margin-top: auto; padding: 10px 0 4px; width: 72px; user-select: none; }
+/* The air alert (topbar-boot.js): beside the menu's air rings on the dashboard and the Surfacing page while a
+   value is raised or high, framed in red and white hazard tape that blinks when one is high */
+.air-alert { --tape: repeating-linear-gradient(-45deg, #e53935 0 8px, #ffffff 8px 16px);
+             position: fixed; z-index: 900; padding: 5px; border-radius: 12px; background: var(--tape);
+             box-shadow: 0 4px 16px rgba(0, 0, 0, .3); max-width: min(260px, calc(100vw - 16px)); }
+.air-alert[hidden] { display: none; }
+.air-alert.inline { position: static; max-width: none; box-shadow: none; margin-bottom: 4px; }
+.air-alert.high { animation: tape-blink 1s steps(1) infinite; }
+/* The air button in the top bar, on a phone only (topbar-boot.js): the worst reading's colour, hazard tape
+   around it while the air alert is on; a tap opens the air panel under the top bar */
+.air-btn, .air-panel { display: none; }
+@media (max-width: 700px) {
+  .air-btn { display: grid; place-items: center; width: 40px; height: 40px; flex: none; padding: 0; border-radius: 50%;
+             border: 3px solid transparent; cursor: pointer; color: var(--md-success);
+             background: var(--md-surface-container-high) padding-box; }
+  .air-btn[hidden] { display: none; }
+  .air-btn[data-level="warn"] { color: var(--md-warning); }
+  .air-btn[data-level="err"] { color: var(--md-error); }
+  .air-btn[data-level="off"] { color: var(--md-outline); }
+  .air-btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .air-btn.alert { background: linear-gradient(var(--md-surface-container-high), var(--md-surface-container-high)) padding-box,
+                                repeating-linear-gradient(-45deg, #e53935 0 5px, #ffffff 5px 10px) border-box; }
+  .air-btn.alert.high { animation: tape-blink-btn 1s steps(1) infinite; }
+  .air-btn[aria-expanded="true"] { box-shadow: 0 0 0 2px var(--md-primary); }
+  .air-panel { display: flex; flex-direction: column; gap: 8px; position: fixed; z-index: 950; left: 8px; right: 8px;
+               padding: 4px 16px 16px; border-radius: 16px; background: var(--md-surface-container-high);
+               box-shadow: 0 6px 24px rgba(0, 0, 0, .35); }
+  .air-panel[hidden] { display: none; }
+  .air-panel .air-alert.inline { margin: 0; }
+}
+@keyframes tape-blink-btn { 50% { background: linear-gradient(var(--md-surface-container-high), var(--md-surface-container-high)) padding-box,
+                                              linear-gradient(#e53935, #e53935) border-box; } }
+@media (prefers-reduced-motion: reduce) { .air-btn.alert.high { animation: none; } }
+@keyframes tape-blink { 50% { background: #e53935; } }   /* the tape, then plain red: the same red in both themes */
+@media (prefers-reduced-motion: reduce) { .air-alert.high { animation: none; } }
+.air-alert-in { position: relative; padding: 8px 32px 8px 12px; border-radius: 8px; background: var(--md-surface-container-highest);
+                color: var(--md-on-surface); font-size: 13px; line-height: 1.4; }
+.air-alert-head { display: block; font-size: 13px; margin-bottom: 2px; }
+.air-alert ul { margin: 0; padding: 0; list-style: none; }
+.air-alert li { white-space: nowrap; }
+.air-alert li b { font-weight: 600; }
+.air-alert li span { font-size: 12px; font-weight: 600; color: var(--md-warning); }
+.air-alert li.err span { color: var(--md-error); }
+.air-alert-x { position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%;
+               background: none; color: var(--md-on-surface-variant); font: 18px/1 var(--font); cursor: pointer; }
+.air-alert-x:hover { background: var(--md-surface-container-high); color: var(--md-on-surface); }
 /* Each air ring explains its value in a popup (topbar-boot.js), on hover, focus or a tap */
 .air-gauges .gauge { cursor: help; border-radius: 8px; }
 .air-gauges .gauge:focus-visible { outline: 2px solid var(--md-primary); outline-offset: 2px; }
@@ -466,6 +512,11 @@ input.bad { border-color: var(--md-error) !important; box-shadow: inset 0 0 0 1p
 .preview-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .preview-text .muted { color: inherit; opacity: .8; }
 .viewport { flex: 1; min-height: 0; position: relative; margin: 0 8px; border-radius: 12px; overflow: hidden; background: var(--view-bg); }
+/* On a touch screen, one finger dragging sideways over the 3D view: two fingers move it (viewer.js) */
+.view-hint { position: absolute; left: 50%; top: 50%; z-index: 2; transform: translate(-50%, -50%); padding: 8px 16px;
+             border-radius: 20px; background: rgba(0, 0, 0, .7); color: #fff; font-size: 14px; white-space: nowrap;
+             pointer-events: none; opacity: 0; transition: opacity .2s; }
+.view-hint.show { opacity: 1; }
 .viewport canvas { display: block; width: 100%; height: 100%; }
 /* Fit and Open file, in the top-right corner of the 3D view */
 .viewport-tools { position: absolute; top: 8px; right: 8px; z-index: 1; display: flex; flex-direction: column; gap: 6px; }
@@ -900,7 +951,15 @@ span.ptab::after { display: none; }
   flex: none; width: 18px; height: 18px; padding: 6px; box-sizing: content-box; border-radius: 10px;
   fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
   color: var(--md-on-primary-container); background: var(--md-primary-container); }
-.pl-row { display: grid; grid-template-columns: minmax(0, 1fr) 140px; align-items: center; gap: 12px; min-height: 44px; }
+.pl-row { display: grid; grid-template-columns: minmax(0, 1fr) 140px; align-items: center; gap: 12px; min-height: 44px; position: relative; }
+/* A value that differs from the picked stock or bit: amber, with a ↺ before it that puts the saved one back */
+.pl-row input.changed { border-color: var(--md-warning); }
+.pl-revert { position: absolute; right: calc(140px + 2px); top: 50%; transform: translateY(-50%); display: grid; place-items: center;
+             width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--md-warning); cursor: pointer; }
+.pl-revert[hidden] { display: none; }
+.pl-revert:hover { background: color-mix(in srgb, var(--md-warning) 16%, transparent); }
+.pl-revert:focus-visible { outline: 2px solid var(--md-primary); }
+.pl-revert svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 .pl-row label { font-size: 15px; line-height: 20px; }
 .pl-row .unit { display: block; color: var(--md-on-surface-variant); font-size: 12px; line-height: 16px; }
 .pl-row input, .pl-row select { width: 100%; height: 40px; padding: 0 10px; font: 15px var(--mono); }
@@ -931,7 +990,9 @@ span.ptab::after { display: none; }
 .tg-ev > span + span { justify-self: center; }
 .tg-ev input { width: 18px; height: 18px; accent-color: var(--md-primary); cursor: pointer; }
 .tg-ev input:disabled { cursor: default; opacity: .4; }
-.pl-load { width: 100%; justify-content: center; }
+/* Save and Load into machine: side by side, the same size */
+.pl-acts { display: flex; gap: 8px; }
+.pl-acts .vbtn { flex: 1 1 0; min-width: 0; justify-content: center; }
 .pl-msg { font-size: 13px; min-height: 18px; }
 .pl-msg:empty { display: none; }
 .pl-msg.ok { color: var(--md-success); }
@@ -959,6 +1020,31 @@ table.mt.narrow .acts { width: auto; }   /* a 1% cell would stretch the table to
 .mt input.name { min-width: 150px; font-family: var(--font); font-size: 15px; font-weight: 500; }
 .mt .acts { white-space: nowrap; text-align: right; width: 1%; }
 .mt .acts .vbtn { height: 36px; }
+/* On a phone each stock and bit is a card, everything visible without scrolling sideways: the name across the
+   top, the values two per row with their titles (data-label, materials.js), Save and Delete at the bottom */
+@media (max-width: 700px) {
+  .page-body { padding: 0 12px 16px; }
+  .mt-wrap { overflow: visible; }
+  table.mt, table.mt.narrow, table.mt tbody, table.mt tfoot { display: block; width: 100%; min-width: 0; }
+  table.mt thead { display: none; }
+  table.mt tr { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; padding: 12px; margin-bottom: 8px;
+                border-radius: 12px; background: var(--md-surface-container); }
+  table.mt tr.changed { background: var(--md-surface-container-highest); }
+  table.mt tr.add-row { background: none; border: 1px dashed var(--md-outline); }
+  table.mt td, table.mt tbody td, table.mt tr.add-row td { display: flex; flex-direction: column; gap: 4px; min-width: 0;
+                padding: 0; background: none; border-radius: 0; }
+  table.mt tr.changed td { background: none; }
+  table.mt td[data-label]::before { content: attr(data-label); font-size: 12px; line-height: 16px; color: var(--md-on-surface-variant); }
+  table.mt td.name-cell, table.mt td.acts, table.mt td.mt-empty { grid-column: 1 / -1; }
+  table.mt td.acts { flex-direction: row; justify-content: flex-end; gap: 8px; width: auto; }
+  table.mt input, table.mt.narrow input.name, table.mt.narrow input:not(.name) { width: 100%; min-width: 0; }
+  table.mt tbody input, table.mt tbody input:hover { border-color: var(--md-outline-variant); }
+  /* Import and Export as just their icons, so a card's title stays on one line */
+  .card-h { gap: 8px; padding: 8px 8px 8px 16px; }
+  .card-h .vbtn .btn-label { display: none; }
+  .card-h h2 { font-size: 19px; white-space: nowrap; min-width: 0; }
+  .card-h .vbtn { width: 40px; padding: 0; justify-content: center; }
+}
 .mt .acts .vbtn + .vbtn { margin-left: 4px; }
 .mt-empty { color: var(--md-on-surface-variant); padding: 16px 8px; }
 .mt-msg { font-size: 13px; min-height: 18px; margin-top: 8px; }
@@ -1003,8 +1089,7 @@ table.mt.narrow .acts { width: auto; }   /* a 1% cell would stretch the table to
   .pos-card { order: 3; }
   .job-card { order: 4; }
   .code-panel { order: 5; }
-  #airCard { order: 6; }
-  #sys { order: 7; }
+  #sys { order: 6; }
   /* Position is only read, not edited: smaller type, less padding */
   .pos-card { padding-bottom: 8px; }
   .pos-card .card-head { min-height: 40px; padding: 2px 6px 2px 12px; }

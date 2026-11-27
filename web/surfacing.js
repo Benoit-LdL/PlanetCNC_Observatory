@@ -481,9 +481,42 @@ function library(cfg) {
     sel.value = names.includes(cur) ? cur : '';
     syncDelete();
   };
+  // Each value that differs from the picked stock or bit: an amber field and a ↺ button that puts the saved
+  // value back (as OrcaSlicer does); "Changed" next to the title while any differs
+  const revertBtn = (k, f) => {
+    let b = $(f).parentNode.querySelector('.pl-revert');
+    if (!b) {
+      b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'pl-revert';
+      b.hidden = true;
+      b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
+      b.addEventListener('click', () => {
+        const it = lib.items[sel.value];
+        if (!it) return;
+        $(f).value = it[k];
+        $(f).dispatchEvent(new Event('input', { bubbles: true }));   // builds the program again
+        $(f).focus();
+      });
+      $(f).before(b);
+    }
+    return b;
+  };
   lib.showChanged = (p) => {
     const it = lib.items[sel.value];
-    $(cfg.changed).hidden = !it || keys.every(([k, f]) => it[k] === p[f]);
+    let any = false;
+    for (const [k, f] of keys) {
+      const differs = !!it && it[k] !== p[f];
+      any = any || differs;
+      const b = revertBtn(k, f);
+      b.hidden = !differs;
+      if (differs) {
+        b.title = `Back to ${sel.value}'s value: ${it[k]}`;
+        b.setAttribute('aria-label', b.title);
+      }
+      $(f).classList.toggle('changed', differs);
+    }
+    $(cfg.changed).hidden = !any;
   };
   lib.load = async (pick) => {
     try {
@@ -597,7 +630,7 @@ function syncButtons() {
     : !ready ? 'Fix the values marked in red first' : 'Save the program in the Files folder';
   $('loadBtn').disabled = !ready || !!tngLoad;
   $('loadBtn').title = tngLoad || (busy ? 'Busy…' : !ready ? 'Fix the values marked in red first'
-    : 'Load the program in TNG without saving it (it does not start it)');
+    : 'Load the program into the machine (TNG) without saving it (it does not start it)');
 }
 
 async function showFolder() {
@@ -654,7 +687,7 @@ async function withButtons(work) {
 
 $('saveBtn').addEventListener('click', () => withButtons(async () => {
   const name = await saveProgram();
-  if (name) message(`Saved ${esc(name)}. Load it in TNG to run it.`, 'ok');
+  if (name) message(`Saved ${esc(name)}. Load it into the machine to run it.`, 'ok');
 }));
 
 $('loadBtn').addEventListener('click', () => withButtons(async () => {
@@ -663,16 +696,16 @@ $('loadBtn').addEventListener('click', () => withButtons(async () => {
   if (!/\.[a-z0-9]{1,5}$/i.test(name)) name += '.nc';
   // The program carries the date it was made: rebuild it now, with the values on screen
   const text = planSurfacing(lastParams, { travel: bed }).text;
-  message('Loading in TNG…');
+  message('Loading into the machine…');
   const res = await fetchJson('/api/tng/send', { method: 'POST', headers: writeHeaders, body: JSON.stringify({ name, text }) });
   if (res.ok && res.loaded) {
-    message(`Loaded ${esc(name)} in TNG (not saved): start it at the machine.`, 'ok');
+    message(`Loaded ${esc(name)} into the machine (not saved): start it there.`, 'ok');
     log.info(`surfacing: sent ${name} to TNG (${plan.info.passes} passes, ${fmt(plan.info.depth)} mm)`);
   } else if (res.ok) {
     message(`${esc(res.message)}: check TNG.`, 'err');
   } else {
     log.warn(`surfacing: sending ${name} to TNG failed:`, res.message);
-    message(`Could not load it in TNG: ${esc(res.message || 'failed')}`, 'err');
+    message(`Could not load it into the machine: ${esc(res.message || 'failed')}`, 'err');
   }
 }));
 
