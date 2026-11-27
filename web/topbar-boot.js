@@ -287,6 +287,17 @@
               [45, 'Raised: run the dust extraction, ventilate'], [100, 'High: dust extraction and a mask']],
       measured: true, who: [45, 15],
     },
+    // No WHO guideline of their own: no table, and no colour on the ring (PM2.5 and PM10 include them)
+    pm1: {
+      name: 'PM1', unit: 'µg/m³',
+      text: 'The finest dust, up to 1 µm: smoke and the finest sanding dust. It reaches deepest into the lungs.',
+      foot: 'No WHO guideline of its own: it is part of PM2.5, whose ring turns amber and red.',
+    },
+    pm4: {
+      name: 'PM4', unit: 'µg/m³',
+      text: 'Dust up to 4 µm, between PM2.5 and PM10 (PM2.5 included).',
+      foot: 'No WHO guideline of its own: it is part of PM10, whose ring turns amber and red.',
+    },
   };
 
   var gaugePop = null;   // {el: the ring, box: the popup}
@@ -315,10 +326,10 @@
       h += '</table>';
     }
     h += '<p>' + esc(info.text) + '</p>';
-    // One footnote: the caveat, PM1 / PM4 with the dust, and the source last
-    var foot = info.who ? 'Short peaks while sanding are normal: the guidelines are averages.' + (g.also ? ' ' + g.also + '.' : '')
+    // One footnote: the caveat, and the source last
+    var foot = info.who ? 'Short peaks while sanding are normal: the guidelines are averages.'
       + ' Source: WHO 2021 guidelines, ' + info.who[0] + ' ' + info.unit + ' over 24 h, ' + info.who[1] + ' over a year.'
-      : info.foot + ' Source: ' + info.source + '.';
+      : info.foot + (info.source ? ' Source: ' + info.source + '.' : '');
     h += '<p class="gp-foot">' + esc(foot) + '</p>';
     return h;
   }

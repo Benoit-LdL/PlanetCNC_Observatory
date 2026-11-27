@@ -575,8 +575,9 @@ bottom without room for it: the **air** button in the top bar takes its place
 a panel with the status, temperature and humidity, the alert (below) and the
 rings. A tap elsewhere closes it.
 
-- Four rings: **PM2.5** and **PM10** fine dust (µg/m³), and the **VOC** and
-  **NOx** indexes. Under the rings: temperature and humidity.
+- Up to six rings: **PM1**, **PM2.5**, **PM4** and **PM10** dust (µg/m³), and
+  the **VOC** and **NOx** indexes (PM1 and PM4 only when set up in Settings).
+  Under the rings: temperature and humidity.
 - Hover over a ring (tap it on a phone) for what its value means:
   - **VOC** and **NOx**: what the index compares against (VOC 100 = the
     room's average of the last 24 hours, NOx 1 = clean air), typical sources,
@@ -588,8 +589,10 @@ rings. A tap elsewhere closes it.
     highlighted (PM2.5: 0–5 clean, 5–15 fine, 15–50 raised, 50+ high; PM10:
     0–15, 15–45, 45–100, 100+), built on the WHO 2021 guidelines (PM2.5
     15 µg/m³ over 24 hours and 5 over a year; PM10 45 and 15). Those are
-    averages, not limits for one reading. The PM2.5 popup also gives PM1, the
-    PM10 popup PM4.
+    averages, not limits for one reading.
+  - **PM1** and **PM4**: what they measure. The WHO gives no guideline for
+    them, so they have no table and their rings don't change colour: they are
+    part of PM2.5 and PM10, which do.
 - A ring turns amber (raised) or red (high) from PM2.5 15 / 50 and PM10 45 / 100
   (amber from the WHO 2021 24-hour guideline, red far above it), VOC 150 / 250
   (100 is the room's usual air) and NOx 20 / 150 (1 is clean air).

@@ -79,15 +79,19 @@ function renderPi(pi) {
 // Air quality (a SEN55 read from Home Assistant, state.air). Each ring: the sensor, its full scale,
 // amber from, red from. Dust in µg/m³: amber from the WHO 2021 24-hour guideline (PM2.5 15, PM10 45),
 // red from 50 and 100, far above it. VOC and NOx are Sensirion indexes from 1 to 500: VOC 100 is the
-// room's usual air, NOx 1 is clean air; both rise with pollution.
+// room's usual air, NOx 1 is clean air; both rise with pollution. PM1 and PM4 have no WHO guideline and
+// are part of PM2.5 and PM10 (which turn amber and red for them), so they stay uncoloured. In pairs, as
+// the short window's menu lays them out two per row: PM1 PM2.5, PM4 PM10, VOC NOx.
 const AIR_RINGS = [
-  ['pm25', 'PM2.5', 100, 15, 50, 'pm1', 'PM1'],
-  ['pm10', 'PM10', 150, 45, 100, 'pm4', 'PM4'],
+  ['pm1', 'PM1', 100],
+  ['pm25', 'PM2.5', 100, 15, 50],
+  ['pm4', 'PM4', 150],
+  ['pm10', 'PM10', 150, 45, 100],
   ['voc', 'VOC', 500, 150, 250],
   ['nox', 'NOx', 500, 20, 150],
 ];
-const AIR_TIPS = { pm25: 'Fine dust', pm10: 'Dust', voc: 'VOC index (solvents, glue, finishes, burning wood; 100 = usual)',
-  nox: 'NOx index (combustion gases; 1 = clean)' };
+const AIR_TIPS = { pm1: 'Ultrafine dust', pm25: 'Fine dust', pm4: 'Dust up to 4 µm', pm10: 'Dust',
+  voc: 'VOC index (solvents, glue, finishes, burning wood; 100 = usual)', nox: 'NOx index (combustion gases; 1 = clean)' };
 
 const fmtAir = (key, v) => v == null ? '–' : key.startsWith('pm') && v < 10 ? v.toFixed(1) : String(Math.round(v));
 
@@ -96,18 +100,16 @@ export function airHealth(air) {
   if (!air) return null;
   const vals = air.values || {};
   let worst = 0;
-  const gauges = AIR_RINGS.filter(([key]) => vals[key]).map(([key, label, full, warnAt, errAt, alsoKey, alsoLabel]) => {
+  const gauges = AIR_RINGS.filter(([key]) => vals[key]).map(([key, label, full, warnAt, errAt]) => {
     const v = vals[key].v;
-    const lvl = v == null ? 0 : v >= errAt ? 2 : v >= warnAt ? 1 : 0;
+    const lvl = v == null || warnAt == null ? 0 : v >= errAt ? 2 : v >= warnAt ? 1 : 0;
     worst = Math.max(worst, lvl);
     const unit = key.startsWith('pm') ? ' µg/m³' : '';
     let tip = `${label} ${fmtAir(key, v)}${v == null ? ' (no value)' : unit} – ${AIR_TIPS[key]}`;
     if (lvl) tip += lvl === 2 ? ' – bad' : ' – high';
-    const also = alsoKey && vals[alsoKey] ? `${alsoLabel} ${fmtAir(alsoKey, vals[alsoKey].v)}${unit}` : '';
-    if (also) tip += `\n${also}`;
-    // v, also, warnAt and errAt: for the popup that explains the value (topbar-boot.js)
+    // v, warnAt and errAt: for the popup that explains the value (topbar-boot.js)
     return { key, label, frac: v == null ? 0 : v / full, value: fmtAir(key, v), unit: '', level: ['', 'warn', 'err'][lvl], tip,
-             v, also, warnAt, errAt };
+             v, warnAt, errAt };
   });
   const t = vals.temp?.v, h = vals.hum?.v;
   // Whole degrees and percent, side by side (the menu and the phone card's title)
