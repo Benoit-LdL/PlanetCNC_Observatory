@@ -888,7 +888,7 @@ settings in the panel on the right.
 
 | Field | What it is |
 |---|---|
-| Length (X), Width (Y) | The stock's size. **X0 Y0 is its front-left corner.** |
+| Width (X), Length (Y) | The stock's size. **X0 Y0 is its front-left corner.** |
 | Z zero | Picks the job, and the fields below change with it. **Top of the stock** surfaces the rough face: touch off Z on the highest point; the program cuts from Z0 down. **Spoilboard** brings stock that's already flat to a thickness: Z0 is the spoilboard and the stock top is at Z = its current thickness. |
 | Thickness (rough) | Top of the stock only. Just for drawing the stock and checking the depth fits in it, so a rough guess will do (15 mm by default). |
 | Depth to remove | Top of the stock only. In total, from Z0 down; less than the thickness. |
