@@ -3,7 +3,7 @@
 // name, status, E-stop and update dot as the previous page last showed them (kept in
 // sessionStorage by nav.js). With the page transition in style.css the bar and the menu stay
 // still when moving between pages; the page's own scripts take over from its first update.
-// It also runs the day / night button at the top left (the theme itself is set by theme-boot.js).
+// It also runs the day / night switch, the logo at the top left (the theme itself is set by theme-boot.js).
 (function () {
   var FILLED = { system: true };   // filled icons; the others are drawn as outlines
   var ICON = {
@@ -396,7 +396,9 @@
     }
   }, { capture: true, passive: true });
 
-  // Day / night
+  // Day / night: the logo at the top left is the switch (its turning wheel is in style.css, .logo-btn).
+  // The new theme spreads over the page in a circle growing from the logo, as a view transition; where
+  // the browser has none, or with reduced motion, it just switches.
   var root = document.documentElement;
   var btn = document.getElementById('themeBtn');
   function label() {
@@ -405,14 +407,27 @@
     btn.title = dark ? 'Switch to day mode' : 'Switch to night mode';
     btn.setAttribute('aria-label', btn.title);
   }
+  function setTheme(next) {
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('theme', next); } catch (e) { /* not remembered */ }
+    label();
+    document.dispatchEvent(new CustomEvent('themechange', { detail: next }));   // the 3D views recolour
+  }
   label();
   if (btn) {
     btn.addEventListener('click', function () {
       var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
-      root.setAttribute('data-theme', next);
-      try { localStorage.setItem('theme', next); } catch (e) { /* not remembered */ }
-      label();
-      document.dispatchEvent(new CustomEvent('themechange', { detail: next }));   // the 3D views recolour
+      var calm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (!document.startViewTransition || calm) { setTheme(next); return; }
+      var r = btn.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+      var end = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));   // to the farthest corner
+      root.classList.add('theme-anim');   // before the old picture is taken: the whole page in one (style.css)
+      var vt = document.startViewTransition(function () { setTheme(next); });
+      vt.ready.then(function () {
+        root.animate({ clipPath: ['circle(0px at ' + x + 'px ' + y + 'px)', 'circle(' + end + 'px at ' + x + 'px ' + y + 'px)'] },
+          { duration: 650, easing: 'cubic-bezier(.4, 0, .2, 1)', pseudoElement: '::view-transition-new(root)' });
+      }).catch(function () { /* skipped: the theme is switched all the same */ });
+      vt.finished.then(function () { root.classList.remove('theme-anim'); }, function () { root.classList.remove('theme-anim'); });
     });
   }
 

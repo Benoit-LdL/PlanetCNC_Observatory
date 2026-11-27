@@ -218,7 +218,7 @@ OS, and the Pi itself (here the demo running on a PC, with an update waiting).
 
 On a phone (here 390×844, an iPhone 14) the columns stack: camera, position
 and job first, then the 3D view, then the tabbed panel. The menu is at the
-bottom; the top bar keeps the day / night button, the logo, the status and the
+bottom; the top bar keeps the logo (the day / night switch), the status and the
 E-stop.
 
 To retake these after changing the page, see `tools/screenshots.py` (runs on a
@@ -274,7 +274,7 @@ default the server only accepts a bridge from the Pi itself.
 | `tools/screenshots.py` | Retakes the README screenshots from the demo (on a PC, not needed on the Pi). |
 | `tools/machine_model.py` | Makes the light machine model `web/machine/evo-m.glb` from the complete CAD export (on a PC, not needed on the Pi; see [The machine in the 3D view](#the-machine-in-the-3d-view)). |
 | `media/` | The animation and screenshots in this README. |
-| `web/` | The pages (HTML, CSS, JavaScript). `style.css` holds the look of every page, day and night; `theme-boot.js` sets the day / night mode before a page is drawn; `fonts/` are Roboto and Roboto Mono, `sky.svg` the faint stars behind the cards (moved by `topbar-boot.js` as the page scrolls). `tune.js` reads and rewrites programs for the Feeds & steps window; `system-ui.js` holds the E-stop button and the System page (`system.html`, `system.js`); `topbar-boot.js` draws the top bar and the menu (and runs the day / night button) before each page is shown, and `nav.js` keeps them current; `help.js` the **?** help popups in Settings; `settings.html` and `settings.js` the Settings page; `materials.html` and `materials.js` the Stock & Bit page (stocks and surfacing bits); `camera.html` is the camera page on its own; `surfacing.html`, `surfacing.js` and `surfacing-gcode.js` are the Surfacing page; `machine/evo-m.glb` is the machine drawn in the 3D view. |
+| `web/` | The pages (HTML, CSS, JavaScript). `style.css` holds the look of every page, day and night; `theme-boot.js` sets the day / night mode before a page is drawn; `fonts/` are Roboto and Roboto Mono, `sky.svg` the faint stars behind the cards (moved by `topbar-boot.js` as the page scrolls). `tune.js` reads and rewrites programs for the Feeds & steps window; `system-ui.js` holds the E-stop button and the System page (`system.html`, `system.js`); `topbar-boot.js` draws the top bar and the menu (and runs the day / night switch, the logo) before each page is shown, and `nav.js` keeps them current; `help.js` the **?** help popups in Settings; `settings.html` and `settings.js` the Settings page; `materials.html` and `materials.js` the Stock & Bit page (stocks and surfacing bits); `camera.html` is the camera page on its own; `surfacing.html`, `surfacing.js` and `surfacing-gcode.js` are the Surfacing page; `machine/evo-m.glb` is the machine drawn in the 3D view. |
 | `settings.json` | Created when you change a setting in the dashboard; it also holds the Telegram bot token, the MQTT password and the Home Assistant token, so only its owner may read it. Not part of git. |
 | `timelapses/` | The last 20 job timelapses. Not part of git. |
 | `tuning.json` | The Feeds tab's log of adjusted files. Not part of git. |
@@ -479,10 +479,13 @@ The top bar is the same on every page, and stays still when you move between
 pages (Edge, Chrome and Safari cross-fade the page below it; in other browsers
 the page simply loads).
 
-- The logo, **Observatory** and the machine's name (set in Settings), in the
-  top left corner; a click goes to the dashboard. On a phone only the logo shows.
-- The **day / night** button, next to it. Each browser remembers its
-  choice; at first it follows the computer's own setting.
+- The logo, in the top left corner, is the **day / night** switch: it is
+  moon-coloured at night and space-coloured by day. Hover over it and it starts
+  to turn, the other colour peeking in from the side; a click turns it the rest
+  of the way and the new mode spreads over the page from the logo. Each browser
+  remembers its choice; at first it follows the computer's own setting.
+- **Observatory** and the machine's name (set in Settings), next to it; a click
+  goes to the dashboard. On a phone only the logo shows.
 - On a phone, with the [air quality](#air-quality) set up: the **air** button,
   in the colour of the worst reading (see below).
 - The status:

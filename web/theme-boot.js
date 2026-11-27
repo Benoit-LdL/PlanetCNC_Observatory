@@ -1,5 +1,5 @@
 // Day or night, before the page is drawn (a plain script in <head>): what this browser chose with
-// the button at the top left, else what the computer is set to. topbar-boot.js runs the button.
+// the logo at the top left (the switch), else what the computer is set to. topbar-boot.js runs the switch.
 (function () {
   var t = null;
   try { t = localStorage.getItem('theme'); } catch (e) { /* no storage */ }

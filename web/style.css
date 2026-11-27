@@ -110,23 +110,23 @@ code { font-family: var(--mono); }
 [hidden] { display: none !important; }
 
 /* Icons drawn with lines */
-.ic, .vbtn svg, .card svg, .pagelink svg, .theme-btn svg, .icon-btn svg {
+.ic, .vbtn svg, .card svg, .pagelink svg, .icon-btn svg {
   width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 2;
   stroke-linecap: round; stroke-linejoin: round;
 }
 
 /* State layer: hover and press tint, as Material 3 */
-.st, .vbtn, .ptab, .tab, .icon-btn, .theme-btn, .pagelink .ind, .ubtn, .info-btn, .frow, .crumbs button, .ficon {
+.st, .vbtn, .ptab, .tab, .icon-btn, .logo-btn, .pagelink .ind, .ubtn, .info-btn, .frow, .crumbs button, .ficon {
   position: relative; isolation: isolate;
 }
-.st::after, .vbtn::after, .ptab::after, .tab::after, .icon-btn::after, .theme-btn::after, .pagelink .ind::after,
+.st::after, .vbtn::after, .ptab::after, .tab::after, .icon-btn::after, .logo-btn::after, .pagelink .ind::after,
 .ubtn::after, .info-btn::after, .frow::after, .crumbs button::after, .ficon::after {
   content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: currentColor;
   opacity: 0; transition: opacity .15s; pointer-events: none;
 }
-:is(.st, .vbtn, .ptab, .tab, .icon-btn, .theme-btn, .ubtn, .info-btn, .frow, .crumbs button, .ficon):hover:not(:disabled)::after,
+:is(.st, .vbtn, .ptab, .tab, .icon-btn, .logo-btn, .ubtn, .info-btn, .frow, .crumbs button, .ficon):hover:not(:disabled)::after,
 .pagelink:hover .ind::after { opacity: .08; }
-:is(.st, .vbtn, .ptab, .tab, .icon-btn, .theme-btn, .ubtn, .info-btn, .crumbs button, .ficon):active:not(:disabled)::after { opacity: .12; }
+:is(.st, .vbtn, .ptab, .tab, .icon-btn, .logo-btn, .ubtn, .info-btn, .crumbs button, .ficon):active:not(:disabled)::after { opacity: .12; }
 :focus-visible { outline: 2px solid var(--md-primary); outline-offset: 2px; }
 
 /* ---------- moving between pages ----------
@@ -148,18 +148,42 @@ code { font-family: var(--mono); }
   height: var(--bar-h); padding: 0 16px 0 20px;
   background: var(--chrome); border-bottom: 1px solid var(--chrome-line);
 }
-.theme-btn {
-  display: grid; place-items: center; width: 48px; height: 48px; flex: none; padding: 0; border: 0; border-radius: 24px;
-  background: var(--md-surface-container-high); color: var(--md-on-surface); cursor: pointer;
-}
-.theme-btn svg { width: 24px; height: 24px; }
-.theme-btn .sun { display: none; }
-:root[data-theme="dark"] .theme-btn .sun { display: block; }
-:root[data-theme="dark"] .theme-btn .moon { display: none; }
-.brand { display: flex; align-items: center; gap: 12px; min-width: 0; margin-left: 4px; text-decoration: none; color: inherit; }
-.brand img { width: 40px; height: 40px; flex: none; }
+.brand { display: flex; align-items: center; min-width: 0; margin-left: -4px; text-decoration: none; color: inherit; }
 /* The logo in the theme's colours: moon-coloured at night, space-coloured by day */
 :root[data-theme="light"] .logo-night, :root:not([data-theme="light"]) .logo-day { display: none; }
+/* The logo at the top left is the day / night switch (topbar-boot.js). Both logos sit on a wheel turning
+   about a point below the button (--pos: where each one is; the one out of sight is beyond the button's
+   round edge, which clips it): night on the right, day on the left. A switch turns the wheel, so the old
+   one sets past the edge as the other rises. Hovering (or focusing) it is a preview: the logo tilts away
+   and the other one rises halfway into view. That one is drawn in the other theme's colours, which are
+   this theme's background, so it gets an outline in this theme's text colour: a ghost of the other mode. */
+.logo-btn { --wheel: 0deg; display: grid; width: 48px; height: 48px; flex: none; padding: 0; border: 0; border-radius: 50%;
+            overflow: hidden; background: none; color: var(--md-on-surface); cursor: pointer; }
+:root .logo-btn .logo-night, :root .logo-btn .logo-day { display: block; }
+.logo-btn img { --pos: 0deg; grid-area: 1 / 1; place-self: center; width: 40px; height: 40px;
+                transform-origin: 50% 130%; transform: rotate(calc(var(--pos) + var(--wheel)));
+                filter: drop-shadow(0 0 0 transparent) drop-shadow(0 0 0 transparent);
+                transition: transform .55s cubic-bezier(.3, 1.3, .5, 1), filter .4s; }
+:root:not([data-theme="light"]) .logo-btn .logo-day { --pos: -115deg; }
+:root[data-theme="light"] .logo-btn .logo-night { --pos: 115deg; }
+:root:not([data-theme="light"]) .logo-btn .logo-day, :root[data-theme="light"] .logo-btn .logo-night {
+  filter: drop-shadow(0 0 .7px var(--md-on-surface)) drop-shadow(0 0 .7px var(--md-on-surface)); }
+@media (hover: hover) {
+  :root:not([data-theme="light"]) .logo-btn:hover { --wheel: 20deg; }
+  :root:not([data-theme="light"]) .logo-btn:hover .logo-day { --pos: -80deg; }
+  :root[data-theme="light"] .logo-btn:hover { --wheel: -20deg; }
+  :root[data-theme="light"] .logo-btn:hover .logo-night { --pos: 80deg; }
+}
+:root:not([data-theme="light"]) .logo-btn:focus-visible { --wheel: 20deg; }
+:root:not([data-theme="light"]) .logo-btn:focus-visible .logo-day { --pos: -80deg; }
+:root[data-theme="light"] .logo-btn:focus-visible { --wheel: -20deg; }
+:root[data-theme="light"] .logo-btn:focus-visible .logo-night { --pos: 80deg; }
+@media (prefers-reduced-motion: reduce) { .logo-btn img { transition: none; } }
+/* The switch itself: the new theme spreads over the page in a circle growing from the logo (a view
+   transition, topbar-boot.js). The whole page is one picture meanwhile (the top bar and the menu too),
+   and the old one stays still under the circle instead of cross-fading. */
+:root.theme-anim .topbar, :root.theme-anim .rail { view-transition-name: none; }
+:root.theme-anim::view-transition-old(root), :root.theme-anim::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
 .brand-text { display: flex; flex-direction: column; min-width: 0; }
 .brand-text b { font-size: 20px; line-height: 24px; font-weight: 500; letter-spacing: 0; }
 .brand-text span { font-size: 12px; line-height: 16px; color: var(--md-on-surface-variant); letter-spacing: .4px;
@@ -1104,8 +1128,9 @@ table.mt.narrow .acts { width: auto; }   /* a 1% cell would stretch the table to
 @media (max-width: 700px) {
   body { height: auto; min-height: 100%; padding-bottom: 80px; }
   .topbar { position: sticky; top: 0; z-index: 20; padding: 0 12px 0 8px; gap: 8px; }
-  .theme-btn { width: 44px; height: 44px; }
-  .brand img { width: 34px; height: 34px; }
+  .logo-btn { width: 44px; height: 44px; }
+  .logo-btn img { width: 34px; height: 34px; }
+  .brand { margin-left: 0; }
   .brand-text span { display: none; }
   .brand-text b { font-size: 18px; }
   .brand { min-width: 0; flex: 0 1 auto; overflow: hidden; }
@@ -1160,7 +1185,7 @@ table.mt.narrow .acts { width: auto; }   /* a 1% cell would stretch the table to
   .urow-more { grid-column: 1 / -1; }
 }
 @media (max-width: 480px) {
-  .brand-text { display: none; }   /* the logo alone: the status and the E-stop need the room */
+  .brand { display: none; }   /* the logo alone: the status and the E-stop need the room */
 }
 @media (max-width: 380px) {
   .estop-btn .estop-label { letter-spacing: 0; }
