@@ -207,6 +207,26 @@ code { font-family: var(--mono); }
 .pagelink .ind { display: grid; place-items: center; width: 56px; height: 32px; border-radius: 16px; }
 .pagelink svg { width: 24px; height: 24px; }
 .pagelink svg.fill { fill: currentColor; stroke: none; }
+/* The menu icons move a little when the mouse comes onto them (not on touch screens, not with reduced motion):
+   the dashboard's tiles change size, the surfacing bit sweeps across the stock as if cutting, the stock shakes
+   while the end mill turns, the gear turns a bit, the server's lights blink. Parts are named in topbar-boot.js. */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .pagelink svg, .pagelink svg * { transform-box: fill-box; transform-origin: center; }
+  .pagelink[data-nav="dashboard"]:hover svg rect:nth-child(odd) { animation: menu-grow .7s ease-in-out both; }
+  .pagelink[data-nav="dashboard"]:hover svg rect:nth-child(even) { animation: menu-shrink .7s ease-in-out both; }
+  .pagelink[data-nav="surfacing"]:hover .a-bit { animation: menu-cut 1.2s ease-in-out both; }
+  .pagelink[data-nav="materials"]:hover .a-stock { animation: menu-shake .5s linear both; }
+  .pagelink[data-nav="materials"]:hover .a-mill { animation: menu-spin .5s linear 2 both; }
+  .pagelink[data-nav="settings"] svg { transition: transform .5s ease; }
+  .pagelink[data-nav="settings"]:hover svg { transform: rotate(45deg); }
+  .pagelink[data-nav="system"]:hover .a-led { animation: menu-blink .3s steps(1) 4 both; }
+}
+@keyframes menu-grow { 50% { transform: scale(1.15); } }
+@keyframes menu-shrink { 50% { transform: scale(.85); } }
+@keyframes menu-cut { 0%, 100% { transform: translateX(0); } 30% { transform: translateX(-3px); } 70% { transform: translateX(2px); } }   /* a pass over the stock, short of the arrow */
+@keyframes menu-shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-1px); } 40%, 80% { transform: translateX(1px); } }
+@keyframes menu-spin { 0%, 100% { transform: scaleX(1); } 25% { transform: scaleX(.2); } 50% { transform: scaleX(-1); } 75% { transform: scaleX(.2); } }
+@keyframes menu-blink { 50% { opacity: 0; } }
 .pagelink.active { color: var(--md-on-surface); font-weight: 700; }
 .pagelink.active .ind { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
 .pagelink:focus-visible { outline: none; }
