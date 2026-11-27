@@ -435,9 +435,15 @@ input.bad { border-color: var(--md-error) !important; box-shadow: inset 0 0 0 1p
 .shop-chip[hidden] { display: none; }
 .shop-chip:hover:not(:disabled) { background: var(--md-surface-container-highest); }
 .shop-chip:focus-visible { outline: 2px solid var(--md-primary); outline-offset: 1px; }
-.shop-chip[data-state="on"] { background: var(--md-primary-container); border-color: transparent; color: var(--md-on-primary-container); }
+/* On: the green of the "Running" status, with a border that glows slowly: it is running */
+.shop-chip[data-state="on"] { background: var(--md-success-container); border-color: var(--md-success); color: var(--md-on-success-container);
+                              box-shadow: inset 0 0 0 1px var(--md-success); animation: chip-glow 2.4s ease-in-out infinite; }
 .shop-chip[data-state="on"] svg { color: inherit; }
-.shop-chip[data-state="on"]:hover { background: color-mix(in srgb, var(--md-primary-container) 88%, var(--md-on-primary-container)); }
+.shop-chip[data-state="on"]:hover { background: color-mix(in srgb, var(--md-success-container) 85%, var(--md-on-success-container)); }
+@keyframes chip-glow {
+  0%, 100% { box-shadow: inset 0 0 0 1px var(--md-success), 0 0 1px 0 var(--md-success); }
+  50% { box-shadow: inset 0 0 0 1px var(--md-success), 0 0 9px 1px var(--md-success); }
+}
 .shop-chip:disabled { cursor: default; }
 .shop-chip[data-state="pending"] { animation: chip-wait 1s ease-in-out infinite alternate; }
 .shop-chip[data-state="bad"] { border-style: dashed; color: var(--md-on-surface-variant); opacity: .7; }
@@ -456,12 +462,21 @@ input.bad { border-color: var(--md-error) !important; box-shadow: inset 0 0 0 1p
   .shop-btn { display: grid; place-items: center; width: 40px; height: 40px; flex: none; padding: 0; border: 0; border-radius: 50%;
               cursor: pointer; color: var(--md-on-surface-variant); background: var(--md-surface-container-high); }
   .shop-btn[hidden] { display: none; }
-  .shop-btn.on { color: var(--md-primary); }
+  .shop-btn.on { color: var(--md-success); box-shadow: inset 0 0 0 2px var(--md-success); animation: btn-glow-on 2.4s ease-in-out infinite; }
+  .shop-btn.on[aria-expanded="true"] { animation: none; }
   .shop-btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
   .shop-btn[aria-expanded="true"] { box-shadow: 0 0 0 2px var(--md-primary); }
   .shop-panel { left: 8px; right: 8px; width: auto; max-width: none; }
 }
-@media (prefers-reduced-motion: reduce) { .shop-chip[data-state="pending"] { animation: none; opacity: .6; } }
+@keyframes btn-glow-on {
+  0%, 100% { box-shadow: inset 0 0 0 2px var(--md-success), 0 0 1px 0 var(--md-success); }
+  50% { box-shadow: inset 0 0 0 2px var(--md-success), 0 0 9px 1px var(--md-success); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shop-chip[data-state="pending"] { animation: none; opacity: .6; }
+  .shop-chip[data-state="on"] { animation: none; box-shadow: inset 0 0 0 1px var(--md-success), 0 0 5px 0 var(--md-success); }
+  .shop-btn.on { animation: none; }
+}
 /* A row of the list: the whole row switches it; the icon lights up while it is on */
 .shop-devs { display: flex; flex-direction: column; gap: 2px; }
 .shop-dev { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 8px; border-radius: 12px; cursor: pointer; }
@@ -470,7 +485,8 @@ input.bad { border-color: var(--md-error) !important; box-shadow: inset 0 0 0 1p
 .shop-ic { display: grid; place-items: center; width: 40px; height: 40px; flex: none; border-radius: 12px;
            background: var(--md-surface-container-highest); color: var(--md-on-surface-variant); transition: background .2s, color .2s; }
 .shop-ic svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.shop-dev[data-state="on"] .shop-ic { background: var(--md-primary-container); color: var(--md-on-primary-container); }
+.shop-dev[data-state="on"] .shop-ic { background: var(--md-success-container); color: var(--md-on-success-container);
+                                       box-shadow: inset 0 0 0 1px var(--md-success); }
 .shop-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .shop-txt b { font-size: 15px; line-height: 20px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .shop-txt small { font-size: 12px; line-height: 16px; color: var(--md-on-surface-variant); }
