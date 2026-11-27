@@ -41,8 +41,8 @@ the right.*
 - The workshop's **air quality** from a SEN55 sensor in Home Assistant (dust,
   VOC, NOx, temperature, humidity), as rings in the menu above the Pi's.
 - **Shop devices**: switches, lights and fans from Home Assistant (a smart
-  plug for the dust extraction, the shop lights, an air filter) as toggles on
-  the dashboard.
+  plug for the dust extraction, the shop lights, an air filter) as switches in
+  the top bar, on every page.
 - A software **E-stop** button, always in view. It is the only thing the
   dashboard can make the machine do; it only switches E-stop on, and releasing
   it happens at the machine.
@@ -490,6 +490,13 @@ the page simply loads).
   remembers its choice; at first it follows the computer's own setting.
 - **Observatory** and the machine's name (set in Settings), next to it; a click
   goes to the dashboard. On a phone only the logo shows.
+- **Shop devices** (when [set up](#shop-devices)): a chip per device after the
+  machine's name, filled while it is on, dashed when Home Assistant can't reach
+  it. Click one to switch it: it pulses until Home Assistant shows the new state
+  (a second or two); hover over it for its state (a fan with its speed,
+  **On · 66 %**). Those that don't fit fold into **+N**, which opens the list.
+  On a phone: the **plug** button next to the air button (blue while one is on)
+  opens the list, one row per device with a switch.
 - On a phone, with the [air quality](#air-quality) set up: the **air** button,
   in the colour of the worst reading (see below).
 - The status:
@@ -552,12 +559,6 @@ command in TNG. TNG stops the machine at once.
 - **Job:** the loaded file, the progress (percentage and bar), the **line**, **start time, elapsed time** (since the job started, pauses
   included), **time remaining** (TNG's own estimate when it has one) and the
   time of the last update. The console also says how long a job took when it ends.
-- **Shop devices** (when set up in Settings): a row per device with a
-  switch; tap the row to turn it on or off. It says **Turning on…** until
-  Home Assistant shows the new state (a second or two), then **On** (a fan with
-  its speed, **On · 66 %**) or **Off**. A device Home Assistant can't reach says
-  **Unavailable** and can't be switched. On a phone this card comes right
-  after the camera.
 - On a phone, the **Air quality** card (when set up) and the **Raspberry Pi**
   card: the same rings as in the menu (see below), with the temperature and
   humidity, the Pi's uptime and its power status.
@@ -1386,7 +1387,7 @@ air filter's fan. It uses the same address and token as the
 1. Set up the **Address and token** in **Settings → Home Assistant** (above).
 2. Under **Shop devices**, choose a device in **Add a device** (Home
    Assistant's switches, lights, fans and on/off helpers, with their state)
-   and press **Add**. It appears on the dashboard in a **Shop devices** card.
+   and press **Add**. It appears in the top bar, on every page.
 3. Each device has a **name** (Home Assistant's at first; type another and
    press Enter), an **icon** (plug, fan, light, air filter, dust extraction;
    guessed from the name), **↑** to move it up and **×** to remove it. At

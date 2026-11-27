@@ -140,6 +140,10 @@ export function navOnState(s) {
   }
   if (s && 'system' in s) renderPi(piHealth(s.system));
   if (s && 'air' in s) renderAir(airHealth(s.air));
+  if (s && 'shop' in s) {   // the shop devices in the top bar (topbar-boot.js)
+    window.shopDevices?.(s.shop);
+    saveTopbar({ shop: s.shop });
+  }
   const link = nav?.querySelector('[data-nav=system]');
   if (!link || !s) return;
   const appN = s.update?.behind || 0, osN = s.os_updates || 0;

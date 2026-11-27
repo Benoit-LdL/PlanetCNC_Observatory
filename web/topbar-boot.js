@@ -251,6 +251,208 @@
     }
   }
 
+  // ---- Shop devices (Home Assistant; chosen in Settings > Home Assistant > Shop devices), switched from the
+  // top bar on every page. On a computer: a chip per device after the machine's name, lit while it is on; a
+  // click switches it. Those that don't fit fold into a "+N" chip that opens the list. On a phone: a plug
+  // button next to the air button, opening the list under the top bar. shop = state.shop as the server sends
+  // it, {devices: [{entity, name, icon, state, pct}], error}, or null when none are set up (nav.js passes it
+  // on). The server only switches the devices in that list (ShopDevices in server.py).
+  var SHOP_ICONS = {
+    plug: { label: 'Plug', svg: '<path d="M9 3v5M15 3v5"/><path d="M6 8h12v3a6 6 0 0 1-12 0z"/><path d="M12 17v4"/>' },
+    fan: { label: 'Fan', svg: '<g class="shop-spin"><circle cx="12" cy="12" r="1.5"/>'
+      + [0, 120, 240].map(function (a) { return '<path transform="rotate(' + a + ' 12 12)" d="M12 10.2C8.6 8.6 8 3.2 12.5 2.6c4.2-.5 4.6 5-.5 7.6"/>'; }).join('')
+      + '</g>' },
+    light: { label: 'Light', svg: '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.3 1.1 2.2h5c0-.9.4-1.6 1.1-2.2A6 6 0 0 0 12 3z"/>' },
+    air: { label: 'Air filter', svg: '<path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 12h15a3 3 0 1 1-3 3"/><path d="M3 16h7"/>' },
+    vacuum: { label: 'Dust extraction', svg: '<rect x="3" y="11" width="10" height="8" rx="3"/><path d="M5 11V9h6v2"/><path d="M8 9V6a2 2 0 0 1 2-2h7a3 3 0 0 1 3 3v14"/><path d="M17 21h5"/><path d="M5 21h.01M11 21h.01"/>' },
+  };
+  window.SHOP_ICONS = SHOP_ICONS;   // for Settings (shop.js)
+  function shopIcon(key) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + (SHOP_ICONS[key] || SHOP_ICONS.plug).svg + '</svg>'; }
+  var SHOP_PENDING_FOR = 8000;   // after a switch, wait this long for Home Assistant to show the new state
+  var shopBar = null, shopMore = null, shopBtn = null, shopPanel = null, shopToast = null;
+  var shopLast = null, shopShape = '', shopToastTimer = 0;
+  var shopPending = {};          // entity -> {on, until}: switched here, the new state not seen yet
+
+  function shopStateText(d, p) {
+    if (p) return p.on ? 'Turning on…' : 'Turning off…';
+    if (d.state === 'on') return d.pct != null ? 'On · ' + d.pct + ' %' : 'On';
+    if (d.state === 'off') return 'Off';
+    if (d.state == null) return '…';
+    if (d.state === 'missing') return 'Not found in Home Assistant';
+    return d.state.charAt(0).toUpperCase() + d.state.slice(1);
+  }
+  function shopBuild(bar) {
+    if (shopBar) return;
+    shopBar = document.createElement('div');
+    shopBar.className = 'shop-bar';
+    shopBar.setAttribute('role', 'group');
+    shopBar.setAttribute('aria-label', 'Shop devices');
+    bar.insertBefore(shopBar, bar.querySelector('.topbar-gap') || bar.querySelector('.status'));
+    shopBtn = document.createElement('button');
+    shopBtn.type = 'button';
+    shopBtn.className = 'shop-btn';
+    shopBtn.setAttribute('aria-expanded', 'false');
+    shopBtn.innerHTML = shopIcon('plug');
+    bar.insertBefore(shopBtn, bar.querySelector('.air-btn') || bar.querySelector('.status'));
+    shopPanel = document.createElement('div');
+    shopPanel.className = 'shop-panel';
+    shopPanel.hidden = true;
+    shopPanel.setAttribute('role', 'dialog');
+    shopPanel.setAttribute('aria-label', 'Shop devices');
+    shopPanel.innerHTML = '<div class="sys-head"><h2>Shop devices</h2></div><div class="shop-devs"></div><p class="shop-msg" aria-live="polite"></p>';
+    document.body.appendChild(shopPanel);
+    shopBtn.addEventListener('click', function () { openShopPanel(shopPanel.hidden, shopBtn); });
+    shopBar.addEventListener('click', function (e) {
+      var chip = e.target.closest('.shop-chip');
+      if (!chip) return;
+      if (chip === shopMore) { openShopPanel(shopPanel.hidden, shopMore); return; }
+      shopSwitch(chip.getAttribute('data-entity'), chip.getAttribute('aria-pressed') !== 'true', chip);
+    });
+    shopPanel.addEventListener('change', function (e) {
+      var row = e.target.closest('.shop-dev');
+      if (row) shopSwitch(row.getAttribute('data-entity'), e.target.checked, row);
+    });
+    document.addEventListener('click', function (e) {   // a click elsewhere closes the list
+      if (!shopPanel.hidden && !shopPanel.contains(e.target) && !shopBtn.contains(e.target)
+          && !(shopMore && shopMore.contains(e.target))) openShopPanel(false);
+    });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') openShopPanel(false); });
+    addEventListener('resize', function () { shopFit(); openShopPanel(false); });
+  }
+  function openShopPanel(open, from) {
+    if (!shopPanel) return;
+    shopPanel.hidden = !open;
+    shopBtn.setAttribute('aria-expanded', String(!!open && from === shopBtn));
+    if (shopMore) shopMore.setAttribute('aria-expanded', String(!!open && from === shopMore));
+    if (!open) return;
+    if (shopToast) shopToast.hidden = true;   // the list says it from now on
+    var top = document.querySelector('.topbar').getBoundingClientRect().bottom + 8;
+    shopPanel.style.top = Math.round(top) + 'px';
+    // On a computer, under the "+N" chip; on a phone (style.css), across the screen like the air panel
+    if (from === shopMore) {
+      var r = shopMore.getBoundingClientRect();
+      shopPanel.style.left = Math.round(Math.max(8, Math.min(r.left, innerWidth - shopPanel.offsetWidth - 8))) + 'px';
+    } else {
+      shopPanel.style.left = '';
+    }
+  }
+  /** Fold the chips that don't fit into the "+N" chip (on a computer; on a phone the bar isn't shown). */
+  function shopFit() {
+    if (!shopBar || shopBar.hidden || !shopBar.offsetParent) return;
+    var chips = shopBar.querySelectorAll('.shop-chip:not(.shop-more)');
+    for (var i = 0; i < chips.length; i++) chips[i].hidden = false;
+    shopMore.hidden = true;
+    var n = chips.length;
+    while (n > 0 && shopBar.scrollWidth > shopBar.clientWidth + 1) {
+      chips[--n].hidden = true;
+      shopMore.hidden = false;
+      shopMore.textContent = '+' + (chips.length - n);
+      shopMore.title = 'More shop devices';
+    }
+  }
+  function shopSay(text, near) {
+    var msg = shopPanel.querySelector('.shop-msg');
+    if (!shopPanel.hidden) { msg.textContent = text; return; }
+    // Not in the open list: a note under the chip or the button for a few seconds
+    if (!shopToast) {
+      shopToast = document.createElement('div');
+      shopToast.className = 'help-pop shop-toast';
+      shopToast.setAttribute('role', 'alert');
+      document.body.appendChild(shopToast);
+    }
+    shopToast.textContent = text;
+    shopToast.hidden = false;
+    var r = (near && near.offsetParent ? near : shopBtn).getBoundingClientRect();
+    shopToast.style.left = Math.round(Math.max(8, Math.min(r.left, innerWidth - shopToast.offsetWidth - 8))) + 'px';
+    shopToast.style.top = Math.round(r.bottom + 8) + 'px';
+    clearTimeout(shopToastTimer);
+    shopToastTimer = setTimeout(function () { shopToast.hidden = true; }, 6000);
+  }
+  function shopSwitch(entity, on, el) {
+    shopPending[entity] = { on: on, until: Date.now() + SHOP_PENDING_FOR };
+    if (shopLast) window.shopDevices(shopLast);
+    var d = shopLast && shopLast.devices.filter(function (x) { return x.entity === entity; })[0];
+    var fail = function (why) {
+      delete shopPending[entity];
+      if (shopLast) window.shopDevices(shopLast);
+      var t = 'Could not switch ' + (d ? d.name : entity) + ': ' + why;
+      shopSay(t.charAt(0).toUpperCase() + t.slice(1) + (/[.!?]$/.test(t) ? '' : '.'), el);
+    };
+    fetch('/api/shop/switch', {
+      method: 'POST', headers: { 'X-CNC-Control': '1', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entity: entity, on: on }),
+    }).then(function (r) {
+      return r.json().catch(function () { return { ok: false, message: 'HTTP ' + r.status }; });
+    }).then(function (res) {
+      if (!res.ok) fail(res.message || 'failed');
+      else shopPanel.querySelector('.shop-msg').textContent = '';
+    }, function () { fail('the Raspberry Pi is not reachable'); });
+  }
+  window.shopDevices = function (shop) {
+    var bar = document.querySelector('.topbar');
+    if (!bar || !document.getElementById('pagenav')) return;
+    shopBuild(bar);
+    shopLast = shop;
+    var none = !shop || !shop.devices.length;
+    shopBar.hidden = shopBtn.hidden = none;
+    if (none) { openShopPanel(false); return; }
+    // A Home Assistant icon ("mdi:saw-blade") comes with its path (checked by the server: path characters
+    // only); drawn filled, the inline style beating the generic svg rules (fill: none)
+    shop.devices.forEach(function (d) {
+      if (d.path) SHOP_ICONS[d.icon] = { label: d.icon, svg: '<path style="fill:currentColor;stroke:none" d="' + d.path + '"/>' };
+    });
+    var now = Date.now();
+    for (var eid in shopPending) {
+      var p0 = shopPending[eid], d0 = shop.devices.filter(function (x) { return x.entity === eid; })[0];
+      if (!d0 || now > p0.until || d0.state === (p0.on ? 'on' : 'off')) delete shopPending[eid];
+    }
+    var shape = JSON.stringify(shop.devices.map(function (d) { return [d.entity, d.name, d.icon]; }));
+    var list = shopPanel.querySelector('.shop-devs');
+    if (shape !== shopShape) {
+      shopShape = shape;
+      shopBar.innerHTML = shop.devices.map(function (d) {
+        return '<button type="button" class="shop-chip" data-entity="' + esc(d.entity) + '">' + shopIcon(d.icon)
+          + '<span>' + esc(d.name) + '</span></button>';
+      }).join('') + '<button type="button" class="shop-chip shop-more" aria-haspopup="dialog" hidden></button>';
+      shopMore = shopBar.querySelector('.shop-more');
+      list.innerHTML = shop.devices.map(function (d) {
+        return '<label class="shop-dev" data-entity="' + esc(d.entity) + '"><span class="shop-ic">' + shopIcon(d.icon) + '</span>'
+          + '<span class="shop-txt"><b>' + esc(d.name) + '</b><small></small></span>'
+          + '<input type="checkbox" role="switch" aria-label="' + esc(d.name) + '"></label>';
+      }).join('');
+    }
+    var anyOn = false;
+    for (var i = 0; i < shop.devices.length; i++) {
+      var d = shop.devices[i], p = shopPending[d.entity];
+      var usable = !shop.error && (d.state === 'on' || d.state === 'off');
+      var on = p ? p.on : d.state === 'on';
+      var state = p ? 'pending' : usable ? d.state : 'bad';
+      var text = shop.error ? 'Home Assistant not reachable' : shopStateText(d, p);
+      anyOn = anyOn || d.state === 'on';
+      var chip = shopBar.querySelector('.shop-chip[data-entity="' + d.entity + '"]');
+      chip.setAttribute('data-state', state);
+      chip.setAttribute('aria-pressed', String(on));
+      chip.disabled = !usable || !!p;
+      chip.title = d.name + ': ' + text + (usable && !p ? (on ? ' – click to turn it off' : ' – click to turn it on') : '');
+      var row = list.querySelector('.shop-dev[data-entity="' + d.entity + '"]');
+      row.setAttribute('data-state', state);
+      var input = row.querySelector('input');
+      input.checked = on;
+      input.disabled = !usable || !!p;
+      row.querySelector('small').textContent = text;
+      row.title = d.entity;
+    }
+    shopBtn.classList.toggle('on', anyOn);
+    shopBtn.title = 'Shop devices' + (anyOn ? ' (some on)' : '');
+    shopBtn.setAttribute('aria-label', shopBtn.title);
+    // Home Assistant not reachable: why, in the list (until it is back)
+    var msg = shopPanel.querySelector('.shop-msg');
+    if (shop.error) msg.textContent = shop.error.charAt(0).toUpperCase() + shop.error.slice(1) + '.';
+    else if (msg.getAttribute('data-ha')) msg.textContent = '';
+    msg.setAttribute('data-ha', shop.error ? '1' : '');
+    shopFit();
+  };
+
   // ---- What an air-quality value means, in a popup on the ring (hover, focus, or a tap on a phone).
   // VOC and NOx are Sensirion indexes: they compare the air with the room's own recent past (VOC 100 =
   // the average of the last 24 h, NOx 1 = clean air), so they show events, not health limits; the band
@@ -448,6 +650,7 @@
   if (dot) dot.hidden = !c.dot;
   if (c.pi) window.piGauges(c.pi);
   if (c.air) window.airGauges(c.air);
+  if (c.shop) window.shopDevices(c.shop);
   if (c.estop) {
     // As last shown. Pressing it before this page's first update just asks the server, which
     // refuses when TNG isn't connected - the E-stop only ever switches TNG's E-stop on.

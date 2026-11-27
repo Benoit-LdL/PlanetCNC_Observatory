@@ -5,7 +5,6 @@ import { log } from './log.js';
 import { initTune, openTune, tuneLogLoad } from './tune-ui.js';
 import { initSystem, systemOnState } from './system-ui.js';
 import { navOnState } from './nav.js';
-import { initShop, shopOnState } from './shop.js';
 import { sentence, UNREACHABLE } from './msg.js';
 
 const $ = (id) => document.getElementById(id);
@@ -478,7 +477,6 @@ function onState(s) {
   consoleUpdate(s.console_seq);
   systemOnState(s);
   navOnState(s);
-  shopOnState(s);
   camUpdate(s);
 }
 
@@ -1046,7 +1044,6 @@ try {
   else if (tab === 'files' || tab === 'feeds') savedTab = tab;
 } catch { /* ignore */ }
 initSystem();
-initShop();
 renderDro();
 renderCode(true);
 connect();

@@ -419,21 +419,62 @@ input.bad { border-color: var(--md-error) !important; box-shadow: inset 0 0 0 1p
 .job-row span { font-size: 11px; line-height: 14px; font-weight: 500; letter-spacing: .3px; color: var(--md-on-surface-variant); }
 .job-row b { font: 500 14px/20px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* Shop devices (shop.js): a row per device, the whole row switches it; the icon lights up while it is on */
-.shop-card { padding: 0 8px 8px; }
-.shop-card .card-head { min-height: 46px; padding: 4px 8px; }
+/* Shop devices in the top bar (topbar-boot.js). On a computer: a chip per device after the machine's name,
+   filled while it is on; a click switches it. Those that don't fit fold into a "+N" chip, which opens the list.
+   On a phone: a plug button next to the air button (its colour: one is on), opening the list. */
+.shop-bar { display: flex; align-items: center; gap: 8px; flex: 0 1 auto; min-width: 0; overflow: hidden;
+            margin-left: 12px; padding: 3px; }   /* the padding: room for the focus ring */
+.shop-bar[hidden] { display: none; }
+.shop-bar + .topbar-gap { min-width: 32px; }   /* never right against the status and the E-stop */
+.shop-chip { display: inline-flex; align-items: center; gap: 8px; flex: none; height: 36px; padding: 0 14px 0 10px;
+             border: 1px solid var(--md-outline); border-radius: 8px; background: transparent; color: var(--md-on-surface);
+             font: 500 14px/20px var(--font); letter-spacing: .1px; white-space: nowrap; cursor: pointer;
+             transition: background .2s, color .2s, border-color .2s; }
+.shop-chip svg { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 2;
+                 stroke-linecap: round; stroke-linejoin: round; color: var(--md-on-surface-variant); }
+.shop-chip[hidden] { display: none; }
+.shop-chip:hover:not(:disabled) { background: var(--md-surface-container-highest); }
+.shop-chip:focus-visible { outline: 2px solid var(--md-primary); outline-offset: 1px; }
+.shop-chip[data-state="on"] { background: var(--md-primary-container); border-color: transparent; color: var(--md-on-primary-container); }
+.shop-chip[data-state="on"] svg { color: inherit; }
+.shop-chip[data-state="on"]:hover { background: color-mix(in srgb, var(--md-primary-container) 88%, var(--md-on-primary-container)); }
+.shop-chip:disabled { cursor: default; }
+.shop-chip[data-state="pending"] { animation: chip-wait 1s ease-in-out infinite alternate; }
+.shop-chip[data-state="bad"] { border-style: dashed; color: var(--md-on-surface-variant); opacity: .7; }
+.shop-more { padding: 0 12px; color: var(--md-on-surface-variant); }
+@keyframes chip-wait { to { opacity: .45; } }
+.shop-btn { display: none; }
+/* The list: under the "+N" chip, or across the screen on a phone */
+.shop-panel { position: fixed; z-index: 950; width: 340px; max-width: calc(100vw - 16px); display: flex; flex-direction: column;
+              gap: 2px; padding: 4px 8px 8px; border-radius: 16px; background: var(--md-surface-container-high);
+              box-shadow: 0 6px 24px rgba(0, 0, 0, .35); }
+.shop-panel[hidden] { display: none; }
+.shop-panel .sys-head { padding: 0 8px; }
+@media (max-width: 700px) {
+  .shop-bar { display: none; }
+  .shop-bar + .topbar-gap { min-width: 0; }
+  .shop-btn { display: grid; place-items: center; width: 40px; height: 40px; flex: none; padding: 0; border: 0; border-radius: 50%;
+              cursor: pointer; color: var(--md-on-surface-variant); background: var(--md-surface-container-high); }
+  .shop-btn[hidden] { display: none; }
+  .shop-btn.on { color: var(--md-primary); }
+  .shop-btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .shop-btn[aria-expanded="true"] { box-shadow: 0 0 0 2px var(--md-primary); }
+  .shop-panel { left: 8px; right: 8px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) { .shop-chip[data-state="pending"] { animation: none; opacity: .6; } }
+/* A row of the list: the whole row switches it; the icon lights up while it is on */
 .shop-devs { display: flex; flex-direction: column; gap: 2px; }
 .shop-dev { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 8px; border-radius: 12px; cursor: pointer; }
-.shop-dev:hover { background: var(--md-surface-container); }
+.shop-dev:hover { background: var(--md-surface-container-highest); }
 .shop-dev:has(input:disabled) { cursor: default; }
 .shop-ic { display: grid; place-items: center; width: 40px; height: 40px; flex: none; border-radius: 12px;
            background: var(--md-surface-container-highest); color: var(--md-on-surface-variant); transition: background .2s, color .2s; }
-.shop-ic svg { width: 22px; height: 22px; }
+.shop-ic svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .shop-dev[data-state="on"] .shop-ic { background: var(--md-primary-container); color: var(--md-on-primary-container); }
 .shop-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .shop-txt b { font-size: 15px; line-height: 20px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .shop-txt small { font-size: 12px; line-height: 16px; color: var(--md-on-surface-variant); }
-.shop-dev.bad small { color: var(--md-error); }
+.shop-dev[data-state="bad"] small { color: var(--md-error); }
 .shop-dev input {
   appearance: none; -webkit-appearance: none; position: relative; flex: none; margin: 0; cursor: pointer;
   width: 52px; height: 32px; border-radius: 16px; border: 2px solid var(--md-outline); background: var(--md-surface-container-highest);
@@ -451,11 +492,10 @@ input.bad { border-color: var(--md-error) !important; box-shadow: inset 0 0 0 1p
 /* A fan turns while it is on */
 @media (prefers-reduced-motion: no-preference) {
   .shop-spin { transform-box: fill-box; transform-origin: center; }
-  .shop-dev[data-state="on"] .shop-spin { animation: spin 1.4s linear infinite; }
+  :is(.shop-dev, .shop-chip)[data-state="on"] .shop-spin { animation: spin 1.4s linear infinite; }
 }
-.shop-msg { margin: 4px 8px 4px; font-size: 13px; line-height: 18px; color: var(--md-on-surface-variant); }
+.shop-msg { margin: 4px 8px; font-size: 13px; line-height: 18px; color: var(--md-error); }
 .shop-msg:empty { display: none; }
-.shop-msg.err { color: var(--md-error); }
 
 /* Raspberry Pi health */
 .sys { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 12px; }
@@ -1211,16 +1251,15 @@ table.mt.narrow .acts { width: auto; }   /* a 1% cell would stretch the table to
   .layout, .pl-layout { display: flex; flex-direction: column; padding: 4px 12px 16px; }
   .pl-view { height: 66vh; min-height: 340px; flex: none; }
   .pl-form { overflow: visible; }
-  /* Phone order: camera, shop devices (at hand), 3D view, position, job, program/files, Raspberry Pi last.
+  /* Phone order: camera, 3D view, position, job, program/files, Raspberry Pi last.
      The left column's cards join the page flow so they can be ordered among the panels. */
   .dro-panel { display: contents; }
   .cam-panel { order: 1; }
-  .shop-card { order: 2; }
-  .view-panel { order: 3; }
-  .pos-card { order: 4; }
-  .job-card { order: 5; }
-  .code-panel { order: 6; }
-  #sys { order: 7; }
+  .view-panel { order: 2; }
+  .pos-card { order: 3; }
+  .job-card { order: 4; }
+  .code-panel { order: 5; }
+  #sys { order: 6; }
   /* Position is only read, not edited: smaller type, less padding */
   .pos-card { padding-bottom: 8px; }
   .pos-card .card-head { min-height: 40px; padding: 2px 6px 2px 12px; }
