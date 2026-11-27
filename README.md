@@ -593,12 +593,12 @@ rings. A tap elsewhere closes it.
 - A ring turns amber (raised) or red (high) from PM2.5 15 / 50 and PM10 45 / 100
   (amber from the WHO 2021 24-hour guideline, red far above it), VOC 150 / 250
   (100 is the room's usual air) and NOx 20 / 150 (1 is clean air).
-- On the dashboard and the Surfacing page, while a value is raised or high, a
-  small alert next to the air rings says which (on a phone: hazard tape around
-  the air button, and the alert in its panel), framed in red and white hazard tape that blinks when one is high
-  (not with "reduced motion" set on the computer). **×** hides it until what's
-  over changes: another sensor, or one going from raised to high. Telegram can
-  warn too (see [Telegram](#telegram-notifications-and-timelapse)).
+- While a value is raised or high, an alert says which, framed in red and white
+  hazard tape: on a computer a small box next to the air rings, on the dashboard
+  and the Surfacing page; on a phone tape around the air button, on every page,
+  and the alert in its panel. The tape blinks when one is high
+  (not with "reduced motion" set on the computer). It stays until the values are
+  back in the green. Telegram can warn too (see [Telegram](#telegram-notifications-and-timelapse)).
 - The dot next to **Air**: green Good, amber Raised, red High (or **No
   data** when Home Assistant doesn't answer, with the reason when you hover).
   Grey while waiting for the first reading; amber when the last reading is

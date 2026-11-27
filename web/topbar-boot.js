@@ -108,19 +108,21 @@
     airAlert(air);
   };
 
-  // ---- The air alert: on the dashboard and the Surfacing page, a small box next to the air rings while a
-  // value is raised (amber) or high (red), saying which. Hazard tape around it; blinking when one is high.
-  // x hides it until what's over changes (another sensor, or one going from raised to high).
+  // ---- The air alert, while a value is raised (amber) or high (red), saying which, in hazard tape (blinking
+  // when one is high). On a computer: a small box next to the menu's air rings, on the dashboard and the
+  // Surfacing page only. On a phone: tape around the air button and the message in its panel, on every page
+  // (the button is on every page). It can't be hidden (for now): it goes when the values are back in the green.
   var ALERT_PAGES = { dashboard: true, surfacing: true };
-  var alertEl = null, alertNow = '', alertHidden = '';
-  function airAlert(air) {
+  var alertEl = null;
+  function alertPage() {
     var nav = document.getElementById('pagenav');
-    if (!nav || !ALERT_PAGES[nav.getAttribute('data-page')]) return;
+    return !!nav && !!ALERT_PAGES[nav.getAttribute('data-page')];
+  }
+  function airAlert(air) {
+    if (!document.getElementById('pagenav')) return;
     var over = air && air.fresh ? air.gauges.filter(function (g) { return g.level; }) : [];
-    alertNow = over.map(function (g) { return g.key + ':' + g.level; }).join(',');
-    if (!over.length) alertHidden = '';
     var high = over.some(function (g) { return g.level === 'err'; });
-    var on = over.length && alertNow !== alertHidden;
+    var on = over.length > 0;
     // On a phone the same alert is hazard tape around the air button (its panel holds the message)
     if (airBtn) {
       airBtn.classList.toggle('alert', !!on);
@@ -134,16 +136,10 @@
       alertEl = document.createElement('div');
       alertEl.className = 'air-alert';
       alertEl.setAttribute('role', 'alert');
-      alertEl.addEventListener('click', function (e) {
-        if (!e.target.closest('.air-alert-x')) return;
-        alertHidden = alertNow;
-        alertEl.hidden = true;
-        if (airBtn) airBtn.classList.remove('alert', 'high');
-      });
     }
     alertEl.classList.toggle('high', high);
     alertEl.innerHTML = '<div class="air-alert-in"><b class="air-alert-head">⚠ Air quality ' + (high ? 'high' : 'raised')
-      + '</b><button class="air-alert-x" type="button" title="Hide until something changes" aria-label="Hide">×</button><ul>'
+      + '</b><ul>'
       + over.map(function (g) {
         var unit = AIR_INFO[g.key] && AIR_INFO[g.key].unit;
         return '<li class="' + g.level + '"><b>' + esc(g.label) + '</b> ' + esc(g.value) + (unit ? ' ' + unit : '')
@@ -157,6 +153,7 @@
     if (!alertEl || alertEl.hidden) return;
     var rail = document.querySelector('.rail .air-gauges');
     if (rail && rail.offsetParent) {
+      if (!alertPage()) { alertEl.hidden = true; return; }   // on a computer: the dashboard and Surfacing only
       if (alertEl.parentNode !== document.body) document.body.appendChild(alertEl);
       alertEl.classList.remove('inline');
       var r = rail.getBoundingClientRect();
