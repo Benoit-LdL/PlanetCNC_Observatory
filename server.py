@@ -2426,7 +2426,7 @@ class ShopDevices:
             if SHOP_ENTITY.match(eid):
                 out.append({"entity": eid, "name": str((st.get("attributes") or {}).get("friendly_name") or ""),
                             "state": str(st.get("state") or "")})
-        return sorted(out, key=lambda e: (SHOP_DOMAINS.index(e["entity"].split(".")[0]), (e["name"] or e["entity"]).lower()))
+        return sorted(out, key=lambda e: (e["name"] or e["entity"]).lower())   # Settings groups them by kind
 
 
 # ---------------------------------------------------------------------------

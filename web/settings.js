@@ -475,7 +475,8 @@ function renderShopAdd() {
     sel.innerHTML = !haOn ? '<option value="">Set up the address and token first</option>'
       : shopChoices === null ? `<option value="">${shopChoicesError ? 'Home Assistant not reachable' : 'Loading…'}</option>`
       : !free.length ? '<option value="">No more switches, lights or fans</option>'
-      : '<option value="">Choose a switch, light or fan…</option>' + Object.entries(groups).map(([dom, cs]) =>
+      : '<option value="">Choose a switch, light or fan…</option>' + Object.entries(groups)
+        .sort(([a], [b]) => (SHOP_DOMAIN_NAMES[a] || a).localeCompare(SHOP_DOMAIN_NAMES[b] || b)).map(([dom, cs]) =>
         `<optgroup label="${SHOP_DOMAIN_NAMES[dom] || dom}">${cs.map((c) =>
           `<option value="${esc(c.entity)}">${esc(c.name || c.entity)} (${esc(c.state)})</option>`).join('')}</optgroup>`).join('');
     if ([...sel.options].some((o) => o.value === keep)) sel.value = keep;
