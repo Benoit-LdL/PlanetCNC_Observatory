@@ -156,7 +156,9 @@ code { font-family: var(--mono); }
    round edge, which clips it): night on the right, day on the left. A switch turns the wheel, so the old
    one sets past the edge as the other rises. Hovering (or focusing) it is a preview: the logo tilts away
    and the other one rises halfway into view. That one is drawn in the other theme's colours, which are
-   this theme's background, so it gets an outline in this theme's text colour: a ghost of the other mode. */
+   this theme's background, so it gets an outline in this theme's text colour: a ghost of the other mode.
+   A click turns the wheel all the way, until the new logo stands upright: no preview (.switched,
+   topbar-boot.js) until the pointer has left it or it lost the focus. */
 .logo-btn { --wheel: 0deg; display: grid; width: 48px; height: 48px; flex: none; padding: 0; border: 0; border-radius: 50%;
             overflow: hidden; background: none; color: var(--md-on-surface); cursor: pointer; }
 :root .logo-btn .logo-night, :root .logo-btn .logo-day { display: block; }
@@ -169,15 +171,17 @@ code { font-family: var(--mono); }
 :root:not([data-theme="light"]) .logo-btn .logo-day, :root[data-theme="light"] .logo-btn .logo-night {
   filter: drop-shadow(0 0 .7px var(--md-on-surface)) drop-shadow(0 0 .7px var(--md-on-surface)); }
 @media (hover: hover) {
-  :root:not([data-theme="light"]) .logo-btn:hover { --wheel: 20deg; }
-  :root:not([data-theme="light"]) .logo-btn:hover .logo-day { --pos: -80deg; }
-  :root[data-theme="light"] .logo-btn:hover { --wheel: -20deg; }
-  :root[data-theme="light"] .logo-btn:hover .logo-night { --pos: 80deg; }
+  :root:not([data-theme="light"]) .logo-btn:hover:not(.switched) { --wheel: 20deg; }
+  :root:not([data-theme="light"]) .logo-btn:hover:not(.switched) .logo-day { --pos: -80deg; }
+  :root[data-theme="light"] .logo-btn:hover:not(.switched) { --wheel: -20deg; }
+  :root[data-theme="light"] .logo-btn:hover:not(.switched) .logo-night { --pos: 80deg; }
 }
-:root:not([data-theme="light"]) .logo-btn:focus-visible { --wheel: 20deg; }
-:root:not([data-theme="light"]) .logo-btn:focus-visible .logo-day { --pos: -80deg; }
-:root[data-theme="light"] .logo-btn:focus-visible { --wheel: -20deg; }
-:root[data-theme="light"] .logo-btn:focus-visible .logo-night { --pos: 80deg; }
+:root:not([data-theme="light"]) .logo-btn:focus-visible:not(.switched) { --wheel: 20deg; }
+:root:not([data-theme="light"]) .logo-btn:focus-visible:not(.switched) .logo-day { --pos: -80deg; }
+:root[data-theme="light"] .logo-btn:focus-visible:not(.switched) { --wheel: -20deg; }
+:root[data-theme="light"] .logo-btn:focus-visible:not(.switched) .logo-night { --pos: 80deg; }
+/* The full turn is a longer way than the preview's: a little slower */
+.logo-btn.switched img { transition-duration: .7s, .4s; }
 @media (prefers-reduced-motion: reduce) { .logo-btn img { transition: none; } }
 /* The switch itself: the new theme spreads over the page in a circle growing from the logo (a view
    transition, topbar-boot.js). The whole page is one picture meanwhile (the top bar and the menu too),

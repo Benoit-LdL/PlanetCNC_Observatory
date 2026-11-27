@@ -415,7 +415,13 @@
   }
   label();
   if (btn) {
+    // After a click the wheel turns all the way (the new logo upright), not back to the hover preview:
+    // that waits until the pointer has left the logo, or the focus has
+    var unswitch = function () { btn.classList.remove('switched'); };
+    btn.addEventListener('mouseleave', unswitch);
+    btn.addEventListener('blur', unswitch);
     btn.addEventListener('click', function () {
+      btn.classList.add('switched');
       var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
       var calm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
       if (!document.startViewTransition || calm) { setTheme(next); return; }
