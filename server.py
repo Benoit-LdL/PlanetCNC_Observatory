@@ -49,6 +49,7 @@ import time
 import urllib.error
 import urllib.request
 import zipfile
+import zlib
 from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, urlencode, urlparse
@@ -134,6 +135,7 @@ log_system = LOG.getChild("system")
 log_notify = LOG.getChild("telegram")
 log_mqtt = LOG.getChild("mqtt")
 log_air = LOG.getChild("air")
+log_shop = LOG.getChild("shop")
 
 
 class LogManager:
@@ -536,6 +538,7 @@ class Hub:
         s["files_enabled"] = bool(CONFIG.files_dir)
         s["system"] = SYSTEM.latest if SYSTEM else None
         s["air"] = AIR.view() if AIR else None
+        s["shop"] = SHOP.view() if SHOP else None
         s["console_seq"] = HUB.console_seq
         s["tuning_seq"] = TUNING.seq if TUNING else 0
         s["file_rel"] = files_rel(s.get("file"))
@@ -1317,9 +1320,10 @@ def power_action(action, who):
 
 # ---------------------------------------------------------------------------
 # Telegram notifications and the job timelapse.
-# The bot only reports: messages and camera photos about jobs, and answers /status and
-# /photo in the configured chat. It can't control the machine. It only makes outgoing
-# connections to Telegram (long polling), so nothing on the Pi is opened to the internet.
+# The bot reports: messages and camera photos about jobs, and answers /status and /photo in the
+# configured chat. It can't control the machine; /devices switches the shop devices (Home Assistant,
+# see ShopDevices), only from the configured chat. It only makes outgoing connections to Telegram
+# (long polling), so nothing on the Pi is opened to the internet.
 # ---------------------------------------------------------------------------
 
 TELEGRAM_API = os.environ.get("PCNC_TELEGRAM_API", "https://api.telegram.org")  # changeable for testing
@@ -1551,11 +1555,12 @@ class Notifier:
 
     on_state() is called with every state change (under the hub's lock), so it only decides
     what happened and queues it; one worker thread takes photos, makes the timelapse and
-    talks to Telegram. A second thread long-polls Telegram for /status and /photo.
+    talks to Telegram. A second thread long-polls Telegram for /status, /photo and /devices, and
+    the shop devices' buttons.
     """
 
     COMMANDS = [("status", "What the machine is doing, with a photo"), ("photo", "A camera photo"),
-                ("help", "What this bot does")]
+                ("devices", "Switch the shop devices on and off"), ("help", "What this bot does")]
 
     def __init__(self):
         self.q = queue.Queue()
@@ -1846,7 +1851,8 @@ class Notifier:
                 self.connect()
             try:
                 updates = self.api("getUpdates", {"offset": self.offset, "timeout": TELEGRAM_POLL,
-                                                  "allowed_updates": ["message"]}, timeout=TELEGRAM_POLL + 15)
+                                                  "allowed_updates": ["message", "callback_query"]},
+                                   timeout=TELEGRAM_POLL + 15)
             except RuntimeError as e:
                 if str(e) != self.error:
                     log_notify.warning("Telegram: %s", e)
@@ -1859,9 +1865,113 @@ class Notifier:
             for u in updates or []:
                 self.offset = max(self.offset, u.get("update_id", 0) + 1)
                 try:
-                    self._command(u.get("message") or {})
+                    if "callback_query" in u:
+                        self._button(u["callback_query"])
+                    else:
+                        self._command(u.get("message") or {})
                 except Exception:
                     log_notify.exception("answering a Telegram message failed")
+
+    def _devices_message(self, note=""):
+        """The /devices message: the devices' state as buttons, a tap switches one. (text, reply_markup)"""
+        view = SHOP.view() if SHOP else None
+        head = "\U0001f50c <b>Shop devices</b> · %s" % _html(SETTINGS["name"])
+        if not view:
+            return (head + "\nNone yet: add them in the dashboard, Settings → Home Assistant → Shop devices.", None)
+        rows = []
+        for i, d in enumerate(view["devices"]):
+            st = d["state"]
+            if st == "on":
+                label, want = "\U0001f7e2 %s · on%s" % (d["name"], " %d %%" % d["pct"] if d.get("pct") else ""), 0
+            elif st == "off":
+                label, want = "\u26aa %s · off" % d["name"], 1
+            else:
+                label, want = "\u26d4 %s · %s" % (d["name"], "not found" if st == "missing" else st or "…"), None
+            # 64 bytes at most: the device's place in the list and a checksum of its entity id, not the id
+            data = "shop:%d:%08x:%s" % (i, zlib.crc32(d["entity"].encode()), "-" if want is None else want)
+            rows.append([{"text": label[:60], "callback_data": data}])
+        rows.append([{"text": "\U0001f504 Refresh", "callback_data": "shop:refresh"}])
+        lines = [head]
+        if view["error"]:
+            lines.append("\u26a0\ufe0f " + _html(view["error"]))
+        lines.append(note or "Tap a device to switch it on or off.")
+        lines.append("<i>%s</i>" % time.strftime("%H:%M:%S"))
+        return "\n".join(lines), {"inline_keyboard": rows}
+
+    def _send_devices(self):
+        text, markup = self._devices_message()
+        fields = {"chat_id": SETTINGS["telegram_chat"], "text": text, "parse_mode": "HTML"}
+        if markup:
+            fields["reply_markup"] = markup
+        try:
+            self.api("sendMessage", fields)
+        except RuntimeError as e:
+            log_notify.warning("sending the devices failed: %s", e)
+
+    def _edit_devices(self, msg, note=""):
+        text, markup = self._devices_message(note)
+        try:
+            self.api("editMessageText", {"chat_id": msg["chat"]["id"], "message_id": msg["message_id"], "text": text,
+                                         "parse_mode": "HTML", "reply_markup": markup or {"inline_keyboard": []}})
+        except RuntimeError as e:
+            if "not modified" not in str(e):
+                log_notify.warning("updating the devices message failed: %s", e)
+
+    def _button(self, cq):
+        """A tap on a /devices button: switch the device, then show its new state in the message."""
+        msg = cq.get("message") or {}
+        cid = str((msg.get("chat") or {}).get("id", ""))
+        data = str(cq.get("data") or "")
+
+        def answer(text=""):
+            try:
+                self.api("answerCallbackQuery", {"callback_query_id": cq.get("id"), "text": text[:200]})
+            except RuntimeError as e:
+                log_notify.warning("answering a button failed: %s", e)
+        if cid != SETTINGS["telegram_chat"] or not data.startswith("shop:"):
+            answer("Not from this chat.")
+            return
+        who = (cq.get("from") or {}).get("first_name") or "Telegram"
+        if data == "shop:refresh":
+            answer()
+            threading.Thread(target=lambda: (SHOP and SHOP.poll(), self._edit_devices(msg)), name="telegram-devices",
+                             daemon=True).start()
+            return
+        try:
+            _, i, crc, want = data.split(":")
+            device = (SHOP.devices() if SHOP else [])[int(i)]
+            if "%08x" % zlib.crc32(device["entity"].encode()) != crc:
+                raise ValueError
+        except (ValueError, IndexError):
+            answer("The list changed: here it is again.")
+            self._edit_devices(msg)
+            return
+        name = device["name"] or SHOP.states.get(device["entity"], {}).get("name") or device["entity"]
+        if want == "-":
+            answer("%s can't be switched now." % name)
+            return
+        on = want == "1"
+        if SHOP.states.get(device["entity"], {}).get("state") == ("on" if on else "off"):
+            answer("%s is already %s." % (name, "on" if on else "off"))   # an old button: just show the state
+            self._edit_devices(msg)
+            return
+        try:
+            SHOP.switch(device["entity"], on)
+        except (ValueError, RuntimeError) as e:
+            answer("Could not switch %s: %s" % (name, e))
+            return
+        answer("Turning %s %s…" % (name, "on" if on else "off"))
+        log_shop.info("%s turned %s from Telegram (%s)", device["entity"], "on" if on else "off", who)
+        HUB.log("info", "%s turned %s (Telegram)" % (name, "on" if on else "off"))
+
+        def follow():   # until Home Assistant shows it (as the dashboard's "Turning on…")
+            until = time.time() + SHOP_FAST_FOR
+            while time.time() < until and SHOP.states.get(device["entity"], {}).get("state") != ("on" if on else "off"):
+                time.sleep(0.5)
+            done = SHOP.states.get(device["entity"], {}).get("state") == ("on" if on else "off")
+            self._edit_devices(msg, "%s turned %s." % (_html(name), "on" if on else "off") if done else
+                               "%s: no answer from Home Assistant yet; Refresh to see." % _html(name))
+        threading.Thread(target=follow, name="telegram-devices", daemon=True).start()
 
     def _command(self, msg):
         chat = msg.get("chat") or {}
@@ -1891,9 +2001,12 @@ class Notifier:
                 self.send("\U0001f4f7 %s" % _html(SETTINGS["name"]), photo=True)
             else:
                 self.send("There is no camera on this machine.")
+        elif cmd == "devices":
+            self._send_devices()
         else:
             self.send("This bot reports on <b>%s</b>: jobs starting and ending, progress, pauses and E-stop, with "
-                      "camera photos and a timelapse of each job. It only reports: it can't control the machine.\n\n%s"
+                      "camera photos and a timelapse of each job. It can't control the machine; it can switch the "
+                      "shop devices set up in the dashboard (/devices).\n\n%s"
                       % (_html(SETTINGS["name"]), "\n".join("/%s - %s" % c for c in self.COMMANDS)))
 
 
@@ -1973,6 +2086,35 @@ def system_view():
 
 
 # ---------------------------------------------------------------------------
+# Home Assistant's REST API: the address and token in Settings > Home Assistant, used by the air quality
+# (reading only) and the shop devices (reading, and switching the devices chosen in Settings)
+# ---------------------------------------------------------------------------
+
+def ha_configured():
+    return bool(SETTINGS["ha_url"] and SETTINGS["ha_token"])
+
+
+def ha_request(path, body=None):
+    """GET `path` from Home Assistant, or POST `body` (JSON) to it; returns the answer's JSON.
+    Raises RuntimeError with a message for people."""
+    req = urllib.request.Request(SETTINGS["ha_url"] + path, headers={
+        "Authorization": "Bearer " + SETTINGS["ha_token"], "Accept": "application/json",
+        **({"Content-Type": "application/json"} if body is not None else {})},
+        data=None if body is None else json.dumps(body).encode("utf-8"))
+    try:
+        with urllib.request.urlopen(req, timeout=8) as r:
+            return json.loads(r.read() or b"null")
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            raise RuntimeError("Home Assistant refused the token (401)")
+        raise RuntimeError("Home Assistant answered HTTP %d" % e.code) from e
+    except (urllib.error.URLError, OSError) as e:
+        raise RuntimeError("cannot reach Home Assistant: %s" % getattr(e, "reason", e))
+    except ValueError:
+        raise RuntimeError("Home Assistant sent something that isn't JSON - is the address right?")
+
+
+# ---------------------------------------------------------------------------
 # Air quality: a Sensirion SEN55 (ESPHome) read from Home Assistant's REST API
 # ---------------------------------------------------------------------------
 
@@ -2000,7 +2142,7 @@ AIR_ALERT_GAP = 30 * 60
 
 class AirQuality:
     """Polls the air-quality sensors in Home Assistant; `view()` is sent with every state update.
-    Reading only: nothing is ever sent to Home Assistant but GET requests."""
+    Reading only (the shop devices, below, are what the app switches)."""
 
     def __init__(self):
         self.entities = {}     # "pm25" -> entity id
@@ -2017,7 +2159,7 @@ class AirQuality:
 
     @staticmethod
     def configured():
-        return bool(SETTINGS["ha_url"] and SETTINGS["ha_token"])
+        return ha_configured()
 
     def reconfigure(self):
         """The URL, token or prefix changed: start over."""
@@ -2025,20 +2167,9 @@ class AirQuality:
         self.entities, self.values, self.updated, self.error, self.resolved = {}, {}, 0.0, "", 0.0
         self.wake.set()
 
-    def _get(self, path):
-        req = urllib.request.Request(SETTINGS["ha_url"] + path, headers={
-            "Authorization": "Bearer " + SETTINGS["ha_token"], "Accept": "application/json"})
-        try:
-            with urllib.request.urlopen(req, timeout=8) as r:
-                return json.loads(r.read() or b"null")
-        except urllib.error.HTTPError as e:
-            if e.code == 401:
-                raise RuntimeError("Home Assistant refused the token (401)")
-            raise RuntimeError("Home Assistant answered HTTP %d" % e.code) from e
-        except (urllib.error.URLError, OSError) as e:
-            raise RuntimeError("cannot reach Home Assistant: %s" % getattr(e, "reason", e))
-        except ValueError:
-            raise RuntimeError("Home Assistant sent something that isn't JSON - is the address right?")
+    @staticmethod
+    def _get(path):
+        return ha_request(path)
 
     def _resolve(self):
         prefix = SETTINGS["air_prefix"] + "_"
@@ -2147,8 +2278,160 @@ class AirQuality:
 
 
 # ---------------------------------------------------------------------------
+# Shop devices: switches, lights and fans that Home Assistant knows (a smart plug for the dust extraction,
+# the lights, an air filter), chosen in Settings > Home Assistant and switched from the dashboard. The app
+# only switches the devices chosen there, and only on or off: automations belong in Home Assistant.
+# ---------------------------------------------------------------------------
+
+SHOP_DOMAINS = ("switch", "light", "fan", "input_boolean")
+SHOP_ICONS = ("plug", "fan", "light", "air", "vacuum")   # web/shop.js SHOP_ICONS draws them
+SHOP_MAX = 12
+SHOP_POLL = 5.0          # the devices' state is read this often
+SHOP_FAST = 1.0          # ...and this often for SHOP_FAST_FOR seconds after a switch, until it shows
+SHOP_FAST_FOR = 8.0
+SHOP_ENTITY = re.compile(r"^(%s)\.[a-z0-9_]+$" % "|".join(SHOP_DOMAINS))
+
+
+def shop_devices_clean(value):
+    """The device list from Settings, checked: [{"entity", "name", "icon"}]. Raises ValueError."""
+    if not isinstance(value, list):
+        raise ValueError("shop_devices: a list")
+    out, seen = [], set()
+    for d in value:
+        if not isinstance(d, dict):
+            raise ValueError("shop_devices: a list of devices")
+        entity = str(d.get("entity") or "").strip().lower()
+        if not SHOP_ENTITY.match(entity):
+            raise ValueError("%s: only a switch, light, fan or input_boolean can be a shop device" % (entity or "?"))
+        if entity in seen:
+            continue
+        seen.add(entity)
+        icon = d.get("icon") if d.get("icon") in SHOP_ICONS else "plug"
+        out.append({"entity": entity, "name": " ".join(str(d.get("name") or "").split())[:MAX_NAME_LENGTH],
+                    "icon": icon})
+    if len(out) > SHOP_MAX:
+        raise ValueError("at most %d shop devices" % SHOP_MAX)
+    return out
+
+
+class ShopDevices:
+    """Reads the shop devices' state from Home Assistant (`view()` goes with every state update) and switches
+    them on and off."""
+
+    def __init__(self):
+        self.states = {}       # entity id -> {"state": "on"/"off"/"unavailable"/..., "name": str, "pct": int or None}
+        self.updated = 0.0
+        self.error = ""
+        self.fast_until = 0.0
+        self.gen = 0
+        self.lock = threading.Lock()
+        self.wake = threading.Event()
+        threading.Thread(target=self._run, name="shop", daemon=True).start()
+
+    @staticmethod
+    def devices():
+        return SETTINGS["shop_devices"] or []
+
+    def reconfigure(self):
+        self.gen += 1
+        self.states, self.updated, self.error = {}, 0.0, ""
+        self.wake.set()
+
+    def poll(self):
+        with self.lock:
+            gen, devices = self.gen, self.devices()
+            if not ha_configured() or not devices:
+                self.states, self.error = {}, ""
+                return False
+            try:
+                states = {}
+                for d in devices:
+                    eid = d["entity"]
+                    try:
+                        st = ha_request("/api/states/" + quote(eid)) or {}
+                    except RuntimeError as e:
+                        if "HTTP 404" not in str(e):
+                            raise
+                        states[eid] = {"state": "missing", "name": "", "pct": None}
+                        continue
+                    attrs = st.get("attributes") or {}
+                    pct = attrs.get("percentage") if eid.startswith("fan.") else None
+                    states[eid] = {"state": str(st.get("state") or "unknown"),
+                                   "name": str(attrs.get("friendly_name") or ""),
+                                   "pct": round(pct) if isinstance(pct, (int, float)) else None}
+                if gen != self.gen:
+                    return False
+                changed = states != self.states or self.error
+                self.states, self.updated = states, time.time()
+                if self.error:
+                    log_shop.info("Home Assistant: reading again")
+                self.error = ""
+            except RuntimeError as e:
+                if gen != self.gen:
+                    return False
+                changed = str(e) != self.error
+                if changed:
+                    log_shop.warning("%s", e)
+                self.error = str(e)
+        if changed:
+            with HUB.cond:
+                HUB.state_seq += 1   # show it on every open dashboard now, not with the next update
+                HUB.cond.notify_all()
+        return not self.error
+
+    def _run(self):
+        while True:
+            try:
+                ok = self.poll()
+            except Exception:  # never let a hiccup stop the polling
+                log_shop.exception("shop devices poll failed")
+                ok = False
+            fast = time.time() < self.fast_until
+            self.wake.wait(SHOP_FAST if fast else SHOP_POLL if ok or not self.devices() else AIR_RETRY)
+            self.wake.clear()
+
+    def switch(self, entity, on):
+        """Turn a shop device on or off. Raises ValueError (not a shop device) or RuntimeError (Home Assistant)."""
+        device = next((d for d in self.devices() if d["entity"] == entity), None)
+        if not device:
+            raise ValueError("%s isn't a shop device (Settings > Home Assistant)" % entity)
+        if not ha_configured():
+            raise RuntimeError("Home Assistant isn't set up")
+        domain = entity.split(".", 1)[0]
+        ha_request("/api/services/%s/%s" % (domain, "turn_on" if on else "turn_off"), {"entity_id": entity})
+        self.fast_until = time.time() + SHOP_FAST_FOR
+        self.wake.set()
+        return device["name"] or self.states.get(entity, {}).get("name") or entity
+
+    def view(self):
+        """For the dashboard; None when there are no devices or no Home Assistant."""
+        devices = self.devices()
+        if not ha_configured() or not devices:
+            return None
+        return {"devices": [dict(d, name=d["name"] or self.states.get(d["entity"], {}).get("name") or d["entity"],
+                                 state=self.states.get(d["entity"], {}).get("state"),
+                                 pct=self.states.get(d["entity"], {}).get("pct"))
+                            for d in devices],
+                "error": self.error, "read": bool(self.updated)}
+
+    @staticmethod
+    def choices():
+        """The switches, lights and fans Home Assistant has, for Settings. Raises RuntimeError."""
+        states = ha_request("/api/states")
+        if not isinstance(states, list):
+            raise RuntimeError("unexpected answer from Home Assistant")
+        out = []
+        for st in states:
+            eid = st.get("entity_id", "") if isinstance(st, dict) else ""
+            if SHOP_ENTITY.match(eid):
+                out.append({"entity": eid, "name": str((st.get("attributes") or {}).get("friendly_name") or ""),
+                            "state": str(st.get("state") or "")})
+        return sorted(out, key=lambda e: (SHOP_DOMAINS.index(e["entity"].split(".")[0]), (e["name"] or e["entity"]).lower()))
+
+
+# ---------------------------------------------------------------------------
 # Home Assistant over MQTT: with MQTT discovery the machine shows up in Home Assistant as a
-# device by itself, no YAML. Set up in Settings > MQTT.
+# device by itself, no YAML. Set up in Settings > Home Assistant > MQTT.
 #
 # Topics (<base> = Settings' base topic, "planetcnc_observatory/<this Pi's host name>"):
 #     <base>/status                 online / offline: the server (last will)
@@ -2510,7 +2793,7 @@ def release_summary(commits):
 
 
 class HomeAssistant:
-    """Publishes the machine and the Pi to Home Assistant through an MQTT broker (Settings > MQTT).
+    """Publishes the machine and the Pi to Home Assistant through an MQTT broker (Settings > Home Assistant > MQTT).
     One thread: connects, announces the entities (MQTT discovery), then once a second sends
     what changed, each value no more often than its group's interval allows."""
 
@@ -2803,8 +3086,8 @@ SETTINGS = {"name": DEFAULT_NAME, "camera": None, "camera_view": True, "log_debu
             # Home Assistant over MQTT (see HomeAssistant); mqtt_base "" = planetcnc_observatory/<host name>
             "mqtt_enabled": False, "mqtt_host": "", "mqtt_port": 1883, "mqtt_user": "", "mqtt_password": "",
             "mqtt_prefix": "homeassistant", "mqtt_base": "", "mqtt_machine_every": 5, "mqtt_system_every": 30,
-            # Air quality read from Home Assistant's REST API (see AirQuality)
-            "ha_url": "", "ha_token": "", "air_prefix": AIR_DEFAULT_PREFIX}
+            # Home Assistant's REST API: the air quality (see AirQuality) and the shop devices (see ShopDevices)
+            "ha_url": "", "ha_token": "", "air_prefix": AIR_DEFAULT_PREFIX, "shop_devices": []}
 NOTIFY_PROGRESS_STEPS = (0, 5, 10, 20, 25, 50)
 NOTIFY_MINUTES = (0, 5, 10, 15, 30, 60)   # progress message at least this often (0 = only by percentage)
 TIMELAPSE_INTERVALS = (5, 10, 20, 30, 60)
@@ -2848,6 +3131,11 @@ def load_settings():
                                          if saved.get(old) is False}
     if not isinstance(SETTINGS["notify_events"], dict):
         SETTINGS["notify_events"] = {}
+    try:
+        SETTINGS["shop_devices"] = shop_devices_clean(SETTINGS["shop_devices"])
+    except ValueError as e:
+        LOG.warning("shop devices in %s: %s - none used", SETTINGS_FILE, e)
+        SETTINGS["shop_devices"] = []
     if SETTINGS["name"] in OLD_DEFAULT_NAMES:
         SETTINGS["name"] = DEFAULT_NAME
 
@@ -3075,6 +3363,7 @@ NOTIFY = None
 TIMELAPSE = None
 HA = None
 AIR = None
+SHOP = None
 REJECTED_BRIDGES = set()  # addresses already reported for a wrong token
 CLIENT_LOG_RATE = {}      # browser address -> (minute started, lines received), for CLIENT_LOG_LIMIT
 CLIENT_LOG_LOCK = threading.Lock()
@@ -3189,6 +3478,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, {"ok": True, "presets": PRESETS.list()})
         elif path in ("/api/surfacing/bits", "/api/planing/bits"):
             self._json(200, {"ok": True, "presets": BITS.list()})
+        elif path == "/api/shop/choices":
+            self._shop_choices()
         elif path == "/api/logs":
             self._logs_list()
         elif path == "/api/logs/tail":
@@ -3212,6 +3503,10 @@ class Handler(BaseHTTPRequestHandler):
                 AIR.poll()
                 self._json(200, dict(self._settings_view(), message=(
                     "Home Assistant: %d sensors read" % len(AIR.values) if not AIR.error else AIR.error)))
+            return
+        if path == "/api/shop/switch":
+            if self._require_writer():
+                self._shop_switch()
             return
         if path == "/api/tng/open":
             if self._require_writer():
@@ -3596,6 +3891,37 @@ class Handler(BaseHTTPRequestHandler):
 
     # ---------- settings ----------
 
+    # ---------- shop devices (Home Assistant) ----------
+
+    def _shop_choices(self):
+        if not SHOP or not ha_configured():
+            self._json(409, {"ok": False, "message": "set up the Home Assistant address and token first"})
+            return
+        try:
+            self._json(200, {"ok": True, "entities": SHOP.choices()})
+        except RuntimeError as e:
+            self._json(502, {"ok": False, "message": str(e)})
+
+    def _shop_switch(self):
+        try:
+            data = json.loads(self._read_body() or b"{}")
+        except ValueError:
+            self._json(400, {"ok": False, "message": "invalid json"})
+            return
+        entity, on = str(data.get("entity") or ""), bool(data.get("on"))
+        try:
+            name = SHOP.switch(entity, on) if SHOP else None
+        except ValueError as e:
+            self._json(400, {"ok": False, "message": str(e)})
+            return
+        except RuntimeError as e:
+            log_shop.warning("%s %s: %s", "turn on" if on else "turn off", entity, e)
+            self._json(502, {"ok": False, "message": str(e)})
+            return
+        log_shop.info("%s turned %s from %s", entity, "on" if on else "off", self.client_address[0])
+        HUB.log("info", "%s turned %s" % (name, "on" if on else "off"))
+        self._json(200, {"ok": True, "message": "%s turned %s" % (name, "on" if on else "off")})
+
     def _settings_view(self):
         return {"ok": True, "name": SETTINGS["name"],
                 "camera": CAMERA.choice if CAMERA else "none", "camera_cmd": bool(CAMERA and CAMERA.command),
@@ -3614,7 +3940,8 @@ class Handler(BaseHTTPRequestHandler):
                 "timelapse": bool(SETTINGS["timelapse"]),
                 "timelapse_interval": SETTINGS["timelapse_interval"],
                 "has_camera": bool(CAMERA),
-                "mqtt": HA.view() if HA else None, "air": AIR.settings_view() if AIR else None}
+                "mqtt": HA.view() if HA else None, "air": AIR.settings_view() if AIR else None,
+                "shop_devices": SETTINGS["shop_devices"], "shop_max": SHOP_MAX}
 
     def _settings_change(self):
         try:
@@ -3737,6 +4064,12 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(400, {"ok": False, "message": "an entity id is like sensor.smart_sen55"})
                 return
             changes["air_prefix"] = prefix
+        if "shop_devices" in data:
+            try:
+                changes["shop_devices"] = shop_devices_clean(data["shop_devices"])
+            except ValueError as e:
+                self._json(400, {"ok": False, "message": str(e)})
+                return
         if "notify_events" in data:  # {kind: {"send": bool, "silent": bool}}, only the kinds that changed
             asked = data["notify_events"]
             kinds = {kind for kind, _, _ in NOTIFY_EVENTS}
@@ -3764,6 +4097,11 @@ class Handler(BaseHTTPRequestHandler):
             HA.settings_changed()
             HUB.log("info", "Home Assistant (MQTT): %s" % ("connecting to %s" % SETTINGS["mqtt_host"] if HA.enabled()
                                                             else "off"))
+        if SHOP and changes.keys() & {"ha_url", "ha_token", "shop_devices"}:
+            SHOP.reconfigure()
+            if "shop_devices" in changes:
+                HUB.log("info", "Shop devices: %s" % (", ".join(d["name"] or d["entity"] for d in changes["shop_devices"])
+                                                      or "none"))
         if AIR and changes.keys() & {"ha_url", "ha_token", "air_prefix"}:
             AIR.reconfigure()
             HUB.log("info", "Air quality: %s" % ("reading %s from %s" % (SETTINGS["air_prefix"], SETTINGS["ha_url"])
@@ -4574,7 +4912,7 @@ def main():
             log_files.warning("folder %s not found, file view disabled", files_dir)
     apply_files_dir()
 
-    global CAMERA, SYSTEM, UPDATER, UPDATES_OFF_REASON, TUNING, PRESETS, BITS, OS_PACKAGES, NOTIFY, TIMELAPSE, HA, AIR
+    global CAMERA, SYSTEM, UPDATER, UPDATES_OFF_REASON, TUNING, PRESETS, BITS, OS_PACKAGES, NOTIFY, TIMELAPSE, HA, AIR, SHOP
     TUNING = TuningLog(TUNING_FILE)
     PRESETS = SurfacingPresets(PRESETS_FILE, old_path=OLD_PRESETS_FILE)
     BITS = SurfacingPresets(BITS_FILE, keys=("d",), what="bit", what_plural="bits", old_path=OLD_BITS_FILE)
@@ -4609,6 +4947,7 @@ def main():
     startup_notices()
     HA = HomeAssistant(args.port)
     AIR = AirQuality()
+    SHOP = ShopDevices()
 
     if args.demo:
         if not SYSTEM:

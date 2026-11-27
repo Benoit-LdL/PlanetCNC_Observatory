@@ -9,8 +9,9 @@
 <title>Settings – Observatory</title>
 <script src="theme-boot.js"></script>
 <link rel="stylesheet" href="style.css">
-<!-- The Settings page: the machine name, camera, Files folder, 3D view, Telegram, timelapse,
-     MQTT (Home Assistant), air quality and logs. See settings.js. -->
+<!-- The Settings page, in three columns (one under the other when narrow): the machine name, camera,
+     Files folder, 3D view and logs; Telegram and the timelapse; Home Assistant (its address and token, the air
+     quality, the shop devices, MQTT). See settings.js. -->
 </head>
 <body>
 <header class="topbar">
@@ -25,246 +26,275 @@
 <script src="topbar-boot.js"></script>
 <main class="page">
   <div class="set-page" id="settings">
+    <div class="set-col">
     <section class="set-group card set-card">
-      <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V9l8-5 8 5v11"/><path d="M9 20v-6h6v6"/></svg>Machine</h3>
-      <form class="set-form" id="nameForm" autocomplete="off">
+        <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V9l8-5 8 5v11"/><path d="M9 20v-6h6v6"/></svg>Machine</h3>
+        <form class="set-form" id="nameForm" autocomplete="off">
+          <div class="set-row">
+            <label for="nameInput">Name</label>
+            <input id="nameInput" maxlength="40" placeholder="PlanetCNC">
+          </div>
+          <div class="set-btns">
+            <button class="vbtn primary" type="submit">Save</button>
+          </div>
+        </form>
+        <p class="set-help">The name is shown in the top bar and the browser tab, for everyone who opens the dashboard.</p>
+      </section>
+      <section class="set-group card set-card">
+        <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg>Camera</h3>
+        <label class="set-check"><input type="checkbox" id="camViewOn"> Show the camera on the dashboard</label>
+        <p class="set-help">The camera panel at the top left, shown or hidden for everyone who opens the
+          dashboard. When it is shown but no picture comes, it says why. Hiding it doesn't turn the camera
+          off: Telegram photos, the timelapse and the camera page still use it. To turn the camera off,
+          choose Off as the device.</p>
         <div class="set-row">
-          <label for="nameInput">Name</label>
-          <input id="nameInput" maxlength="40" placeholder="PlanetCNC">
+          <label for="camSelect">Device</label>
+          <select id="camSelect"></select>
+          <button class="vbtn" id="camRescanBtn" type="button" title="Look for cameras again (after plugging one in)">Rescan</button>
         </div>
-        <div class="set-btns">
-          <button class="vbtn primary" type="submit">Save</button>
+        <p class="set-hint" id="camHint"></p>
+        <p class="set-help" id="camUrls" hidden></p>
+      </section>
+      <section class="set-group card set-card">
+        <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Files</h3>
+        <form class="set-form" id="filesDirForm" autocomplete="off">
+          <div class="set-row">
+            <label for="filesDirInput">Folder</label>
+            <input id="filesDirInput" spellcheck="false" placeholder="/home/pi/gcode">
+          </div>
+          <div class="set-btns">
+            <button class="vbtn primary" type="submit">Save</button>
+            <button class="vbtn tonal" id="filesDirBrowseBtn" type="button" title="Choose a folder on the Pi"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Browse…</button>
+            <button class="vbtn" id="filesDirResetBtn" type="button">Default</button>
+          </div>
+        </form>
+        <p class="set-help">The folder shown in the Files tab; the Surfacing page saves its programs there. <b>Browse…</b> picks a folder on the Pi (a USB stick too) and saves it; <b>Default</b> goes back to the folder given when the server starts (<code>--files-dir</code>).</p>
+        <p class="set-hint" id="filesDirHint"></p>
+      </section>
+      <section class="set-group card set-card">
+        <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 3h4v6l-2 3-2-3z"/><path d="M12 12v9"/><path d="M9 21h6"/></svg>Tool in the 3D view</h3>
+        <label class="set-check"><input type="checkbox" id="toolShape"> Show the real tool size and shape</label>
+        <div class="set-row">
+          <label for="toolCamSelect">CAM program</label>
+          <select id="toolCamSelect"></select>
         </div>
-      </form>
-      <p class="set-help">The name is shown in the top bar and the browser tab, for everyone who opens the dashboard.</p>
-    </section>
+        <p class="set-help">The tool size and shape are read from the tool comments this CAM program writes at the top of the G-code file. When a file has no tool comments, the diameter TNG reports for the loaded tool is used if it has one. Turned off, the standard tool marker is shown.</p>
+      </section>
+      <section class="set-group card set-card">
+        <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M9 11h7M9 15h7M9 7h3"/></svg>Logs</h3>
+        <label class="set-check"><input type="checkbox" id="logDebug"> Detailed logging</label>
+        <p class="set-help">Detailed logging writes much more (every request), for chasing a problem. Turn it off afterwards. The log files are listed below; <b>Show recent</b> shows the last lines here.</p>
+        <p class="set-hint" id="logInfo"></p>
+        <ul class="log-files" id="logFiles"></ul>
+        <div class="set-row">
+          <label for="logFilter">Show</label>
+          <select id="logFilter">
+            <option value="">Everything</option>
+            <option value="warn">Warnings and errors</option>
+          </select>
+          <button class="vbtn" id="logShowBtn" type="button">Show recent</button>
+        </div>
+        <pre class="log-view" id="logView" hidden></pre>
+      </section>
+    </div>
+    <div class="set-col">
     <section class="set-group card set-card">
-      <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg>Camera</h3>
-      <label class="set-check"><input type="checkbox" id="camViewOn"> Show the camera on the dashboard</label>
-      <p class="set-help">The camera panel at the top left, shown or hidden for everyone who opens the
-        dashboard. When it is shown but no picture comes, it says why. Hiding it doesn't turn the camera
-        off: Telegram photos, the timelapse and the camera page still use it. To turn the camera off,
-        choose Off as the device.</p>
-      <div class="set-row">
-        <label for="camSelect">Device</label>
-        <select id="camSelect"></select>
-        <button class="vbtn" id="camRescanBtn" type="button" title="Look for cameras again (after plugging one in)">Rescan</button>
-      </div>
-      <p class="set-hint" id="camHint"></p>
-      <p class="set-help" id="camUrls" hidden></p>
-    </section>
-    <section class="set-group card set-card">
-      <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Files</h3>
-      <form class="set-form" id="filesDirForm" autocomplete="off">
+        <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 4-18 7 6 2 2 6 3-4 5 4z"/><path d="m9 13 8-6"/></svg>Telegram</h3>
+        <p class="set-help">Messages about jobs on your phone, with camera photos and the timelapse, from your own
+          Telegram bot. It can't control the machine; <code>/devices</code> switches the shop devices (Home Assistant).</p>
+        <p class="set-help">Set up: in Telegram, talk to <b>@BotFather</b>, send <code>/newbot</code> and paste the
+          token it gives here. Then send <code>/start</code> to your new bot, press <b>Refresh</b> and choose your chat.</p>
+        <form class="set-form" id="tgForm" autocomplete="off">
+          <div class="set-row">
+            <label for="tgToken">Token</label>
+            <input id="tgToken" type="password" spellcheck="false" autocomplete="new-password" placeholder="123456:ABC-…">
+          </div>
+          <div class="set-row">
+            <label for="tgChat">Chat</label>
+            <input id="tgChat" spellcheck="false" inputmode="numeric" placeholder="chat id">
+          </div>
+          <div class="set-btns">
+            <button class="vbtn primary" type="submit">Save</button>
+          </div>
+        </form>
+        <ul class="tg-chats" id="tgChats"></ul>
+        <p class="set-hint" id="tgStatus"></p>
+        <div class="set-btns flush">
+          <button class="vbtn" id="tgTestBtn" type="button">Send test message</button>
+          <button class="vbtn" id="tgRefreshBtn" type="button" title="Look again for chats that wrote to the bot">Refresh</button>
+          <button class="vbtn" id="tgClearBtn" type="button" title="Forget the bot token and the chat: no more messages" hidden>Remove bot</button>
+        </div>
+        <h4 class="set-sub" id="tgMsgHead">Messages</h4>
+        <p class="set-help" data-help-for="tgMsgHead">Which messages the bot sends, how often it reports progress, and
+          which arrive without sound. A silent message arrives without sound or vibration; Telegram still shows it as unread.</p>
         <div class="set-row">
-          <label for="filesDirInput">Folder</label>
-          <input id="filesDirInput" spellcheck="false" placeholder="/home/pi/gcode">
-        </div>
-        <div class="set-btns">
-          <button class="vbtn primary" type="submit">Save</button>
-          <button class="vbtn tonal" id="filesDirBrowseBtn" type="button" title="Choose a folder on the Pi"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Browse…</button>
-          <button class="vbtn" id="filesDirResetBtn" type="button">Default</button>
-        </div>
-      </form>
-      <p class="set-help">The folder shown in the Files tab; the Surfacing page saves its programs there. <b>Browse…</b> picks a folder on the Pi (a USB stick too) and saves it; <b>Default</b> goes back to the folder given when the server starts (<code>--files-dir</code>).</p>
-      <p class="set-hint" id="filesDirHint"></p>
-    </section>
-    <section class="set-group card set-card">
-      <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 3h4v6l-2 3-2-3z"/><path d="M12 12v9"/><path d="M9 21h6"/></svg>Tool in the 3D view</h3>
-      <label class="set-check"><input type="checkbox" id="toolShape"> Show the real tool size and shape</label>
-      <div class="set-row">
-        <label for="toolCamSelect">CAM program</label>
-        <select id="toolCamSelect"></select>
-      </div>
-      <p class="set-help">The tool size and shape are read from the tool comments this CAM program writes at the top of the G-code file. When a file has no tool comments, the diameter TNG reports for the loaded tool is used if it has one. Turned off, the standard tool marker is shown.</p>
-    </section>
-    <section class="set-group card set-card">
-      <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 4-18 7 6 2 2 6 3-4 5 4z"/><path d="m9 13 8-6"/></svg>Telegram</h3>
-      <p class="set-help">Messages about jobs on your phone, with camera photos and the timelapse, from your own
-        Telegram bot. It only reports: it can't control the machine.</p>
-      <p class="set-help">Set up: in Telegram, talk to <b>@BotFather</b>, send <code>/newbot</code> and paste the
-        token it gives here. Then send <code>/start</code> to your new bot, press <b>Refresh</b> and choose your chat.</p>
-      <form class="set-form" id="tgForm" autocomplete="off">
-        <div class="set-row">
-          <label for="tgToken">Token</label>
-          <input id="tgToken" type="password" spellcheck="false" autocomplete="new-password" placeholder="123456:ABC-…">
-        </div>
-        <div class="set-row">
-          <label for="tgChat">Chat</label>
-          <input id="tgChat" spellcheck="false" inputmode="numeric" placeholder="chat id">
-        </div>
-        <div class="set-btns">
-          <button class="vbtn primary" type="submit">Save</button>
-        </div>
-      </form>
-      <ul class="tg-chats" id="tgChats"></ul>
-      <p class="set-hint" id="tgStatus"></p>
-      <div class="set-btns flush">
-        <button class="vbtn" id="tgTestBtn" type="button">Send test message</button>
-        <button class="vbtn" id="tgRefreshBtn" type="button" title="Look again for chats that wrote to the bot">Refresh</button>
-        <button class="vbtn" id="tgClearBtn" type="button" title="Forget the bot token and the chat: no more messages" hidden>Remove bot</button>
-      </div>
-      <h4 class="set-sub" id="tgMsgHead">Messages</h4>
-      <p class="set-help" data-help-for="tgMsgHead">Which messages the bot sends, how often it reports progress, and
-        which arrive without sound. A silent message arrives without sound or vibration; Telegram still shows it as unread.</p>
-      <div class="set-row">
-        <label for="tgProgress">Progress</label>
-        <select id="tgProgress">
-          <option value="0">Not by percentage</option>
-          <option value="5">Every 5 %</option>
-          <option value="10">Every 10 %</option>
-          <option value="20">Every 20 %</option>
-          <option value="25">Every 25 %</option>
-          <option value="50">At 50 %</option>
-        </select>
-      </div>
-      <div class="set-row">
-        <label for="tgMinutes">Or by time</label>
-        <select id="tgMinutes">
-          <option value="0">Not by time</option>
-          <option value="5">Every 5 minutes</option>
-          <option value="10">Every 10 minutes</option>
-          <option value="15">Every 15 minutes</option>
-          <option value="30">Every 30 minutes</option>
-          <option value="60">Every hour</option>
-        </select>
-      </div>
-      <p class="set-help" data-help-for="tgProgress">A progress message goes out at whichever comes first (by percentage or by time); each message restarts the clock. Both off: no progress messages.</p>
-      <label class="set-check"><input type="checkbox" id="tgReplace"> One progress message: each new one replaces the last</label>
-      <label class="set-check"><input type="checkbox" id="tgPhotos"> A camera photo with each message</label>
-      <div class="tg-events" id="tgEvents" role="table" aria-label="Which messages are sent, and which without sound"></div>
-      <div class="set-form" id="tlGroup">
-        <h4 class="set-sub">Timelapse</h4>
-        <label class="set-check" for="tlOn"><input type="checkbox" id="tlOn"> <span class="help-at">A timelapse video of each job</span></label>
-        <div class="set-row">
-          <label for="tlInterval">Photo</label>
-          <select id="tlInterval">
-            <option value="5">Every 5 s</option>
-            <option value="10">Every 10 s</option>
-            <option value="20">Every 20 s</option>
-            <option value="30">Every 30 s</option>
-            <option value="60">Every minute</option>
+          <label for="tgProgress">Progress</label>
+          <select id="tgProgress">
+            <option value="0">Not by percentage</option>
+            <option value="5">Every 5 %</option>
+            <option value="10">Every 10 %</option>
+            <option value="20">Every 20 %</option>
+            <option value="25">Every 25 %</option>
+            <option value="50">At 50 %</option>
           </select>
         </div>
-        <p class="set-help" data-help-for="tlOn">The camera keeps running during the job. At the end the photos become
-          a short video (about 20 s), sent with the "Job finished" message. Long jobs take photos less often as they
-          go. Only made when the bot and the chat are set up.</p>
-      </div>
-    </section>
-    <section class="set-group card set-card" id="mqttGroup">
-      <h3><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2"/><path d="M8.5 15.5a5 5 0 0 1 0-7M15.5 8.5a5 5 0 0 1 0 7"/><path d="M5.6 18.4a9 9 0 0 1 0-12.8M18.4 5.6a9 9 0 0 1 0 12.8"/></svg>MQTT</h3>
-      <p class="set-help">Sends the machine and the Raspberry Pi to Home Assistant through an MQTT broker (the
-        Mosquitto add-on, for example). The machine appears in Home Assistant by itself, as a device under
-        <b>Settings → Devices &amp; services → MQTT</b>: status, program, current operation, progress, time left,
-        tool, spindle and feed, and the Pi's CPU, memory, temperature, disk, power, IP and MAC address and WiFi.
-        It only reports: Home Assistant can't control the machine.</p>
-      <p class="set-help">With the Mosquitto add-on: the broker is Home Assistant's address, and the user name and
-        password those of a Home Assistant user (or one set in the add-on).</p>
-      <label class="set-check"><input type="checkbox" id="mqttOn"> Send to Home Assistant</label>
-      <form class="set-form" id="mqttForm" autocomplete="off">
         <div class="set-row">
-          <label for="mqttHost">Broker</label>
-          <input id="mqttHost" spellcheck="false" placeholder="192.168.1.10 or homeassistant.local">
+          <label for="tgMinutes">Or by time</label>
+          <select id="tgMinutes">
+            <option value="0">Not by time</option>
+            <option value="5">Every 5 minutes</option>
+            <option value="10">Every 10 minutes</option>
+            <option value="15">Every 15 minutes</option>
+            <option value="30">Every 30 minutes</option>
+            <option value="60">Every hour</option>
+          </select>
+        </div>
+        <p class="set-help" data-help-for="tgProgress">A progress message goes out at whichever comes first (by percentage or by time); each message restarts the clock. Both off: no progress messages.</p>
+        <label class="set-check"><input type="checkbox" id="tgReplace"> One progress message: each new one replaces the last</label>
+        <label class="set-check"><input type="checkbox" id="tgPhotos"> A camera photo with each message</label>
+        <div class="tg-events" id="tgEvents" role="table" aria-label="Which messages are sent, and which without sound"></div>
+        <div class="set-form" id="tlGroup">
+          <h4 class="set-sub">Timelapse</h4>
+          <label class="set-check" for="tlOn"><input type="checkbox" id="tlOn"> <span class="help-at">A timelapse video of each job</span></label>
+          <div class="set-row">
+            <label for="tlInterval">Photo</label>
+            <select id="tlInterval">
+              <option value="5">Every 5 s</option>
+              <option value="10">Every 10 s</option>
+              <option value="20">Every 20 s</option>
+              <option value="30">Every 30 s</option>
+              <option value="60">Every minute</option>
+            </select>
+          </div>
+          <p class="set-help" data-help-for="tlOn">The camera keeps running during the job. At the end the photos become
+            a short video (about 20 s), sent with the "Job finished" message. Long jobs take photos less often as they
+            go. Only made when the bot and the chat are set up.</p>
+        </div>
+      </section>
+    </div>
+    <div class="set-col">
+    <section class="set-group card set-card" id="haGroup">
+        <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 9.5V20h13V9.5"/><circle cx="12" cy="14" r="2"/><path d="M12 16v4M10.6 12.6 8.5 10.5M13.4 12.6l2.1-2.1"/></svg>Home Assistant</h3>
+        <p class="set-help">Each part is optional. With Home Assistant's <b>address and token</b> the app reads the
+          <b>air quality</b> sensor and switches the <b>shop devices</b>; <b>MQTT</b> sends the machine and the Pi to
+          Home Assistant.</p>
+  
+        <h4 class="set-sub" id="haHead">Address and token</h4>
+        <p class="set-help" data-help-for="haHead"><b>Address</b> is how this Pi reaches Home Assistant, e.g.
+          <code>http://homeassistant.local:8123</code>. For the <b>token</b>, in Home Assistant click your name
+          (bottom left), open the <b>Security</b> tab and under <b>Long-lived access tokens</b> press
+          <b>Create token</b>. Used for the air quality and the shop devices.</p>
+        <form class="set-form" id="haForm" autocomplete="off">
+          <div class="set-row">
+            <label for="haUrl">Address</label>
+            <input id="haUrl" spellcheck="false" inputmode="url" placeholder="http://homeassistant.local:8123">
+          </div>
+          <div class="set-row">
+            <label for="haToken">Token</label>
+            <input id="haToken" type="password" spellcheck="false" autocomplete="new-password" placeholder="long-lived access token">
+          </div>
+          <div class="set-btns">
+            <button class="vbtn primary" type="submit">Save</button>
+            <button class="vbtn" id="haClearBtn" type="button" title="Forget the token: the air quality and the shop devices disappear" hidden>Remove token</button>
+          </div>
+        </form>
+  
+        <h4 class="set-sub" id="airHead">Air quality</h4>
+        <p class="set-help" data-help-for="airHead">Shows a SEN55 air-quality sensor that Home Assistant already knows
+          (for example on an ESP32 with ESPHome) in the menu, above the Raspberry Pi: fine dust (PM2.5, PM10; PM1 and
+          PM4 when you point at them), the VOC and NOx indexes, temperature and humidity. Read every 10 seconds; it
+          only reads, nothing is changed in Home Assistant.</p>
+        <form class="set-form" id="airForm" autocomplete="off">
+          <div class="set-row">
+            <label for="airPrefix">Sensors</label>
+            <input id="airPrefix" spellcheck="false" placeholder="sensor.smart_sen55">
+            <button class="vbtn" type="submit">Save</button>
+          </div>
+          <p class="set-help" data-help-for="airPrefix">The start of the sensors' entity ids: <code>sensor.smart_sen55</code> for an ESPHome device with <code>friendly_name: Smart SEN55</code> (Home Assistant shows them under Settings → Devices → the sensor). The PM, VOC, NOx, temperature and humidity sensors are found from it.</p>
+        </form>
+        <!-- The sensors found, folded away behind their count (the System page's Details chevron) -->
+        <div class="set-more" id="airEntsBox" hidden>
+          <button class="set-more-btn" type="button" id="airEntsBtn" aria-expanded="false" aria-controls="airEntities">
+            <span id="airEntsSum"></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <ul class="tg-chats air-ents" id="airEntities" hidden></ul>
+        </div>
+        <p class="set-hint" id="airStatus"></p>
+        <div class="set-btns flush">
+          <button class="vbtn" id="airCheckBtn" type="button" title="Read the sensors now">Check</button>
+        </div>
+  
+        <h4 class="set-sub" id="shopHead">Shop devices</h4>
+        <p class="set-help" data-help-for="shopHead">Switches, lights and fans that Home Assistant knows (a smart plug
+          for the dust extraction, the shop lights, an air filter), switched on and off from the dashboard. Only the
+          devices listed here can be switched from this app. To switch them automatically (the extraction on while the
+          spindle turns), make an automation in Home Assistant with the machine's MQTT entities (below). With the
+        Telegram bot set up, <code>/devices</code> in the chat switches them too.</p>
+        <ul class="shop-set" id="shopSet"></ul>
+        <div class="set-row">
+          <label for="shopAdd">Add a device</label>
+          <select id="shopAdd"></select>
+          <button class="vbtn" id="shopAddBtn" type="button">Add</button>
+        </div>
+        <p class="set-hint" id="shopStatus"></p>
+  
+        <h4 class="set-sub" id="mqttHead">MQTT</h4>
+        <p class="set-help" data-help-for="mqttHead">Sends the machine and the Raspberry Pi to Home Assistant through
+          an MQTT broker (the Mosquitto add-on, for example). The machine appears in Home Assistant by itself, as a
+          device under <b>Settings → Devices &amp; services → MQTT</b>: status, program, current operation, progress,
+          time left, tool, spindle and feed, and the Pi's CPU, memory, temperature, disk, power, IP and MAC address and
+          WiFi. It only reports: Home Assistant can't control the machine.</p>
+        <p class="set-help" data-help-for="mqttHead">With the Mosquitto add-on: the broker is Home Assistant's address,
+          and the user name and password those of a Home Assistant user (or one set in the add-on).</p>
+        <label class="set-check"><input type="checkbox" id="mqttOn"> Send to Home Assistant</label>
+        <form class="set-form" id="mqttForm" autocomplete="off">
+          <div class="set-row">
+            <label for="mqttHost">Broker</label>
+            <input id="mqttHost" spellcheck="false" placeholder="192.168.1.10 or homeassistant.local">
+          </div>
+          <div class="set-row">
+            <label for="mqttPort">Port</label>
+            <input id="mqttPort" type="number" min="1" max="65535" inputmode="numeric" placeholder="1883">
+          </div>
+          <div class="set-row">
+            <label for="mqttUser">User name</label>
+            <input id="mqttUser" spellcheck="false" autocomplete="off">
+          </div>
+          <div class="set-row">
+            <label for="mqttPassword">Password</label>
+            <input id="mqttPassword" type="password" spellcheck="false" autocomplete="new-password" placeholder="the user's password">
+          </div>
+          <div class="set-row">
+            <label for="mqttPrefix">Discovery prefix</label>
+            <input id="mqttPrefix" spellcheck="false" placeholder="homeassistant">
+          </div>
+          <p class="set-help" data-help-for="mqttPrefix">Where Home Assistant looks for new devices: <code>homeassistant</code> unless you changed it in Home Assistant's MQTT settings.</p>
+          <div class="set-row">
+            <label for="mqttBase">Base topic</label>
+            <input id="mqttBase" spellcheck="false">
+          </div>
+          <p class="set-help" data-help-for="mqttBase">The topics the values are sent on: <code>&lt;base topic&gt;/progress</code>, <code>&lt;base topic&gt;/status</code>… Leave it empty for the default.</p>
+          <div class="set-btns">
+            <button class="vbtn primary" type="submit">Save</button>
+            <button class="vbtn" id="mqttPassClear" type="button" title="Forget the saved password" hidden>Remove password</button>
+          </div>
+        </form>
+        <p class="set-hint" id="mqttStatus"></p>
+        <div class="set-btns flush">
+          <button class="vbtn" id="mqttCheckBtn" type="button" title="Show whether it is connected now">Check</button>
+        </div>
+        <h5 class="set-sub minor" id="mqttEveryHead">How often</h5>
+        <p class="set-help" data-help-for="mqttEveryHead">How often values that change all the time are sent: progress, time left, spindle and feed (machine values), and the Pi's health and network. Status, program, operation and tool are sent as soon as they change.</p>
+        <div class="set-row">
+          <label for="mqttMachineEvery">Machine values</label>
+          <select id="mqttMachineEvery"></select>
         </div>
         <div class="set-row">
-          <label for="mqttPort">Port</label>
-          <input id="mqttPort" type="number" min="1" max="65535" inputmode="numeric" placeholder="1883">
+          <label for="mqttSystemEvery">Pi and network</label>
+          <select id="mqttSystemEvery"></select>
         </div>
-        <div class="set-row">
-          <label for="mqttUser">User name</label>
-          <input id="mqttUser" spellcheck="false" autocomplete="off">
-        </div>
-        <div class="set-row">
-          <label for="mqttPassword">Password</label>
-          <input id="mqttPassword" type="password" spellcheck="false" autocomplete="new-password" placeholder="the user's password">
-        </div>
-        <div class="set-row">
-          <label for="mqttPrefix">Discovery prefix</label>
-          <input id="mqttPrefix" spellcheck="false" placeholder="homeassistant">
-        </div>
-        <p class="set-help" data-help-for="mqttPrefix">Where Home Assistant looks for new devices: <code>homeassistant</code> unless you changed it in Home Assistant's MQTT settings.</p>
-        <div class="set-row">
-          <label for="mqttBase">Base topic</label>
-          <input id="mqttBase" spellcheck="false">
-        </div>
-        <p class="set-help" data-help-for="mqttBase">The topics the values are sent on: <code>&lt;base topic&gt;/progress</code>, <code>&lt;base topic&gt;/status</code>… Leave it empty for the default.</p>
-        <div class="set-btns">
-          <button class="vbtn primary" type="submit">Save</button>
-          <button class="vbtn" id="mqttPassClear" type="button" title="Forget the saved password" hidden>Remove password</button>
-        </div>
-      </form>
-      <p class="set-hint" id="mqttStatus"></p>
-      <div class="set-btns flush">
-        <button class="vbtn" id="mqttCheckBtn" type="button" title="Show whether it is connected now">Check</button>
-      </div>
-      <h4 class="set-sub" id="mqttEveryHead">How often</h4>
-      <p class="set-help" data-help-for="mqttEveryHead">How often values that change all the time are sent: progress, time left, spindle and feed (machine values), and the Pi's health and network. Status, program, operation and tool are sent as soon as they change.</p>
-      <div class="set-row">
-        <label for="mqttMachineEvery">Machine values</label>
-        <select id="mqttMachineEvery"></select>
-      </div>
-      <div class="set-row">
-        <label for="mqttSystemEvery">Pi and network</label>
-        <select id="mqttSystemEvery"></select>
-      </div>
-    </section>
-    <section class="set-group card set-card" id="airGroup">
-      <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 12h15a3 3 0 1 1-3 3"/><path d="M3 16h7"/></svg>Air quality</h3>
-      <p class="set-help">Shows a SEN55 air-quality sensor that Home Assistant already knows (for example on an ESP32
-        with ESPHome) in the menu, above the Raspberry Pi: fine dust (PM2.5, PM10; PM1 and PM4 when you point at
-        them), the VOC and NOx indexes, temperature and humidity. Read from Home Assistant every 10 seconds; it only
-        reads, nothing is changed in Home Assistant.</p>
-      <p class="set-help">Set up: <b>Address</b> is how this Pi reaches Home Assistant, e.g.
-        <code>http://homeassistant.local:8123</code>. For the <b>token</b>, in Home Assistant click your name
-        (bottom left), open the <b>Security</b> tab and under <b>Long-lived access tokens</b> press
-        <b>Create token</b>.</p>
-      <form class="set-form" id="airForm" autocomplete="off">
-        <div class="set-row">
-          <label for="haUrl">Address</label>
-          <input id="haUrl" spellcheck="false" inputmode="url" placeholder="http://homeassistant.local:8123">
-        </div>
-        <div class="set-row">
-          <label for="haToken">Token</label>
-          <input id="haToken" type="password" spellcheck="false" autocomplete="new-password" placeholder="long-lived access token">
-        </div>
-        <div class="set-row">
-          <label for="airPrefix">Sensors</label>
-          <input id="airPrefix" spellcheck="false" placeholder="sensor.smart_sen55">
-        </div>
-        <p class="set-help" data-help-for="airPrefix">The start of the sensors' entity ids: <code>sensor.smart_sen55</code> for an ESPHome device with <code>friendly_name: Smart SEN55</code> (Home Assistant shows them under Settings → Devices → the sensor). The PM, VOC, NOx, temperature and humidity sensors are found from it.</p>
-        <div class="set-btns">
-          <button class="vbtn primary" type="submit">Save</button>
-        </div>
-      </form>
-      <!-- The sensors found, folded away behind their count (the System page's Details chevron) -->
-      <div class="set-more" id="airEntsBox" hidden>
-        <button class="set-more-btn" type="button" id="airEntsBtn" aria-expanded="false" aria-controls="airEntities">
-          <span id="airEntsSum"></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
-        </button>
-        <ul class="tg-chats air-ents" id="airEntities" hidden></ul>
-      </div>
-      <p class="set-hint" id="airStatus"></p>
-      <div class="set-btns flush">
-        <button class="vbtn" id="airCheckBtn" type="button" title="Read the sensors now">Check</button>
-        <button class="vbtn" id="airClearBtn" type="button" title="Forget the token: the air quality disappears from the menu" hidden>Turn off</button>
-      </div>
-    </section>
-    <section class="set-group card set-card">
-      <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M9 11h7M9 15h7M9 7h3"/></svg>Logs</h3>
-      <label class="set-check"><input type="checkbox" id="logDebug"> Detailed logging</label>
-      <p class="set-help">Detailed logging writes much more (every request), for chasing a problem. Turn it off afterwards. The log files are listed below; <b>Show recent</b> shows the last lines here.</p>
-      <p class="set-hint" id="logInfo"></p>
-      <ul class="log-files" id="logFiles"></ul>
-      <div class="set-row">
-        <label for="logFilter">Show</label>
-        <select id="logFilter">
-          <option value="">Everything</option>
-          <option value="warn">Warnings and errors</option>
-        </select>
-        <button class="vbtn" id="logShowBtn" type="button">Show recent</button>
-      </div>
-      <pre class="log-view" id="logView" hidden></pre>
-    </section>
+      </section>
+    </div>
   </div>
   <div class="set-msg" id="setMsg" aria-live="polite"></div>
 </main>

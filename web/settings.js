@@ -1,11 +1,13 @@
-// The /settings page: the machine name, camera, Files folder, tool in the 3D view, Telegram,
-// timelapse, MQTT (Home Assistant) and logs. Everything is saved on the Pi (/api/settings) and applies to everyone.
+// The /settings page: the machine name, camera, Files folder, tool in the 3D view, logs, Telegram,
+// timelapse, and Home Assistant (its address and token, the air quality, the shop devices, MQTT).
+// Everything is saved on the Pi (/api/settings) and applies to everyone.
 import { ask } from './dialog.js';
 import { log } from './log.js';
 import { initHelp } from './help.js';
 import { followState } from './nav.js';
 import { initSystem, systemOnState } from './system-ui.js';
 import { sentence, UNREACHABLE } from './msg.js';
+import { SHOP_ICONS, shopIcon, guessIcon } from './shop.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (t) => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -37,7 +39,7 @@ function setMessage(text, kind = '', at = anchor) {
   const card = at?.closest?.('.set-card');
   if (card && text) {
     // Below the control's own block: its row, its buttons, its switch, its table
-    const block = at.closest('.set-btns, .set-row, .set-check, .tg-events, .tg-chats') || at;
+    const block = at.closest('.set-btns, .set-row, .set-check, .tg-events, .tg-chats, .shop-set') || at;
     if (block.nextElementSibling !== box) block.after(box);
   } else if (box.parentElement !== $('settings').parentElement) {
     $('settings').after(box);
@@ -83,6 +85,7 @@ function renderSettings(d) {
   renderNotify(d);
   renderMqtt(d.mqtt);
   renderAir(d.air);
+  renderShop(d);
 }
 
 /** Load and show the settings; returns them (null when the server can't be reached). */
@@ -286,8 +289,7 @@ const fmtEvery = (s) => s === 1 ? 'Every second' : s < 60 ? `Every ${s} s` : s =
   : s === 3600 ? 'Every hour' : `Every ${s / 60} minutes`;
 
 function renderMqtt(m) {
-  $('mqttGroup').hidden = !m;
-  if (!m) return;
+  if (!m) return [];
   $('mqttOn').checked = m.enabled;
   // Don't overwrite what is being typed (the settings are reloaded a moment after each save).
   const typing = $('mqttForm').contains(document.activeElement);
@@ -351,23 +353,23 @@ $('mqttCheckBtn').addEventListener('click', async () => {
 $('mqttMachineEvery').addEventListener('change', (e) => settingsSave({ mqtt_machine_every: Number(e.target.value) }));
 $('mqttSystemEvery').addEventListener('change', (e) => settingsSave({ mqtt_system_every: Number(e.target.value) }));
 
-// ---------------------------------------------------------------- air quality (Home Assistant)
+// ---------------------------------------------------------------- Home Assistant: address and token, air quality
 
 const AIR_NAMES = { pm1: 'PM1', pm25: 'PM2.5', pm4: 'PM4', pm10: 'PM10', temp: 'Temperature', hum: 'Humidity', voc: 'VOC', nox: 'NOx' };
+let haOn = false;   // the address and the token are saved
 
 function renderAir(a) {
-  $('airGroup').hidden = !a;
   if (!a) return;
   // Don't overwrite what is being typed.
-  if (!$('airForm').contains(document.activeElement)) {
+  if (!$('haForm').contains(document.activeElement)) {
     $('haUrl').value = a.url || '';
     $('haToken').value = '';
-    $('airPrefix').value = a.prefix || '';
   }
+  if (!$('airForm').contains(document.activeElement)) $('airPrefix').value = a.prefix || '';
   $('haToken').placeholder = a.token_set ? 'saved – paste a new one to change it' : 'long-lived access token';
   $('airPrefix').placeholder = a.default_prefix;
-  $('airClearBtn').hidden = !a.token_set;
-  const on = !!(a.url && a.token_set);
+  $('haClearBtn').hidden = !a.token_set;
+  const on = haOn = !!(a.url && a.token_set);
   $('airCheckBtn').disabled = !on;
   $('airCheckBtn').title = !a.url ? 'Save the Home Assistant address first' : !a.token_set ? 'Save a token first' : 'Read the sensors now';
   // The sensors found: folded behind their count (opened or closed, it stays so while the page is open)
@@ -402,25 +404,155 @@ async function airCheck() {
   $('airCheckBtn').disabled = false;
 }
 
-$('airForm').addEventListener('submit', async (e) => {
+$('haForm').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const changes = { ha_url: $('haUrl').value.trim(), air_prefix: $('airPrefix').value.trim() };
+  const changes = { ha_url: $('haUrl').value.trim() };
   const token = $('haToken').value.trim();
   if (token) changes.ha_token = token;   // empty: keep the saved token
   document.activeElement?.blur();
   const res = await settingsSave(changes);
-  if (res.ok && res.air?.url && res.air?.token_set) airCheck();
+  if (res.ok && res.air?.url && res.air?.token_set) {
+    shopChoicesLoad();
+    airCheck();
+  }
 });
-$('airClearBtn').addEventListener('click', async () => {
-  if (await ask({ title: 'Turn off the air quality?', text: 'The Home Assistant token is forgotten and the air quality disappears from the menu.', ok: 'Turn off', danger: true })) {
+$('haClearBtn').addEventListener('click', async () => {
+  if (await ask({ title: 'Remove the token?', text: 'The Home Assistant token is forgotten: the air quality disappears from the menu and the shop devices from the dashboard.', ok: 'Remove', danger: true })) {
     settingsSave({ ha_token: '' });
   }
+});
+$('airForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  document.activeElement?.blur();
+  const res = await settingsSave({ air_prefix: $('airPrefix').value.trim() });
+  if (res.ok && res.air?.url && res.air?.token_set) airCheck();
 });
 $('airCheckBtn').addEventListener('click', airCheck);
 $('airEntsBtn').addEventListener('click', () => {
   const list = $('airEntities');
   list.hidden = !list.hidden;
   $('airEntsBtn').setAttribute('aria-expanded', String(!list.hidden));
+});
+
+// ---------------------------------------------------------------- Home Assistant: shop devices
+
+let shopDevices = [];     // as saved: [{entity, name, icon}]
+let shopMax = 12;
+let shopChoices = null;   // Home Assistant's switches, lights and fans: [{entity, name, state}]; null: not loaded
+let shopChoicesError = '';
+const SHOP_DOMAIN_NAMES = { switch: 'Switches', light: 'Lights', fan: 'Fans', input_boolean: 'Helpers (on/off)' };
+
+const shopName = (eid) => shopChoices?.find((c) => c.entity === eid)?.name || '';
+
+function renderShop(d) {
+  if (!d.shop_devices) return;
+  shopMax = d.shop_max || shopMax;
+  const list = $('shopSet');
+  // Not while a name is being typed: it would be lost
+  if (JSON.stringify(d.shop_devices) !== JSON.stringify(shopDevices) || !list.contains(document.activeElement)) {
+    shopDevices = d.shop_devices.map((x) => ({ ...x }));
+    list.innerHTML = shopDevices.map((x, i) => `<li data-i="${i}">`
+      + `<span class="shop-set-ic">${shopIcon(x.icon)}</span>`
+      + `<input class="shop-set-name" value="${esc(x.name)}" placeholder="${esc(shopName(x.entity) || x.entity)}" maxlength="40" spellcheck="false" aria-label="Name on the dashboard">`
+      + `<select class="shop-set-icon" aria-label="Icon">${Object.entries(SHOP_ICONS).map(([k, v]) =>
+        `<option value="${k}"${k === x.icon ? ' selected' : ''}>${v.label}</option>`).join('')}</select>`
+      + `<button class="icon-btn" type="button" data-act="up" title="Move up"${i ? '' : ' disabled'}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>`
+      + `<button class="icon-btn" type="button" data-act="remove" title="Remove from the dashboard"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>`
+      + `<code title="${esc(x.entity)}">${esc(x.entity)}</code></li>`).join('');
+  }
+  renderShopAdd();
+}
+
+function renderShopAdd() {
+  const sel = $('shopAdd');
+  const taken = new Set(shopDevices.map((x) => x.entity));
+  const free = (shopChoices || []).filter((c) => !taken.has(c.entity));
+  const full = shopDevices.length >= shopMax;
+  if (!sel.matches(':focus')) {
+    const groups = {};
+    for (const c of free) (groups[c.entity.split('.')[0]] ||= []).push(c);
+    const keep = sel.value;
+    sel.innerHTML = !haOn ? '<option value="">Set up the address and token first</option>'
+      : shopChoices === null ? `<option value="">${shopChoicesError ? 'Home Assistant not reachable' : 'Loading…'}</option>`
+      : !free.length ? '<option value="">No more switches, lights or fans</option>'
+      : '<option value="">Choose a switch, light or fan…</option>' + Object.entries(groups).map(([dom, cs]) =>
+        `<optgroup label="${SHOP_DOMAIN_NAMES[dom] || dom}">${cs.map((c) =>
+          `<option value="${esc(c.entity)}">${esc(c.name || c.entity)} (${esc(c.state)})</option>`).join('')}</optgroup>`).join('');
+    if ([...sel.options].some((o) => o.value === keep)) sel.value = keep;
+  }
+  sel.disabled = !haOn || !free.length || full;
+  $('shopAddBtn').disabled = sel.disabled || !sel.value;
+  const [text, kind] = !haOn ? ['Off: save the Home Assistant address and token first.', '']
+    : shopChoicesError ? [sentence(`Can't list Home Assistant's devices: ${shopChoicesError}`), 'err']
+    : full ? [`${shopMax} devices: the most there can be.`, '']
+    : !shopDevices.length ? ['No devices yet: the dashboard shows none.', '']
+    : [`${shopDevices.length} device${shopDevices.length === 1 ? '' : 's'} on the dashboard.`, 'ok'];
+  $('shopStatus').textContent = text;
+  $('shopStatus').className = 'set-hint' + (kind ? ' ' + kind : '');
+}
+
+async function shopChoicesLoad() {
+  if (!haOn) return;
+  try {
+    const r = await fetch('/api/shop/choices', { cache: 'no-store' });
+    const res = await r.json().catch(() => ({ ok: false, message: `HTTP ${r.status}` }));
+    shopChoices = res.ok ? res.entities : null;
+    shopChoicesError = res.ok ? '' : res.message || 'failed';
+  } catch {
+    shopChoices = null;
+    shopChoicesError = UNREACHABLE;
+  }
+  // The names Home Assistant gives them, as placeholders of the names given here
+  for (const input of $('shopSet').querySelectorAll('.shop-set-name')) {
+    const x = shopDevices[input.closest('li').dataset.i];
+    if (x) input.placeholder = shopName(x.entity) || x.entity;
+  }
+  renderShopAdd();
+}
+
+async function shopSave(devices, done) {
+  if ($('shopSet').contains(anchor)) anchor = $('shopSet');   // the list is drawn again: the message goes below it
+  const res = await settingsSave({ shop_devices: devices });
+  if (res.ok && done) setMessage(done, 'ok');
+  return res;
+}
+
+$('shopAdd').addEventListener('change', () => { $('shopAddBtn').disabled = !$('shopAdd').value; });
+$('shopAdd').addEventListener('focus', shopChoicesLoad);
+$('shopAddBtn').addEventListener('click', () => {
+  const eid = $('shopAdd').value;
+  if (!eid) return;
+  const name = shopName(eid);
+  $('shopAdd').value = '';
+  shopSave([...shopDevices, { entity: eid, name, icon: guessIcon(eid, name) }], `${name || eid} added to the dashboard.`);
+});
+$('shopSet').addEventListener('change', (e) => {
+  const li = e.target.closest('li');
+  if (!li) return;
+  const devices = shopDevices.map((x) => ({ ...x }));
+  const x = devices[li.dataset.i];
+  if (e.target.matches('.shop-set-name')) x.name = e.target.value.trim();
+  else if (e.target.matches('.shop-set-icon')) {
+    x.icon = e.target.value;
+    li.querySelector('.shop-set-ic').innerHTML = shopIcon(x.icon);
+  } else return;
+  shopSave(devices);
+});
+$('shopSet').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && e.target.matches('.shop-set-name')) e.target.blur();   // saves it (change)
+});
+$('shopSet').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-act]');
+  if (!btn) return;
+  const i = Number(btn.closest('li').dataset.i);
+  const devices = shopDevices.map((x) => ({ ...x }));
+  if (btn.dataset.act === 'up' && i > 0) {
+    [devices[i - 1], devices[i]] = [devices[i], devices[i - 1]];
+    shopSave(devices);
+  } else if (btn.dataset.act === 'remove') {
+    const [gone] = devices.splice(i, 1);
+    shopSave(devices, `${gone.name || shopName(gone.entity) || gone.entity} removed from the dashboard.`);
+  }
 });
 
 // ---------------------------------------------------------------- logs
@@ -479,5 +611,5 @@ $('logDebug').addEventListener('change', async (e) => {
 initHelp($('settings'));
 initSystem();
 followState(systemOnState, 'Settings');   // status, E-stop and the menu, as on the other pages
-settingsLoad();
+settingsLoad().then(shopChoicesLoad);
 logsLoad();

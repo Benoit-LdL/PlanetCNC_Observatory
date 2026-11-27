@@ -423,6 +423,44 @@ input.bad { border-color: var(--md-error) !important; box-shadow: inset 0 0 0 1p
 .job-row span { font-size: 11px; line-height: 14px; font-weight: 500; letter-spacing: .3px; color: var(--md-on-surface-variant); }
 .job-row b { font: 500 14px/20px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* Shop devices (shop.js): a row per device, the whole row switches it; the icon lights up while it is on */
+.shop-card { padding: 0 8px 8px; }
+.shop-card .card-head { min-height: 46px; padding: 4px 8px; }
+.shop-devs { display: flex; flex-direction: column; gap: 2px; }
+.shop-dev { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 8px; border-radius: 12px; cursor: pointer; }
+.shop-dev:hover { background: var(--md-surface-container); }
+.shop-dev:has(input:disabled) { cursor: default; }
+.shop-ic { display: grid; place-items: center; width: 40px; height: 40px; flex: none; border-radius: 12px;
+           background: var(--md-surface-container-highest); color: var(--md-on-surface-variant); transition: background .2s, color .2s; }
+.shop-ic svg { width: 22px; height: 22px; }
+.shop-dev[data-state="on"] .shop-ic { background: var(--md-primary-container); color: var(--md-on-primary-container); }
+.shop-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.shop-txt b { font-size: 15px; line-height: 20px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shop-txt small { font-size: 12px; line-height: 16px; color: var(--md-on-surface-variant); }
+.shop-dev.bad small { color: var(--md-error); }
+.shop-dev input {
+  appearance: none; -webkit-appearance: none; position: relative; flex: none; margin: 0; cursor: pointer;
+  width: 52px; height: 32px; border-radius: 16px; border: 2px solid var(--md-outline); background: var(--md-surface-container-highest);
+  transition: background .15s, border-color .15s;
+}
+.shop-dev input::before {
+  content: ""; position: absolute; top: 50%; left: 6px; width: 16px; height: 16px; margin-top: -8px; border-radius: 50%;
+  background: var(--md-outline); transition: all .15s;
+}
+.shop-dev input:checked { background: var(--md-primary); border-color: var(--md-primary); }
+.shop-dev input:checked::before { left: 22px; width: 24px; height: 24px; margin-top: -12px; background: var(--md-on-primary); }
+.shop-dev input:disabled { opacity: .38; cursor: default; }
+.shop-dev[data-state="pending"] input { opacity: .6; }
+.shop-dev input:focus-visible { outline: 2px solid var(--md-primary); outline-offset: 2px; }
+/* A fan turns while it is on */
+@media (prefers-reduced-motion: no-preference) {
+  .shop-spin { transform-box: fill-box; transform-origin: center; }
+  .shop-dev[data-state="on"] .shop-spin { animation: spin 1.4s linear infinite; }
+}
+.shop-msg { margin: 4px 8px 4px; font-size: 13px; line-height: 18px; color: var(--md-on-surface-variant); }
+.shop-msg:empty { display: none; }
+.shop-msg.err { color: var(--md-error); }
+
 /* Raspberry Pi health */
 .sys { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 12px; }
 .sys-head { display: flex; align-items: center; gap: 8px; min-height: 48px; }
@@ -708,6 +746,8 @@ span.ptab::after { display: none; }
 /* A second part of a card (Telegram: the bot, then its messages) */
 .set-sub { display: flex; align-items: center; margin: 8px 0 0; padding-top: 16px; border-top: 1px solid var(--md-outline-variant);
            font-size: 14px; line-height: 20px; font-weight: 500; color: var(--md-on-surface); }
+/* A heading inside a part (Home Assistant > MQTT: How often): no line above */
+.set-sub.minor { margin: 4px 0 0; padding-top: 0; border-top: 0; font-size: 13px; color: var(--md-on-surface-variant); }
 /* An outlined field with its label on the border */
 .set-row { position: relative; display: flex; gap: 8px; align-items: center; margin-top: 4px; }
 .set-row label { position: absolute; z-index: 1; left: 10px; top: -8px; padding: 0 4px; max-width: 60%;
@@ -717,7 +757,7 @@ span.ptab::after { display: none; }
 .set-row:focus-within label { color: var(--md-primary); }
 .set-row select:disabled { opacity: .5; }
 .set-btns { display: flex; flex-wrap: wrap; gap: 8px; }
-.set-form { display: flex; flex-direction: column; gap: 12px; }   /* several fields saved together (Settings > MQTT) */
+.set-form { display: flex; flex-direction: column; gap: 12px; }   /* several fields saved together (Settings > Home Assistant > MQTT) */
 .set-hint, .set-help { margin: 0; font-size: 12px; line-height: 16px; color: var(--md-on-surface-variant); }
 .set-hint.ok { color: var(--md-success); }
 .set-hint.err { color: var(--md-error); }
@@ -748,7 +788,7 @@ span.ptab::after { display: none; }
 .tg-chats.air-ents code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left;
                  font: 11px var(--mono); color: var(--md-on-surface-variant); }
 .air-ents b { color: var(--md-success); font-weight: 500; }
-/* A list folded behind a row with its summary and a chevron (Settings > Air quality: the sensors found) */
+/* A list folded behind a row with its summary and a chevron (Settings > Home Assistant > Air quality: the sensors found) */
 .set-more { display: flex; flex-direction: column; gap: 4px; }
 .set-more-btn { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 8px 10px;
                 border: 0; border-radius: 8px; background: var(--md-surface-container); color: var(--md-on-surface);
@@ -758,6 +798,25 @@ span.ptab::after { display: none; }
 .set-more-btn svg { flex: none; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2;
                     stroke-linecap: round; stroke-linejoin: round; transition: transform .2s; }
 .set-more-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
+/* Settings > Home Assistant > Shop devices: one block per device: its icon, name, move up and remove; below,
+   the icon choice and the entity id */
+.shop-set { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.shop-set:empty { display: none; }
+.shop-set li { display: grid; grid-template-columns: 24px auto minmax(0, 1fr) auto auto; align-items: center; gap: 6px 8px;
+               grid-template-areas: "ic name name up rm" ". icon code code code";
+               padding: 6px 4px 8px 10px; border-radius: 8px; background: var(--md-surface-container); }
+.shop-set-ic { grid-area: ic; display: grid; place-items: center; color: var(--md-on-surface-variant); }
+.shop-set-name { grid-area: name; }
+.shop-set-icon { grid-area: icon; }
+.shop-set [data-act="up"] { grid-area: up; }
+.shop-set [data-act="remove"] { grid-area: rm; }
+.shop-set input, .shop-set select { height: 36px; min-width: 0; padding: 0 10px; border: 1px solid var(--md-outline-variant);
+               border-radius: 4px; background: transparent; color: var(--md-on-surface); font-size: 14px; }
+.shop-set :is(input, select):focus { outline: none; border-color: var(--md-primary); box-shadow: inset 0 0 0 1px var(--md-primary); }
+.shop-set select { height: 32px; padding: 0 6px; font-size: 13px; }
+.shop-set .icon-btn { width: 36px; height: 36px; }
+.shop-set code { grid-area: code; font: 11px var(--mono); color: var(--md-on-surface-variant);
+                 overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .log-files a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .log-files span { color: var(--md-on-surface-variant); }
 .log-view { margin: 0; padding: 10px; border-radius: 8px; background: var(--md-surface-container); font: 11px/1.45 var(--mono);
@@ -899,11 +958,13 @@ span.ptab::after { display: none; }
 
 /* ---------- the System page ---------- */
 .sys-page { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px; }
-/* The Settings page: one card per subject, in as many columns as fit (filled top to bottom) */
+/* The Settings page: one card per subject, in three groups (settings.html .set-col) that are never split, in as
+   many columns as fit: the machine's cards and the logs, Telegram, Home Assistant */
 .set-page { columns: 400px auto; column-gap: 16px; }
-.set-page > .set-card { break-inside: avoid; margin: 0 0 16px; padding: 4px 20px 20px; border-bottom: 0;
-                        border: 1px solid var(--md-outline-variant); }
-.set-page > .set-card[hidden] { display: none; }
+.set-col { break-inside: avoid; }
+.set-col > .set-card { margin: 0 0 16px; padding: 4px 20px 20px; border-bottom: 0;
+                       border: 1px solid var(--md-outline-variant); }
+.set-col > .set-card[hidden] { display: none; }
 .set-card > h3 { gap: 12px; min-height: 56px; margin: 0 -20px 4px; padding: 0 20px; font-size: 18px; line-height: 24px;
                  font-weight: 500; color: var(--md-on-surface); border-bottom: 1px solid var(--md-outline-variant); }
 .set-card > h3 > svg { flex: none; width: 22px; height: 22px; padding: 7px; box-sizing: content-box; border-radius: 12px;
@@ -1154,15 +1215,16 @@ table.mt.narrow .acts { width: auto; }   /* a 1% cell would stretch the table to
   .layout, .pl-layout { display: flex; flex-direction: column; padding: 4px 12px 16px; }
   .pl-view { height: 66vh; min-height: 340px; flex: none; }
   .pl-form { overflow: visible; }
-  /* Phone order: camera, 3D view, position, job, program/files, Raspberry Pi last.
+  /* Phone order: camera, shop devices (at hand), 3D view, position, job, program/files, Raspberry Pi last.
      The left column's cards join the page flow so they can be ordered among the panels. */
   .dro-panel { display: contents; }
   .cam-panel { order: 1; }
-  .view-panel { order: 2; }
-  .pos-card { order: 3; }
-  .job-card { order: 4; }
-  .code-panel { order: 5; }
-  #sys { order: 6; }
+  .shop-card { order: 2; }
+  .view-panel { order: 3; }
+  .pos-card { order: 4; }
+  .job-card { order: 5; }
+  .code-panel { order: 6; }
+  #sys { order: 7; }
   /* Position is only read, not edited: smaller type, less padding */
   .pos-card { padding-bottom: 8px; }
   .pos-card .card-head { min-height: 40px; padding: 2px 6px 2px 12px; }

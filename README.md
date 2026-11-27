@@ -40,6 +40,9 @@ the right.*
   CPU, memory, temperature and disk as rings in the menu, on every page.
 - The workshop's **air quality** from a SEN55 sensor in Home Assistant (dust,
   VOC, NOx, temperature, humidity), as rings in the menu above the Pi's.
+- **Shop devices**: switches, lights and fans from Home Assistant (a smart
+  plug for the dust extraction, the shop lights, an air filter) as toggles on
+  the dashboard.
 - A software **E-stop** button, always in view. It is the only thing the
   dashboard can make the machine do; it only switches E-stop on, and releasing
   it happens at the machine.
@@ -74,8 +77,8 @@ the right.*
   Pi warnings (under-voltage, heat), and when the air quality gets high.
 - A **timelapse** of every job from the camera: a short video, sent with the
   "job ended" message.
-- `/status` and `/photo` in the chat. The bot only reports: it can't control
-  the machine.
+- `/status` and `/photo` in the chat, and `/devices` to switch the
+  [shop devices](#shop-devices). The bot can't control the machine.
 
 **In Home Assistant, over MQTT**
 
@@ -186,8 +189,9 @@ starting and its earlier runs ending, with how long each took.
 ![Desktop: the Settings page](media/screenshots/desktop-settings.png)
 
 The **Settings** page: one card per subject (machine name, camera, Files
-folder, how the tool is drawn, Telegram with its messages and timelapse,
-MQTT, air quality, logs), in as many columns as the window has room for.
+folder, how the tool is drawn and the logs; Telegram with its messages and
+timelapse; Home Assistant with the air quality, the shop devices and MQTT), in
+as many columns as the window has room for.
 
 ![Desktop: the Surfacing page](media/screenshots/desktop-surfacing.png)
 
@@ -548,6 +552,12 @@ command in TNG. TNG stops the machine at once.
 - **Job:** the loaded file, the progress (percentage and bar), the **line**, **start time, elapsed time** (since the job started, pauses
   included), **time remaining** (TNG's own estimate when it has one) and the
   time of the last update. The console also says how long a job took when it ends.
+- **Shop devices** (when set up in Settings): a row per device with a
+  switch; tap the row to turn it on or off. It says **Turning on…** until
+  Home Assistant shows the new state (a second or two), then **On** (a fan with
+  its speed, **On · 66 %**) or **Off**. A device Home Assistant can't reach says
+  **Unavailable** and can't be switched. On a phone this card comes right
+  after the camera.
 - On a phone, the **Air quality** card (when set up) and the **Raspberry Pi**
   card: the same rings as in the menu (see below), with the temperature and
   humidity, the Pi's uptime and its power status.
@@ -761,11 +771,16 @@ enough. Everything here is saved on the Pi and applies to everyone.
 - **Telegram:** the bot and the chat, then its **Messages** (which ones, how
   often, which silently) and the **Timelapse**; see
   [Telegram notifications and timelapse](#telegram-notifications-and-timelapse).
-- **MQTT:** sends the machine to Home Assistant; see
-  [Home Assistant](#home-assistant).
-- **Air quality:** reads a SEN55 sensor from Home Assistant for the menu; see
-  [Air quality from Home Assistant](#air-quality-from-home-assistant).
 - **Logs:** see [Logs and debugging](#logs-and-debugging).
+- **Home Assistant**, one card in four parts:
+  - **Address and token:** how the Pi reaches Home Assistant's REST API, for
+    the next two parts.
+  - **Air quality:** reads a SEN55 sensor for the menu; see
+    [Air quality from Home Assistant](#air-quality-from-home-assistant).
+  - **Shop devices:** the switches on the dashboard; see
+    [Shop devices](#shop-devices).
+  - **MQTT:** sends the machine to Home Assistant; see
+    [Home Assistant](#home-assistant).
 
 The explanations are behind the round **?** next to each title: hover over
 it, or tap it on a phone or tablet. Settings are saved in `settings.json` next
@@ -1022,9 +1037,10 @@ with camera photos, and make a **timelapse** video of every job.
 
 - You don't need to have the dashboard open: the Pi sends the messages itself.
 - Works anywhere your phone has internet, not just at home.
-- **It only reports.** Nothing you type in the chat can move, start, pause or
-  stop the machine. For an emergency, use the dashboard's E-stop or the
-  machine's.
+- **It can't control the machine.** Nothing you type in the chat can move,
+  start, pause or stop it. For an emergency, use the dashboard's E-stop or the
+  machine's. The only thing it can switch is the
+  [shop devices](#shop-devices) (`/devices`).
 
 ### What you get
 
@@ -1089,6 +1105,7 @@ You can also ask, in the chat:
 |---|---|
 | `/status` | What the machine is doing, with a photo: status, file, line and percentage, running time and time left, feed, spindle, tool, the Pi's temperature. |
 | `/photo` | A camera photo now. |
+| `/devices` | The [shop devices](#shop-devices), one button each with its state (🟢 on, ⚪ off, ⛔ unavailable). Tap one to switch it: the message shows **Turning … on** and, once Home Assistant shows the new state (a second or two), the new state. **Refresh** reads them again. A button from an old message turns the device to what that button says (if it is already so, the message is just brought up to date). |
 | `/help` | What the bot does, and these commands. |
 
 Telegram shows these in the bot's menu (the **/** button next to the text
@@ -1163,7 +1180,8 @@ with the machine's status and a camera photo arrives in Telegram.
 3. In the dashboard, **Refresh** and **Use** the group (its chat id starts
    with a minus sign).
 
-Everyone in the group gets the messages and can use `/status` and `/photo`.
+Everyone in the group gets the messages and can use `/status`, `/photo` and
+`/devices` (so anyone in the group can switch the shop devices).
 Messages go to one chat only: the bot answers in no other chat, except to
 tell it its chat id.
 
@@ -1218,6 +1236,10 @@ Good to know:
   log shows `***` in its place.
 - Anyone on your home network who opens the dashboard can change the bot or
   the chat, like the other settings.
+- `/devices` works from anywhere your phone has internet, and only in the
+  chosen chat. Each switch is written in the Console ("Air filter turned on
+  (Telegram)") and in the log with who pressed it. Don't add a device that
+  shouldn't be switched on while nobody is in the workshop.
 
 ### Problems with Telegram
 
@@ -1240,6 +1262,10 @@ device and its entities are set up automatically; there is no YAML to write.
 
 It only reports. Nothing in Home Assistant can move, start, pause or stop the
 machine.
+
+The other way round, the dashboard can show Home Assistant's
+[air quality](#air-quality-from-home-assistant) sensor and switch
+[shop devices](#shop-devices). Everything is in **Settings → Home Assistant**.
 
 ### What you get
 
@@ -1282,7 +1308,7 @@ You need an MQTT broker that Home Assistant uses. Most people have the
 **Mosquitto broker** add-on (**Settings → Add-ons**) with the **MQTT**
 integration, which Home Assistant offers to set up when the add-on starts.
 
-1. In the dashboard, open **Settings → MQTT**.
+1. In the dashboard, open **Settings → Home Assistant → MQTT**.
 2. **Broker:** Home Assistant's address (`192.168.1.10`,
    `homeassistant.local`). **Port:** `1883`.
 3. **User name** and **Password:** with the Mosquitto add-on, a Home
@@ -1332,22 +1358,52 @@ buttons (fan cleaning) aren't used.
 1. In Home Assistant, click your name (bottom left), open the **Security**
    tab, and under **Long-lived access tokens** press **Create token**. Copy
    it: Home Assistant shows it only once.
-2. In the dashboard, open **Settings → Air quality** and fill in:
+2. In the dashboard, open **Settings → Home Assistant** and fill in:
 
 | Field | Example | |
 | --- | --- | --- |
 | **Address** | `http://homeassistant.local:8123` | How the Pi reaches Home Assistant (its IP address works too). |
 | **Token** | the long-lived access token | Kept in `settings.json`, readable only by the server's user. Leave empty to keep the saved one. |
-| **Sensors** | `sensor.smart_sen55` | The start of the sensors' entity ids. ESPHome names them after the device's `friendly_name` (`Smart SEN55` → `sensor.smart_sen55_…`); Home Assistant shows them under **Settings → Devices** → the sensor. |
+| **Sensors** (under **Air quality**) | `sensor.smart_sen55` | The start of the sensors' entity ids. ESPHome names them after the device's `friendly_name` (`Smart SEN55` → `sensor.smart_sen55_…`); Home Assistant shows them under **Settings → Devices** → the sensor. |
 
 3. Press **Save**. The dashboard looks up the sensors (PM1, PM2.5, PM4, PM10,
    temperature, humidity, VOC, NOx) and says how many it found ("7 of 8
    sensors found"): click it to see which, with their entity ids. **Check** reads
-   them again right away; **Turn off** forgets the token.
+   them again right away; **Remove token** forgets the token (the air quality
+   and the shop devices go away).
 
 A sensor that is renamed in Home Assistant is found again by itself within 5
 minutes. If Home Assistant can't be reached, the menu says **No data** and the
 reason is in Settings and in the log (`pcnc.air`).
+
+### Shop devices
+
+The dashboard can switch things in the workshop that Home Assistant already
+has: a smart plug for the dust extraction or the compressor, the lights, an
+air filter's fan. It uses the same address and token as the
+[air quality](#air-quality-from-home-assistant).
+
+1. Set up the **Address and token** in **Settings → Home Assistant** (above).
+2. Under **Shop devices**, choose a device in **Add a device** (Home
+   Assistant's switches, lights, fans and on/off helpers, with their state)
+   and press **Add**. It appears on the dashboard in a **Shop devices** card.
+3. Each device has a **name** (Home Assistant's at first; type another and
+   press Enter), an **icon** (plug, fan, light, air filter, dust extraction;
+   guessed from the name), **↑** to move it up and **×** to remove it. At
+   most 12 devices.
+
+Only the devices in this list can be switched from the app, and only on and
+off. The state is read every 5 seconds, and every second just after a switch.
+Each switch is written in the Console ("Air filter turned on") and in the log
+(`pcnc.shop`, with the browser's address). Anyone who can open the dashboard
+can use these switches, as with the E-stop. With
+[Telegram](#telegram-notifications-and-timelapse) set up, `/devices` in the
+chat switches them too, from anywhere.
+
+For automatic switching, make an automation in Home Assistant with the
+machine's MQTT entities, for example: the dust extraction on when **Spindle**
+goes above 0, and off 30 seconds after it stops. Home Assistant runs it even
+when no dashboard is open.
 
 ### Ideas
 
