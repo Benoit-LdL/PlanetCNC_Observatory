@@ -436,26 +436,53 @@ $('airEntsBtn').addEventListener('click', () => {
 
 // ---------------------------------------------------------------- Home Assistant: shop devices
 
-let shopDevices = [];     // as saved: [{entity, name, icon}]
+let shopDevices = [];     // as saved: [{entity, name, icon, path}] (path: the drawing of an mdi: icon)
 let shopMax = 12;
-let shopChoices = null;   // Home Assistant's switches, lights and fans: [{entity, name, state}]; null: not loaded
+let shopChoices = null;   // Home Assistant's switches, lights and fans: [{entity, name, state, icon}]; null: not loaded
 let shopChoicesError = '';
+let shopDraft = null;     // the device being added: {entity, name, icon, haIcon}, shown before Add
 const SHOP_DOMAIN_NAMES = { switch: 'Switches', light: 'Lights', fan: 'Fans', input_boolean: 'Helpers (on/off)' };
+const MDI_NAME = /^mdi:[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const MDI_LIBRARY = 'https://pictogrammers.com/library/mdi/';
 
-const shopName = (eid) => shopChoices?.find((c) => c.entity === eid)?.name || '';
+const shopChoice = (eid) => shopChoices?.find((c) => c.entity === eid);
+const shopName = (eid) => shopChoice(eid)?.name || '';
+const iconLabel = (icon) => SHOP_ICONS[icon]?.label || icon;
+
+/** An mdi: icon's drawing, added to the shared icons (topbar-boot.js SHOP_ICONS) so that shopIcon() draws it,
+ *  filled (Material Design Icons are shapes, the app's own icons lines). */
+function shopIconAdd(icon, path) {
+  if (MDI_NAME.test(icon || '') && path) {
+    SHOP_ICONS[icon] = { label: icon, svg: `<path style="fill:currentColor;stroke:none" d="${esc(path)}"/>` };
+  }
+}
+
+/** Look an mdi: icon up (the server downloads it once): {ok, icon, path} or {ok: false, message}. */
+async function shopIconFetch(name) {
+  try {
+    const r = await fetch('/api/shop/icon?name=' + encodeURIComponent(name), { cache: 'no-store' });
+    const res = await r.json().catch(() => ({ ok: false, message: `HTTP ${r.status}` }));
+    if (res.ok) shopIconAdd(res.icon, res.path);
+    return res;
+  } catch {
+    return { ok: false, message: UNREACHABLE };
+  }
+}
+
+const iconBtn = (icon) => `<button class="shop-ic-btn" type="button" data-act="icon" aria-expanded="false"`
+  + ` title="Icon: ${esc(iconLabel(icon))} – change it" aria-label="Icon: ${esc(iconLabel(icon))}">${shopIcon(icon)}</button>`;
 
 function renderShop(d) {
   if (!d.shop_devices) return;
   shopMax = d.shop_max || shopMax;
+  for (const x of d.shop_devices) shopIconAdd(x.icon, x.path);
   const list = $('shopSet');
-  // Not while a name is being typed: it would be lost
+  // Not while a name is being typed or an icon chosen: it would be lost
   if (JSON.stringify(d.shop_devices) !== JSON.stringify(shopDevices) || !list.contains(document.activeElement)) {
+    if (pick && list.contains(pick.btn)) pickClose();
     shopDevices = d.shop_devices.map((x) => ({ ...x }));
-    list.innerHTML = shopDevices.map((x, i) => `<li data-i="${i}">`
-      + `<span class="shop-set-ic">${shopIcon(x.icon)}</span>`
+    list.innerHTML = shopDevices.map((x, i) => `<li data-i="${i}">${iconBtn(x.icon)}`
       + `<input class="shop-set-name" value="${esc(x.name)}" placeholder="${esc(shopName(x.entity) || x.entity)}" maxlength="40" spellcheck="false" aria-label="Name on the dashboard">`
-      + `<select class="shop-set-icon" aria-label="Icon">${Object.entries(SHOP_ICONS).map(([k, v]) =>
-        `<option value="${k}"${k === x.icon ? ' selected' : ''}>${v.label}</option>`).join('')}</select>`
       + `<button class="icon-btn" type="button" data-act="up" title="Move up"${i ? '' : ' disabled'}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>`
       + `<button class="icon-btn" type="button" data-act="remove" title="Remove from the dashboard"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>`
       + `<code title="${esc(x.entity)}">${esc(x.entity)}</code></li>`).join('');
@@ -482,7 +509,7 @@ function renderShopAdd() {
     if ([...sel.options].some((o) => o.value === keep)) sel.value = keep;
   }
   sel.disabled = !haOn || !free.length || full;
-  $('shopAddBtn').disabled = sel.disabled || !sel.value;
+  if (shopDraft && (sel.disabled || taken.has(shopDraft.entity))) shopDraftSet(null);
   const [text, kind] = !haOn ? ['Off: save the Home Assistant address and token first.', '']
     : shopChoicesError ? [sentence(`Can't list Home Assistant's devices: ${shopChoicesError}`), 'err']
     : full ? [`${shopMax} devices: the most there can be.`, '']
@@ -513,30 +540,73 @@ async function shopChoicesLoad() {
 
 async function shopSave(devices, done) {
   if ($('shopSet').contains(anchor)) anchor = $('shopSet');   // the list is drawn again: the message goes below it
-  const res = await settingsSave({ shop_devices: devices });
+  const res = await settingsSave({ shop_devices: devices.map(({ entity, name, icon }) => ({ entity, name, icon })) });
   if (res.ok && done) setMessage(done, 'ok');
   return res;
 }
 
-$('shopAdd').addEventListener('change', () => { $('shopAddBtn').disabled = !$('shopAdd').value; });
+// ---- The device being added: its name and icon to check before Add. The icon it has in Home Assistant if it
+// has one there (looked up first: shown once its drawing is here), else one guessed from its name.
+
+function shopDraftSet(draft) {
+  shopDraft = draft;
+  const box = $('shopNew');
+  if (pick && box.contains(pick.btn)) pickClose();
+  box.hidden = !draft;
+  if (!draft) { box.innerHTML = ''; return; }
+  box.innerHTML = `<li>${iconBtn(draft.icon)}`
+    + `<input class="shop-set-name" value="${esc(draft.name)}" placeholder="${esc(draft.entity)}" maxlength="40" spellcheck="false" aria-label="Name on the dashboard">`
+    + `<button class="vbtn" type="button" data-act="add">Add</button>`
+    + `<button class="icon-btn" type="button" data-act="cancel" title="Don't add it"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>`
+    + `<code title="${esc(draft.entity)}">${esc(draft.entity)}</code></li>`;
+}
+function shopDraftIcon(icon) {
+  shopDraft.icon = icon;
+  $('shopNew').querySelector('[data-act="icon"]').outerHTML = iconBtn(icon);
+}
+
 $('shopAdd').addEventListener('focus', shopChoicesLoad);
-$('shopAddBtn').addEventListener('click', () => {
+$('shopAdd').addEventListener('change', async () => {
   const eid = $('shopAdd').value;
-  if (!eid) return;
-  const name = shopName(eid);
-  $('shopAdd').value = '';
-  shopSave([...shopDevices, { entity: eid, name, icon: guessIcon(eid, name) }], `${name || eid} added to the dashboard.`);
+  if (!eid) { shopDraftSet(null); return; }
+  const c = shopChoice(eid), name = c?.name || '';
+  const haIcon = c?.icon || '';
+  shopDraftSet({ entity: eid, name, icon: haIcon && SHOP_ICONS[haIcon] ? haIcon : guessIcon(eid, name), haIcon });
+  $('shopNew').querySelector('.shop-set-name').focus();
+  if (haIcon && !SHOP_ICONS[haIcon]) {
+    const res = await shopIconFetch(haIcon);
+    if (res.ok && shopDraft?.entity === eid) shopDraftIcon(haIcon);
+  }
 });
+async function shopDraftAdd() {
+  const d = shopDraft;
+  if (!d) return;
+  d.name = $('shopNew').querySelector('.shop-set-name').value.trim();
+  const res = await shopSave([...shopDevices, { entity: d.entity, name: d.name, icon: d.icon }],
+    `${d.name || shopName(d.entity) || d.entity} added to the dashboard.`);
+  if (res.ok) {
+    $('shopAdd').value = '';
+    shopDraftSet(null);
+  }
+}
+$('shopNew').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-act]');
+  if (!btn || !shopDraft) return;
+  if (btn.dataset.act === 'add') shopDraftAdd();
+  else if (btn.dataset.act === 'cancel') { $('shopAdd').value = ''; shopDraftSet(null); }
+  else if (btn.dataset.act === 'icon') pickOpen(btn, shopDraft.icon, shopDraft.haIcon, shopDraftIcon);
+});
+$('shopNew').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && e.target.matches('.shop-set-name')) shopDraftAdd();
+});
+
+// ---- The devices on the dashboard: name, icon, order, remove
+
 $('shopSet').addEventListener('change', (e) => {
   const li = e.target.closest('li');
-  if (!li) return;
+  if (!li || !e.target.matches('.shop-set-name')) return;
   const devices = shopDevices.map((x) => ({ ...x }));
-  const x = devices[li.dataset.i];
-  if (e.target.matches('.shop-set-name')) x.name = e.target.value.trim();
-  else if (e.target.matches('.shop-set-icon')) {
-    x.icon = e.target.value;
-    li.querySelector('.shop-set-ic').innerHTML = shopIcon(x.icon);
-  } else return;
+  devices[li.dataset.i].name = e.target.value.trim();
   shopSave(devices);
 });
 $('shopSet').addEventListener('keydown', (e) => {
@@ -544,16 +614,123 @@ $('shopSet').addEventListener('keydown', (e) => {
 });
 $('shopSet').addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-act]');
-  if (!btn) return;
+  if (!btn || !btn.closest('li[data-i]')) return;
   const i = Number(btn.closest('li').dataset.i);
   const devices = shopDevices.map((x) => ({ ...x }));
-  if (btn.dataset.act === 'up' && i > 0) {
+  if (btn.dataset.act === 'icon') {
+    pickOpen(btn, devices[i].icon, shopChoice(devices[i].entity)?.icon || '', (icon) => {
+      if (icon === devices[i].icon) return;
+      devices[i].icon = icon;
+      btn.innerHTML = shopIcon(icon);
+      shopSave(devices, `Icon of ${devices[i].name || shopName(devices[i].entity) || devices[i].entity}: ${iconLabel(icon)}.`);
+    });
+  } else if (btn.dataset.act === 'up' && i > 0) {
     [devices[i - 1], devices[i]] = [devices[i], devices[i - 1]];
     shopSave(devices);
   } else if (btn.dataset.act === 'remove') {
     const [gone] = devices.splice(i, 1);
     shopSave(devices, `${gone.name || shopName(gone.entity) || gone.entity} removed from the dashboard.`);
   }
+});
+
+// ---- The icon picker, opened under a device by its icon button: the icon it has in Home Assistant, the app's
+// own icons, or any Material Design Icon by its name (as in Home Assistant), shown as it is typed.
+
+const pickBox = document.createElement('div');
+pickBox.className = 'icon-pick';
+pickBox.setAttribute('role', 'group');
+pickBox.setAttribute('aria-label', 'Choose an icon');
+let pick = null;          // {btn, current, haIcon, done(icon)}
+let pickTimer = 0, pickSeq = 0;
+
+function pickOpen(btn, current, haIcon, done) {
+  if (pick?.btn === btn) { pickClose(); return; }
+  pickClose();
+  pick = { btn, current, haIcon, done };
+  btn.setAttribute('aria-expanded', 'true');
+  btn.closest('li').appendChild(pickBox);
+  pickBox.innerHTML = '<div class="icon-pick-opts"></div>'
+    + '<div class="icon-pick-mdi"><span class="icon-pick-prev" aria-hidden="true"></span>'
+    + `<input type="text" placeholder="mdi:saw-blade" spellcheck="false" autocapitalize="off" aria-label="Material Design Icon name" value="${esc(MDI_NAME.test(current) ? current : '')}">`
+    + '<button class="vbtn" type="button" data-act="use" disabled>Use</button></div>'
+    + `<p class="set-hint icon-pick-msg">Any icon from <a href="${MDI_LIBRARY}" target="_blank" rel="noopener">Material Design Icons</a>, by the name Home Assistant uses.</p>`;
+  pickOpts();
+  pickLook();
+  if (haIcon && !SHOP_ICONS[haIcon]) shopIconFetch(haIcon).then(() => { if (pick?.haIcon === haIcon) pickOpts(); });
+}
+function pickOpts() {
+  const opts = (pick.haIcon && SHOP_ICONS[pick.haIcon] ? [[pick.haIcon, 'In Home Assistant']] : [])
+    .concat(Object.keys(SHOP_ICONS).filter((k) => !MDI_NAME.test(k)).map((k) => [k, SHOP_ICONS[k].label]));
+  pickBox.querySelector('.icon-pick-opts').innerHTML = opts.map(([k, label]) =>
+    `<button class="icon-pick-opt" type="button" data-icon="${esc(k)}" aria-pressed="${k === pick.current}" title="${esc(k === pick.haIcon ? `${label}: ${k}` : label)}">`
+    + `${shopIcon(k)}<span>${esc(label)}</span></button>`).join('');
+}
+function pickClose() {
+  if (!pick) return;
+  pick.btn.setAttribute('aria-expanded', 'false');
+  pick = null;
+  clearTimeout(pickTimer);
+  pickBox.remove();
+}
+function pickChoose(icon) {
+  const { done, btn } = pick;
+  pickClose();
+  done(icon);
+  (btn.isConnected ? btn : $('shopNew').querySelector('[data-act="icon"]'))?.focus();
+}
+/** The name typed: look it up after a short pause, and show it. */
+function pickLook() {
+  clearTimeout(pickTimer);
+  const input = pickBox.querySelector('input'), prev = pickBox.querySelector('.icon-pick-prev');
+  const use = pickBox.querySelector('[data-act="use"]'), msg = pickBox.querySelector('.icon-pick-msg');
+  let name = input.value.trim().toLowerCase();
+  if (name && !name.startsWith('mdi:')) name = 'mdi:' + name;
+  use.disabled = true;
+  use.dataset.icon = '';
+  prev.innerHTML = '';
+  if (!name) return;
+  if (!MDI_NAME.test(name)) {
+    msg.textContent = 'A name is like mdi:saw-blade: small letters, digits and dashes.';
+    msg.className = 'set-hint icon-pick-msg err';
+    return;
+  }
+  const show = (res) => {
+    if (!pick || pickBox.querySelector('input') !== input) return;
+    prev.innerHTML = res.ok ? shopIcon(res.icon) : '';
+    use.disabled = !res.ok;
+    use.dataset.icon = res.ok ? res.icon : '';
+    msg.textContent = res.ok ? `${res.icon}: press Use (or Enter).` : sentence(res.message);
+    msg.className = 'set-hint icon-pick-msg' + (res.ok ? ' ok' : ' err');
+  };
+  if (SHOP_ICONS[name]) { show({ ok: true, icon: name }); return; }
+  msg.textContent = 'Looking it up…';
+  msg.className = 'set-hint icon-pick-msg';
+  const seq = ++pickSeq;
+  pickTimer = setTimeout(async () => {
+    const res = await shopIconFetch(name);
+    if (seq === pickSeq) show(res);
+  }, 400);
+}
+pickBox.addEventListener('input', (e) => { if (e.target.matches('input')) pickLook(); });
+pickBox.addEventListener('click', (e) => {
+  e.stopPropagation();   // not the device's own buttons (the picker sits in its row)
+  const opt = e.target.closest('.icon-pick-opt');
+  const use = e.target.closest('[data-act="use"]');
+  if (opt) pickChoose(opt.dataset.icon);
+  else if (use?.dataset.icon) pickChoose(use.dataset.icon);
+});
+pickBox.addEventListener('keydown', (e) => {
+  e.stopPropagation();   // Enter here isn't the row's Enter (Add, or save the name)
+  if (e.key === 'Escape') { const btn = pick.btn; pickClose(); btn.focus(); }
+  else if (e.key === 'Enter' && e.target.matches('input')) {
+    e.preventDefault();
+    const icon = pickBox.querySelector('[data-act="use"]').dataset.icon;
+    if (icon) pickChoose(icon);
+  }
+});
+pickBox.addEventListener('change', (e) => e.stopPropagation());   // typing a name isn't renaming the device
+document.addEventListener('click', (e) => {   // a click elsewhere closes it
+  if (pick && !pickBox.contains(e.target) && !pick.btn.contains(e.target)) pickClose();
 });
 
 // ---------------------------------------------------------------- logs

@@ -1386,12 +1386,24 @@ air filter's fan. It uses the same address and token as the
 
 1. Set up the **Address and token** in **Settings → Home Assistant** (above).
 2. Under **Shop devices**, choose a device in **Add a device** (Home
-   Assistant's switches, lights, fans and on/off helpers, with their state)
-   and press **Add**. It appears in the top bar, on every page.
+   Assistant's switches, lights, fans and on/off helpers, with their state).
+   Its name and icon show first, to change if you like, then press **Add**.
+   It appears in the top bar, on every page.
 3. Each device has a **name** (Home Assistant's at first; type another and
-   press Enter), an **icon** (plug, fan, light, air filter, dust extraction;
-   guessed from the name), **↑** to move it up and **×** to remove it. At
+   press Enter), an **icon**, **↑** to move it up and **×** to remove it. At
    most 12 devices.
+4. The icon tells the devices apart. Press it to choose another:
+   - the icon the device has in Home Assistant (**In Home Assistant**), which
+     is also the one it starts with;
+   - one of the app's own: plug, fan, light, air filter, dust extraction (the
+     one guessed from its name when Home Assistant gives it none);
+   - or any [Material Design Icon](https://pictogrammers.com/library/mdi/),
+     named as in Home Assistant: type `mdi:saw-blade` (or just `saw-blade`),
+     see it, and press **Use**.
+
+   The Pi downloads each Material Design Icon once, when it is chosen, and
+   keeps it with the device, so the pages never need the internet for it.
+   That one download needs the Pi to be online.
 
 Only the devices in this list can be switched from the app, and only on and
 off. The state is read every 5 seconds, and every second just after a switch.

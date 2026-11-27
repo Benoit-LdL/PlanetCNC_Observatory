@@ -2284,7 +2284,14 @@ class AirQuality:
 # ---------------------------------------------------------------------------
 
 SHOP_DOMAINS = ("switch", "light", "fan", "input_boolean")
-SHOP_ICONS = ("plug", "fan", "light", "air", "vacuum")   # web/shop.js SHOP_ICONS draws them
+SHOP_ICONS = ("plug", "fan", "light", "air", "vacuum")   # web/topbar-boot.js SHOP_ICONS draws them
+# ...or any Material Design Icon, named as in Home Assistant ("mdi:saw-blade"). Its drawing (the SVG path) is
+# downloaded once from the icon set's npm package and saved with the device ("path"), so the pages need neither
+# the internet nor the whole set: state.shop and Settings send it along, and the pages draw it filled.
+SHOP_MDI = re.compile(r"^mdi:[a-z0-9]+(?:-[a-z0-9]+)*$")
+SHOP_PATH = re.compile(r"^[MmLlHhVvCcSsQqTtAaZz0-9 .,eE+-]{1,12000}$")   # SVG path data, nothing else
+MDI_SOURCES = ("https://cdn.jsdelivr.net/npm/@mdi/svg/svg/%s.svg", "https://unpkg.com/@mdi/svg/svg/%s.svg")
+MDI_CACHE = {}           # "mdi:saw-blade" -> its path, downloaded since the server started
 SHOP_MAX = 12
 SHOP_POLL = 5.0          # the devices' state is read this often
 SHOP_FAST = 1.0          # ...and this often for SHOP_FAST_FOR seconds after a switch, until it shows
@@ -2292,10 +2299,46 @@ SHOP_FAST_FOR = 8.0
 SHOP_ENTITY = re.compile(r"^(%s)\.[a-z0-9_]+$" % "|".join(SHOP_DOMAINS))
 
 
-def shop_devices_clean(value):
-    """The device list from Settings, checked: [{"entity", "name", "icon"}]. Raises ValueError."""
+def mdi_path(icon):
+    """The drawing (SVG path data, on a 24 x 24 grid) of a Material Design Icon such as "mdi:saw-blade".
+    Raises ValueError (no such icon) or RuntimeError (can't download it)."""
+    if not SHOP_MDI.match(icon):
+        raise ValueError("an icon is named like mdi:saw-blade")
+    if icon in MDI_CACHE:
+        return MDI_CACHE[icon]
+    error = None
+    for source in MDI_SOURCES:
+        req = urllib.request.Request(source % icon[4:], headers={"User-Agent": "PlanetCNC-Observatory"})
+        try:
+            with urllib.request.urlopen(req, timeout=8) as r:
+                svg = r.read(65536).decode("utf-8", "replace")
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                raise ValueError("there is no icon called %s (see pictogrammers.com/library/mdi)" % icon)
+            error = "HTTP %d" % e.code
+            continue
+        except (urllib.error.URLError, OSError) as e:
+            error = getattr(e, "reason", e)
+            continue
+        m = re.search(r'<path[^>]*\sd="([^"]+)"', svg)
+        if not m or not SHOP_PATH.match(m.group(1)):
+            error = "not an icon"
+            continue
+        MDI_CACHE[icon] = m.group(1)
+        return m.group(1)
+    raise RuntimeError("cannot download the icon %s (%s): is the Pi online?" % (icon, error))
+
+
+def shop_devices_clean(value, fetch=False):
+    """The device list from Settings, checked: [{"entity", "name", "icon"}, plus "path" for an mdi: icon].
+    The drawing of an mdi: icon is the one saved before for it, else (with `fetch`, when saving Settings)
+    downloaded; a device loaded from the file whose drawing is missing gets the plug. Raises ValueError."""
     if not isinstance(value, list):
         raise ValueError("shop_devices: a list")
+    known = dict(MDI_CACHE)   # the drawings at hand: downloaded, or saved with a device
+    for d in value if not fetch else SETTINGS["shop_devices"] or []:
+        if isinstance(d, dict) and SHOP_MDI.match(str(d.get("icon") or "")) and SHOP_PATH.match(str(d.get("path") or "")):
+            known.setdefault(d["icon"], d["path"])
     out, seen = [], set()
     for d in value:
         if not isinstance(d, dict):
@@ -2306,9 +2349,20 @@ def shop_devices_clean(value):
         if entity in seen:
             continue
         seen.add(entity)
-        icon = d.get("icon") if d.get("icon") in SHOP_ICONS else "plug"
-        out.append({"entity": entity, "name": " ".join(str(d.get("name") or "").split())[:MAX_NAME_LENGTH],
-                    "icon": icon})
+        icon, path = str(d.get("icon") or "").strip().lower(), ""
+        if SHOP_MDI.match(icon):
+            path = known.get(icon, "")
+            if not path and fetch:
+                try:
+                    path = known[icon] = mdi_path(icon)
+                except RuntimeError as e:
+                    raise ValueError(str(e))
+            if not path:
+                icon = "plug"
+        elif icon not in SHOP_ICONS:
+            icon = "plug"
+        out.append(dict({"entity": entity, "name": " ".join(str(d.get("name") or "").split())[:MAX_NAME_LENGTH],
+                         "icon": icon}, **({"path": path} if path else {})))
     if len(out) > SHOP_MAX:
         raise ValueError("at most %d shop devices" % SHOP_MAX)
     return out
@@ -2424,8 +2478,10 @@ class ShopDevices:
         for st in states:
             eid = st.get("entity_id", "") if isinstance(st, dict) else ""
             if SHOP_ENTITY.match(eid):
-                out.append({"entity": eid, "name": str((st.get("attributes") or {}).get("friendly_name") or ""),
-                            "state": str(st.get("state") or "")})
+                attrs = st.get("attributes") or {}
+                icon = str(attrs.get("icon") or "")   # the icon chosen for it in Home Assistant, if any
+                out.append({"entity": eid, "name": str(attrs.get("friendly_name") or ""),
+                            "state": str(st.get("state") or ""), "icon": icon if SHOP_MDI.match(icon) else ""})
         return sorted(out, key=lambda e: (e["name"] or e["entity"]).lower())   # Settings groups them by kind
 
 
@@ -3480,6 +3536,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, {"ok": True, "presets": BITS.list()})
         elif path == "/api/shop/choices":
             self._shop_choices()
+        elif path == "/api/shop/icon":
+            self._shop_icon()
         elif path == "/api/logs":
             self._logs_list()
         elif path == "/api/logs/tail":
@@ -3902,6 +3960,17 @@ class Handler(BaseHTTPRequestHandler):
         except RuntimeError as e:
             self._json(502, {"ok": False, "message": str(e)})
 
+    def _shop_icon(self):
+        """?name=mdi:saw-blade (or saw-blade): that icon's drawing, for the preview in Settings."""
+        icon = self._query("name").strip().lower()
+        icon = icon if icon.startswith("mdi:") else "mdi:" + icon
+        try:
+            self._json(200, {"ok": True, "icon": icon, "path": mdi_path(icon)})
+        except ValueError as e:
+            self._json(404, {"ok": False, "message": str(e)})
+        except RuntimeError as e:
+            self._json(502, {"ok": False, "message": str(e)})
+
     def _shop_switch(self):
         try:
             data = json.loads(self._read_body() or b"{}")
@@ -4066,7 +4135,7 @@ class Handler(BaseHTTPRequestHandler):
             changes["air_prefix"] = prefix
         if "shop_devices" in data:
             try:
-                changes["shop_devices"] = shop_devices_clean(data["shop_devices"])
+                changes["shop_devices"] = shop_devices_clean(data["shop_devices"], fetch=True)
             except ValueError as e:
                 self._json(400, {"ok": False, "message": str(e)})
                 return

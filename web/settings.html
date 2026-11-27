@@ -229,13 +229,15 @@
           for the dust extraction, the shop lights, an air filter), switched on and off from the top bar, on every page (on a phone: the plug button). Only the
           devices listed here can be switched from this app. To switch them automatically (the extraction on while the
           spindle turns), make an automation in Home Assistant with the machine's MQTT entities (below). With the
-        Telegram bot set up, <code>/devices</code> in the chat switches them too.</p>
+        Telegram bot set up, <code>/devices</code> in the chat switches them too. Each one has a name and an icon, to
+        tell them apart: its icon in Home Assistant, one of the app's, or any <code>mdi:</code> icon (press the icon
+        to choose).</p>
         <ul class="shop-set" id="shopSet"></ul>
         <div class="set-row">
           <label for="shopAdd">Add a device</label>
           <select id="shopAdd"></select>
-          <button class="vbtn" id="shopAddBtn" type="button">Add</button>
         </div>
+        <ul class="shop-set shop-new" id="shopNew" hidden></ul>
         <p class="set-hint" id="shopStatus"></p>
   
         <h4 class="set-sub" id="mqttHead">MQTT</h4>

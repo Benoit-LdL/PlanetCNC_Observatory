@@ -834,25 +834,47 @@ span.ptab::after { display: none; }
 .set-more-btn svg { flex: none; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2;
                     stroke-linecap: round; stroke-linejoin: round; transition: transform .2s; }
 .set-more-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
-/* Settings > Home Assistant > Shop devices: one block per device: its icon, name, move up and remove; below,
-   the icon choice and the entity id */
+/* Settings > Home Assistant > Shop devices: one block per device: its icon (a button: it opens the icon picker
+   below the block), name, move up and remove; below, the entity id. The device being added (.shop-new) is the
+   same block, with Add and Cancel. */
 .shop-set { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
 .shop-set:empty { display: none; }
-.shop-set li { display: grid; grid-template-columns: 24px auto minmax(0, 1fr) auto auto; align-items: center; gap: 6px 8px;
-               grid-template-areas: "ic name name up rm" ". icon code code code";
-               padding: 6px 4px 8px 10px; border-radius: 8px; background: var(--md-surface-container); }
-.shop-set-ic { grid-area: ic; display: grid; place-items: center; color: var(--md-on-surface-variant); }
+.shop-set li { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto auto; align-items: center; gap: 4px 8px;
+               grid-template-areas: "ic name up rm" ". code code code";
+               padding: 6px 4px 8px 6px; border-radius: 8px; background: var(--md-surface-container); }
+.shop-new li { background: var(--md-surface-container-high); box-shadow: inset 0 0 0 1px var(--md-primary); }
+.shop-ic-btn { grid-area: ic; display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 1px dashed var(--md-outline);
+               border-radius: 10px; background: transparent; color: var(--md-on-surface); cursor: pointer; }
+.shop-ic-btn:hover, .shop-ic-btn[aria-expanded="true"] { border-style: solid; border-color: var(--md-primary); color: var(--md-primary); }
+.shop-ic-btn svg { width: 24px; height: 24px; }
 .shop-set-name { grid-area: name; }
-.shop-set-icon { grid-area: icon; }
-.shop-set [data-act="up"] { grid-area: up; }
-.shop-set [data-act="remove"] { grid-area: rm; }
-.shop-set input, .shop-set select { height: 36px; min-width: 0; padding: 0 10px; border: 1px solid var(--md-outline-variant);
+.shop-set [data-act="up"], .shop-set [data-act="add"] { grid-area: up; }
+.shop-set [data-act="remove"], .shop-set [data-act="cancel"] { grid-area: rm; }
+.shop-set [data-act="add"] { height: 36px; }
+.shop-set input { height: 36px; min-width: 0; padding: 0 10px; border: 1px solid var(--md-outline-variant);
                border-radius: 4px; background: transparent; color: var(--md-on-surface); font-size: 14px; }
-.shop-set :is(input, select):focus { outline: none; border-color: var(--md-primary); box-shadow: inset 0 0 0 1px var(--md-primary); }
-.shop-set select { height: 32px; padding: 0 6px; font-size: 13px; }
+.shop-set input:focus { outline: none; border-color: var(--md-primary); box-shadow: inset 0 0 0 1px var(--md-primary); }
 .shop-set .icon-btn { width: 36px; height: 36px; }
 .shop-set code { grid-area: code; font: 11px var(--mono); color: var(--md-on-surface-variant);
                  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The icon picker (settings.js), across the device's block: its icon in Home Assistant and the app's icons to
+   press, then any Material Design Icon by name, with its preview */
+.icon-pick { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px; margin-top: 4px; padding: 10px;
+             border-radius: 8px; background: var(--md-surface-container-highest); }
+.icon-pick-opts { display: flex; flex-wrap: wrap; gap: 4px; }
+.icon-pick-opt { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 60px; padding: 6px 8px;
+                 border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--md-on-surface);
+                 font-size: 11px; line-height: 14px; cursor: pointer; }
+.icon-pick-opt span { white-space: nowrap; color: var(--md-on-surface-variant); }
+.icon-pick-opt:hover { background: var(--md-surface-container); }
+.icon-pick-opt[aria-pressed="true"] { border-color: var(--md-primary); background: color-mix(in srgb, var(--md-primary) 14%, transparent); }
+.icon-pick-opt svg, .icon-pick-prev svg { width: 24px; height: 24px; }
+.icon-pick-mdi { display: flex; align-items: center; gap: 8px; }
+.icon-pick-mdi input { flex: 1; font-family: var(--mono); }
+.icon-pick-mdi .vbtn { height: 36px; }
+.icon-pick-prev { display: grid; place-items: center; flex: none; width: 36px; height: 36px; border-radius: 8px;
+                  border: 1px dashed var(--md-outline-variant); color: var(--md-on-surface); }
+.icon-pick-prev:not(:empty) { border-style: solid; border-color: var(--md-primary); }
 .log-files a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .log-files span { color: var(--md-on-surface-variant); }
 .log-view { margin: 0; padding: 10px; border-radius: 8px; background: var(--md-surface-container); font: 11px/1.45 var(--mono);
