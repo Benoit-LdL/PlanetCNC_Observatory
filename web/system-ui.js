@@ -133,6 +133,7 @@ const BADGE = { ok: ['check'], update: ['update'], err: ['alert'], warn: ['alert
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 let checkingApp = false, checkingOs = false;
+let checkingAll = false;    // the whole page is being checked (its button, or on opening): only then that button turns
 let appBusy = '';           // 'Updating' / 'Rolling back' while this page runs one
 
 /** The badge or button on the right of a row. Kind 'update' can be pressed; so can 'ok' on a
@@ -314,7 +315,7 @@ function render() {
   $('powerBlock').hidden = !sys.os;
   const checking = checkingApp || checkingOs;
   $('updCheckBtn').disabled = !!(sys.app.busy || sys.os?.busy || appBusy) || checking;
-  $('updCheckBtn').classList.toggle('spin', checking);
+  $('updCheckBtn').classList.toggle('spin', checkingAll);   // not for one row's "Check update"
 }
 
 async function load() {
@@ -328,18 +329,26 @@ async function load() {
   if (!document.hidden) pollTimer = setTimeout(load, sys?.os?.busy ? 1500 : 5000);
 }
 
-async function checkAll({ app: withApp = true, os: withOs = true } = {}) {
+/** Check the app and/or the OS. `all`: the page-wide check (the button at the top, or on opening),
+ *  which turns that button; a row's own "Check update" leaves it still. */
+async function checkAll({ app: withApp = true, os: withOs = true, all = false } = {}) {
   withOs = withOs && !!sys?.os;
   if (!withApp && !withOs) return;
   if (withApp) checkingApp = true;   // checking one row leaves the other one's check running
   if (withOs) checkingOs = true;
+  if (all) checkingAll = true;
   if (withApp) setStatus('updStatus', '');
   if (withOs) setStatus('osStatus', 'Refreshing the package lists can take a minute.');
   render();
-  const [app, os] = await Promise.all([
-    withApp ? post('/api/update/check').finally(() => { checkingApp = false; }) : null,
-    withOs ? post('/api/system/os/check').finally(() => { checkingOs = false; }) : null,
-  ]);
+  let app, os;
+  try {
+    [app, os] = await Promise.all([
+      withApp ? post('/api/update/check').finally(() => { checkingApp = false; }) : null,
+      withOs ? post('/api/system/os/check').finally(() => { checkingOs = false; }) : null,
+    ]);
+  } finally {
+    if (all) checkingAll = false;
+  }
   await load();
   if (app && app.git === undefined) setStatus('updStatus', app.message || 'Check failed', 'err');
   if (os && !os.ok) setStatus('osStatus', os.message || 'Check failed', 'err');
@@ -354,7 +363,7 @@ function autoCheck() {
   if (!sys) return;
   const o = sys.os;
   const osStale = o && !o.busy && !sys.running && (!o.checked || Date.now() / 1000 - o.checked > OS_AUTO_CHECK_AFTER);
-  checkAll({ app: !!sys.app?.git && !sys.app.busy, os: !!osStale });
+  checkAll({ app: !!sys.app?.git && !sys.app.busy, os: !!osStale, all: true });
 }
 
 /** After an update or a reboot the server restarts; wait until it answers again, then reload. */
@@ -462,7 +471,7 @@ export function initSystem() {
   if (!$('sysBody')) return;   // the dashboard: only the E-stop
   document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
   load().then(autoCheck);
-  $('updCheckBtn').addEventListener('click', () => checkAll());
+  $('updCheckBtn').addEventListener('click', () => checkAll({ all: true }));
   $('appAct').addEventListener('click', () => ($('appAct').dataset.kind === 'ok' ? checkAll({ os: false }) : appRun('/api/update/apply', {
     title: `Install ${plural(sys?.app?.commits?.length || 0, 'change')}?`, ok: 'Install',
     text: 'The update comes from GitHub. The dashboard restarts and reloads itself; TNG and the machine are not interrupted.' })));
